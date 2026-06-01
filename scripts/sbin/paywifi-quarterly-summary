@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+# PAYWIFI-QUARTERLY-SUMMARY-2026-06-02 — once a quarter, scan update_logs
+# for the past 90 days and insert a single category='quarterly' row that
+# summarises what shipped. Driven by paywifi-quarterly-summary.timer.
+#
+# Skips itself: ignores existing category='quarterly' entries so the
+# summary doesn't recurse on subsequent quarters.
+
+set -uo pipefail
+
+DB=/var/lib/paywifi/paywifi.db
+CUTOFF=$(date -d '90 days ago' +%s 2>/dev/null || python3 -c "import time; print(int(time.time() - 90*86400))")
+NOW=$(date +%s)
+YEAR=$(date +%Y)
+MONTH=$(date +%m)
+
+# Map calendar month → quarter label
+case $((10#$MONTH)) in
+   1|2|3)   QTR=Q1 ;;
+   4|5|6)   QTR=Q2 ;;
+   7|8|9)   QTR=Q3 ;;
+   10|11|12) QTR=Q4 ;;
+esac
+QLABEL="$QTR $YEAR"
+
+# Don't double-write if today's row already exists for this quarter
+EXISTS=$(sqlite3 "$DB" "SELECT COUNT(*) FROM update_logs WHERE category='quarterly' AND title LIKE 'Quarterly summary — $QLABEL%';")
+if [ "$EXISTS" -gt 0 ]; then
+  echo "ok: quarterly summary for $QLABEL already present, skipping"
+  exit 0
+fi
+
+# Per-category counts in window
+COUNTS=$(sqlite3 -separator '=' "$DB" "
+  SELECT category, COUNT(*) FROM update_logs
+   WHERE created_at >= $CUTOFF
+     AND category != 'quarterly'
+   GROUP BY category ORDER BY 2 DESC;
+")
+
+TOTAL=$(sqlite3 "$DB" "SELECT COUNT(*) FROM update_logs WHERE created_at >= $CUTOFF AND category != 'quarterly';")
+
+# Most-recent entries in the window (up to 12) for the highlights
+HIGHLIGHTS=$(sqlite3 -separator $'\x1f' "$DB" "
+  SELECT id, category, substr(title, 1, 80), datetime(created_at,'unixepoch','+8 hours')
+    FROM update_logs
+   WHERE created_at >= $CUTOFF AND category != 'quarterly'
+   ORDER BY created_at DESC LIMIT 12;
+")
+
+# Build the markdown-ish body
+BODY=$(python3 <<PY
+import os
+counts_raw = """$COUNTS""".strip().splitlines()
+highlights = """$HIGHLIGHTS""".strip().splitlines()
+lines = []
+lines.append("Auto-generated summary for $QLABEL, covering the past 90 days.")
+lines.append("")
+lines.append("Activity breakdown:")
+if not counts_raw:
+    lines.append("  (no changelog activity in this window)")
+else:
+    for r in counts_raw:
+        if not r.strip(): continue
+        cat, n = r.split("=", 1)
+        lines.append("  • {cat}: {n}".format(cat=cat, n=n))
+lines.append("")
+lines.append("Highlights (most recent {n}):".format(n=len(highlights)))
+for h in highlights:
+    parts = h.split(chr(0x1f))
+    if len(parts) >= 4:
+        eid, cat, title, when = parts[:4]
+        lines.append("  [{cat}] #{eid}  {title}  ({when})".format(cat=cat, eid=eid, title=title, when=when))
+print("\n".join(lines))
+PY
+)
+
+# Insert
+sqlite3 "$DB" <<EOF
+INSERT INTO update_logs (title, body, category, author, created_at)
+VALUES ('Quarterly summary — $QLABEL ($TOTAL changelog entries)',
+        '$(echo "$BODY" | sed "s/'/''/g")',
+        'quarterly',
+        'system',
+        $NOW);
+EOF
+
+echo "ok: wrote quarterly summary for $QLABEL covering $TOTAL entries"

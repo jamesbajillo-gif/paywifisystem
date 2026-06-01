@@ -152,7 +152,7 @@
     <% rows.forEach(function(r) {
          var d = new Date((r.created_at || 0) * 1000);
          var when = d.toISOString().replace('T',' ').slice(0,16) + ' UTC';
-         var clr = ({feature:'var(--success)', fix:'var(--primary)', audit:'var(--muted-foreground)', security:'var(--destructive)'})[r.category] || 'var(--muted-foreground)';
+         var clr = ({feature:'var(--success)', fix:'var(--primary)', audit:'var(--muted-foreground)', security:'var(--destructive)', release:'var(--primary)', deploy:'var(--primary)', quarterly:'var(--success)', update:'var(--muted-foreground)'})[r.category] || 'var(--muted-foreground)';
     %>
       <div class="rounded-lg border p-5" style="background: var(--card); border-color: var(--border)">
         <div class="flex items-start justify-between gap-3">
@@ -167,8 +167,31 @@
             <button type="submit" class="text-xs" style="color: var(--destructive)">Delete</button>
           </form>
         </div>
-        <% if (r.body) { %>
-          <div class="text-sm mt-2 whitespace-pre-wrap leading-relaxed" style="color: var(--muted-foreground)"><%= r.body %></div>
+        <%# LINKIFY-COMMITS-2026-06-02 — clickable SHA links to the GitHub commit page %>
+        <% if (r.body) {
+             var REPO_URL = 'https://github.com/jamesbajillo-gif/paywifisystem';
+             // Escape body for HTML, then linkify SHA-looking tokens after HTML escape
+             function escape(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+             var escaped = escape(r.body);
+             // Linkify "• abcdef0  msg"  and bare 7-40-char hex SHAs
+             var bullet = /^(•\s+)([0-9a-f]{7,40})(\s+)/gm;
+             escaped = escaped.replace(bullet, function(_, dot, sha, sp){
+               return dot + '<a href="' + REPO_URL + '/commit/' + sha + '" target="_blank" rel="noopener" class="font-mono" style="color: var(--primary); text-decoration: underline">' + sha + '</a>' + sp;
+             });
+             // Also linkify "(commit abcdef0)" style references
+             escaped = escaped.replace(/\bcommit ([0-9a-f]{7,40})\b/g, function(_, sha){
+               return 'commit <a href="' + REPO_URL + '/commit/' + sha + '" target="_blank" rel="noopener" class="font-mono" style="color: var(--primary); text-decoration: underline">' + sha + '</a>';
+             });
+             var isLong = r.body.length > 240;
+        %>
+          <% if (isLong) { %>
+            <details class="mt-2" <%= (r.category === 'deploy' || r.category === 'release' || r.category === 'quarterly') ? 'open' : '' %>>
+              <summary class="cursor-pointer text-xs font-semibold" style="color: var(--primary)">View details</summary>
+              <div class="text-sm mt-2 whitespace-pre-wrap leading-relaxed" style="color: var(--muted-foreground)"><%- escaped %></div>
+            </details>
+          <% } else { %>
+            <div class="text-sm mt-2 whitespace-pre-wrap leading-relaxed" style="color: var(--muted-foreground)"><%- escaped %></div>
+          <% } %>
         <% } %>
         <div class="text-xs mt-3" style="color: var(--muted-foreground)"><%= when %> · <%= r.author || 'admin' %></div>
       </div>

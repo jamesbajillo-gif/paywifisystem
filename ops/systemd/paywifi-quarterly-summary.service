@@ -1,0 +1,9 @@
+[Unit]
+Description=PAYWIFI — quarterly auto-summary of update_logs activity
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/paywifi-quarterly-summary
+StandardOutput=journal
+StandardError=journal

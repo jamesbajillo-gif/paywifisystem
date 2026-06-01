@@ -1,0 +1,12 @@
+[Unit]
+Description=PAYWIFI — quarterly summary (1st of Jan/Apr/Jul/Oct at 02:00)
+
+[Timer]
+# First day of each calendar quarter at 02:00 local time
+OnCalendar=*-01,04,07,10-01 02:00:00
+Persistent=true
+AccuracySec=10min
+RandomizedDelaySec=15min
+
+[Install]
+WantedBy=timers.target
