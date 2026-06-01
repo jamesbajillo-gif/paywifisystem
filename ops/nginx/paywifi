@@ -397,9 +397,16 @@ server {
     }
 
     location @spa_redirect {
-        # SPA-FALLBACK-302-2026-06-02 — relative Location so Cloudflare passes
-        # the 302 through to the browser instead of internally following it.
-        absolute_redirect off;
-        return 302 /;
+        # SPA-FALLBACK-302-2026-06-02 — Cloudflare's edge transparently
+        # follows 30x redirects from origin and serves the redirect target
+        # body at the original URL, so an nginx-level 302 does not change
+        # the browser address bar through CF. Workaround: serve a minimal
+        # 200 page that performs the redirect on the client side. Both
+        # meta-refresh and JS path-replace fire so users without JS still
+        # get pushed to /.
+        default_type text/html;
+        add_header Cache-Control "no-store, no-cache, must-revalidate" always;
+        add_header X-PAYWIFI-Redirect "spa_fallback" always;
+        return 200 '<!doctype html><html><head><meta charset="utf-8"><title>PAYWIFI</title><meta http-equiv="refresh" content="0;url=/"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:system-ui;margin:0;padding:2rem;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#f8fafc;color:#0f172a}.b{text-align:center}.b a{color:#0ea5e9;text-decoration:underline}</style></head><body><div class="b"><p>Redirecting to PAYWIFI …</p><p><a href="/">Tap here if it doesn’t happen automatically</a></p></div><script>location.replace("/")</script></body></html>';
     }
 }
