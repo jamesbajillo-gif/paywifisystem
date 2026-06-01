@@ -1,0 +1,10 @@
+[Unit]
+Description=PAYWIFI — pull from GitHub and reconcile the running system
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/paywifi-update
+TimeoutStartSec=180
+StandardOutput=journal
+StandardError=journal

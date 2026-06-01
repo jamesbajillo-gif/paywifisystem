@@ -1,0 +1,10 @@
+[Unit]
+Description=PAYWIFI — fetch git status (writes /var/lib/paywifi/git-status.json)
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/paywifi-git-status
+TimeoutStartSec=30
+StandardOutput=journal
+StandardError=journal

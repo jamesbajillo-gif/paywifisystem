@@ -1,0 +1,112 @@
+#!/usr/bin/env bash
+# PAYWIFI-GIT-STATUS — fetch origin and write a compact JSON status file
+# the admin UI can read without needing repo write access.
+#
+# Output: /var/lib/paywifi/git-status.json
+#   {
+#     "ok":            true|false,
+#     "error":         "..." | null,
+#     "branch":        "main",
+#     "local":         { "sha": "abcdef0", "msg": "...", "when": 1780330000, "author": "..." },
+#     "remote":        { "sha": "abcdef0", "msg": "...", "when": 1780330000, "author": "..." },
+#     "behind":        0,                                # commits we're missing
+#     "ahead":         0,                                # commits we have that remote doesn't
+#     "commits":       [ { "sha": "...", "short": "...", "msg": "...", "when": ..., "author": "..." }, ... ],
+#     "fetched_at":    1780330000,
+#     "repo":          "/opt/paywifi-repo"
+#   }
+
+set -uo pipefail
+
+REPO=/opt/paywifi-repo
+OUT=/var/lib/paywifi/git-status.json
+BRANCH=main
+
+export GIT_SSH_COMMAND='ssh -i /root/.ssh/paywifi_github -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10'
+export HOME=/root
+
+mkdir -p "$(dirname "$OUT")"
+NOW=$(date +%s)
+
+cd "$REPO" 2>/dev/null || {
+  printf '{"ok":false,"error":"repo_missing","fetched_at":%s}\n' "$NOW" > "$OUT"
+  exit 2
+}
+
+# Fetch — capture stderr to surface auth/network failures cleanly
+ERR=$(git fetch --prune origin "$BRANCH" 2>&1 1>/dev/null) || {
+  python3 -c "
+import json, time
+print(json.dumps({
+  'ok': False,
+  'error': 'fetch_failed',
+  'stderr': '''$ERR'''.strip(),
+  'fetched_at': int(time.time()),
+  'repo': '$REPO',
+}))
+" > "$OUT"
+  exit 3
+}
+
+LOCAL_SHA=$(git rev-parse HEAD)
+REMOTE_SHA=$(git rev-parse "origin/$BRANCH")
+
+BEHIND=$(git rev-list --count "HEAD..origin/$BRANCH")
+AHEAD=$(git rev-list --count "origin/$BRANCH..HEAD")
+
+# Use a NUL-safe format the python step can split, no nested quotes in shell.
+SEP=$'\x1f'   # ASCII unit separator
+REC=$'\x1e'   # ASCII record separator
+
+# Local + remote head info
+LOCAL_INFO=$(git log -1 --format="%H${SEP}%s${SEP}%at${SEP}%an" HEAD)
+REMOTE_INFO=$(git log -1 --format="%H${SEP}%s${SEP}%at${SEP}%an" "origin/$BRANCH")
+
+# Up to 30 missing commits, oldest→newest
+COMMITS=$(git log --reverse --format="%H${SEP}%h${SEP}%s${SEP}%at${SEP}%an${REC}" -n 30 "HEAD..origin/$BRANCH" 2>/dev/null || echo "")
+
+NOW=$(date +%s)
+
+LOCAL_INFO="$LOCAL_INFO" REMOTE_INFO="$REMOTE_INFO" COMMITS="$COMMITS" \
+BEHIND="$BEHIND" AHEAD="$AHEAD" BRANCH="$BRANCH" NOW="$NOW" REPO="$REPO" \
+python3 -c "
+import json, os
+SEP = chr(0x1f); REC = chr(0x1e)
+
+def split(s, n):
+    parts = s.split(SEP)
+    while len(parts) < n: parts.append('')
+    return parts[:n]
+
+def head_dict(env):
+    if not env: return None
+    sha, msg, when, author = split(env, 4)
+    return { 'sha': sha, 'short': sha[:7], 'msg': msg, 'when': int(when or 0), 'author': author }
+
+commits = []
+for line in (os.environ.get('COMMITS') or '').split(REC):
+    line = line.strip()
+    if not line: continue
+    sha, short, msg, when, author = split(line, 5)
+    commits.append({ 'sha': sha, 'short': short or sha[:7], 'msg': msg, 'when': int(when or 0), 'author': author })
+
+out = {
+    'ok':         True,
+    'error':      None,
+    'branch':     os.environ.get('BRANCH'),
+    'local':      head_dict(os.environ.get('LOCAL_INFO')),
+    'remote':     head_dict(os.environ.get('REMOTE_INFO')),
+    'behind':     int(os.environ.get('BEHIND') or 0),
+    'ahead':      int(os.environ.get('AHEAD') or 0),
+    'commits':    commits,
+    'fetched_at': int(os.environ.get('NOW') or 0),
+    'repo':       os.environ.get('REPO'),
+}
+print(json.dumps(out))
+" > "$OUT"
+
+# Make the file readable by the API user
+chgrp paywifi "$OUT" 2>/dev/null || true
+chmod 640 "$OUT"
+
+echo "ok: fetched origin/$BRANCH, behind=$BEHIND ahead=$AHEAD"
