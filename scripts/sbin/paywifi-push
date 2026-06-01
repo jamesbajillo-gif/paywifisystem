@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+# PAYWIFI-PUSH — mirror the live gateway state into /opt/paywifi-repo,
+# commit, and push to origin/main.
+#
+# The gateway is the master source: edits happen live (admin UI, SSH,
+# scripted patches). This script captures those edits into git history.
+#
+# Commit message:
+#   1. /var/lib/paywifi/push-message.txt if it exists (admin UI writes this)
+#   2. Otherwise an auto-generated message based on the changed paths
+#
+# Idempotent: if nothing changed, exits 0 with "nothing to push".
+
+set -uo pipefail
+
+REPO=/opt/paywifi-repo
+MSG_FILE=/var/lib/paywifi/push-message.txt
+BRANCH=main
+
+export GIT_SSH_COMMAND='ssh -i /root/.ssh/paywifi_github -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15'
+export HOME=/root
+
+cd "$REPO" || { echo "repo missing at $REPO" >&2; exit 1; }
+
+ts=$(date '+%F %T')
+echo "$ts ── paywifi-push started ──"
+
+# ── pull first so we don't fast-forward into a force-push ───────────────────
+echo "$ts pulling origin/$BRANCH to stay current..."
+git fetch --quiet origin "$BRANCH"
+git checkout -q "$BRANCH"
+# Allow merge-and-continue if the remote moved (unlikely on gateway-master flow)
+if ! git merge --ff-only origin/"$BRANCH" >/dev/null 2>&1; then
+  echo "WARN: cannot fast-forward, will commit on top of local HEAD"
+fi
+
+# ── mirror live → repo ─────────────────────────────────────────────────────
+echo "$ts mirroring live paths into repo..."
+
+# api source + views (delete extras so the repo matches the gateway)
+rsync -a --delete --exclude='node_modules/' --exclude='*.bak.*' --exclude='*.bak-*' \
+  /opt/paywifi/api/src/   "$REPO/api/src/"
+if [ -d /opt/paywifi/api/views ]; then
+  rsync -a --delete --exclude='*.bak.*' --exclude='*.bak-*' \
+    /opt/paywifi/api/views/ "$REPO/api/views/"
+fi
+cp /opt/paywifi/api/package.json      "$REPO/api/" 2>/dev/null || true
+cp /opt/paywifi/api/package-lock.json "$REPO/api/" 2>/dev/null || true
+
+# portal-templates
+rsync -a --delete --exclude='*.bak.*' --exclude='*.bak-*' --exclude='node_modules/' \
+  /opt/paywifi/portal-templates/ "$REPO/portal-templates/"
+
+# helper scripts
+mkdir -p "$REPO/scripts/sbin"
+for f in /usr/local/sbin/paywifi-*; do
+  [ -f "$f" ] && cp -p "$f" "$REPO/scripts/sbin/$(basename "$f")"
+done
+
+# systemd units
+mkdir -p "$REPO/ops/systemd"
+for u in paywifi-api paywifi-sessiond paywifi-shape paywifi-watchdog cloudflared paywifi-git-status paywifi-update paywifi-quarterly-summary; do
+  for ext in .service .timer; do
+    src=/etc/systemd/system/${u}${ext}
+    [ -f "$src" ] && cp "$src" "$REPO/ops/systemd/$(basename "$src")"
+  done
+done
+# Belt and braces: scrub any inline tunnel token if it ever creeps back in
+sed -i -E 's/(--token )[A-Za-z0-9+/=._-]+/\1<REDACTED>/g' "$REPO/ops/systemd/cloudflared.service" 2>/dev/null || true
+
+# nginx / dnsmasq / sudoers
+mkdir -p "$REPO/ops/nginx" "$REPO/ops/dnsmasq" "$REPO/ops/sudoers"
+cp /etc/nginx/sites-available/paywifi "$REPO/ops/nginx/paywifi"
+cp /etc/dnsmasq.d/paywifi.conf        "$REPO/ops/dnsmasq/paywifi.conf"
+for f in /etc/sudoers.d/paywifi*; do [ -f "$f" ] && cp "$f" "$REPO/ops/sudoers/$(basename "$f")"; done
+
+# ── commit + push ──────────────────────────────────────────────────────────
+git config user.email "admin@itsbuzzmarketing.com"
+git config user.name  "PAYWIFI Gateway"
+
+git add -A
+
+if git diff --cached --quiet; then
+  echo "$ts nothing to push — repo already matches live gateway"
+  rm -f "$MSG_FILE" 2>/dev/null
+  exit 0
+fi
+
+# Determine commit message
+if [ -s "$MSG_FILE" ]; then
+  COMMIT_MSG=$(cat "$MSG_FILE")
+  rm -f "$MSG_FILE"
+else
+  # auto-summarise changed paths into a single-line message
+  CHANGED=$(git diff --cached --name-only | head -10 | tr '\n' ' ')
+  COUNT=$(git diff --cached --name-only | wc -l)
+  COMMIT_MSG="Gateway snapshot: $COUNT files changed ($CHANGED)"
+fi
+
+echo "$ts committing: ${COMMIT_MSG%%$'\n'*}"
+git commit -q -m "$COMMIT_MSG" --author "PAYWIFI Gateway <admin@itsbuzzmarketing.com>"
+
+echo "$ts pushing to origin/$BRANCH..."
+git push origin "$BRANCH" 2>&1 | tail -10
+
+echo "$ts ── paywifi-push done ──"

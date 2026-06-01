@@ -1,5 +1,7 @@
 # PAYWIFI-UPDATE-2026-06-02 — admin UI triggers update workflow over systemd
 paywifi ALL=(root) NOPASSWD: /bin/systemctl start paywifi-git-status.service
 paywifi ALL=(root) NOPASSWD: /bin/systemctl start paywifi-update.service
+paywifi ALL=(root) NOPASSWD: /bin/systemctl start paywifi-push.service
 paywifi ALL=(root) NOPASSWD: /bin/systemctl is-active paywifi-update.service
 paywifi ALL=(root) NOPASSWD: /bin/systemctl is-active paywifi-git-status.service
+paywifi ALL=(root) NOPASSWD: /bin/systemctl is-active paywifi-push.service
