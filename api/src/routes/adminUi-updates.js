@@ -96,16 +96,57 @@ router.post('/updates/git/fetch', (req, res) => {
   res.redirect('/admin/updates');
 });
 
-// POST /admin/updates/git/deploy — trigger paywifi-update (oneshot unit)
+// POST /admin/updates/git/deploy — trigger paywifi-update (oneshot unit).
+// AUTO-CHANGELOG-2026-06-02 — snapshot the git status before + after, and if
+// the local HEAD actually changed (i.e. real new commits were pulled), append
+// a row to update_logs summarizing what shipped. Manual changelog entries
+// remain user-driven; this only fires on actual deploys.
 router.post('/updates/git/deploy', (req, res) => {
+  const pre = readGitStatus();
   try {
     execFileSync('sudo', ['-n', '/bin/systemctl', 'start', 'paywifi-update.service'], { timeout: 120000 });
     audit(req.admin && req.admin.id, 'update_deploy', '', req.clientIp);
-    // After deploy, refresh the git status file so the page shows the new HEAD
+    // Refresh status so the page shows the new HEAD
     try {
       execFileSync('sudo', ['-n', '/bin/systemctl', 'start', 'paywifi-git-status.service'], { timeout: 15000 });
     } catch (e) {}
-    req.session.updateFlash = { kind: 'ok', message: 'Update applied. Scroll to "Deploy log" for the result.' };
+
+    // AUTO-CHANGELOG-2026-06-02 — write a changelog entry if the SHA changed
+    try {
+      const post = readGitStatus();
+      const preSha  = pre  && pre.local  && pre.local.sha;
+      const postSha = post && post.local && post.local.sha;
+      if (preSha && postSha && preSha !== postSha) {
+        const commits = (pre && pre.commits) || [];
+        // pre.commits is HEAD..origin BEFORE pull — these are exactly what got applied
+        const applied = commits.filter(c => c && c.sha);
+        const newest  = applied[applied.length - 1] || (post.local || {});
+        const oldestShort = (applied[0] && applied[0].short) || preSha.slice(0, 7);
+        const newestShort = (post.local && post.local.short) || postSha.slice(0, 7);
+        const title = `Deployed ${applied.length || 1} commit${applied.length === 1 ? '' : 's'}: ${oldestShort} → ${newestShort}`;
+        const lines = [];
+        lines.push(`Pulled from origin/${(post && post.branch) || 'main'} via /admin/updates.`);
+        lines.push('');
+        if (applied.length) {
+          lines.push('Commits applied (oldest → newest):');
+          applied.forEach(c => lines.push(`• ${c.short}  ${c.msg}`));
+        } else {
+          // Shouldn't happen if SHA changed, but defensive fallback.
+          lines.push(`Local HEAD moved ${preSha.slice(0,7)} → ${postSha.slice(0,7)}.`);
+        }
+        lines.push('');
+        lines.push(`Triggered by ${(req.admin && req.admin.username) || 'admin'} at ${new Date().toISOString()}`);
+        db.prepare(
+          'INSERT INTO update_logs (title, body, category, author, created_at) VALUES (?, ?, ?, ?, ?)'
+        ).run(title.slice(0, 200), lines.join('\n').slice(0, 20000),
+              'deploy', (req.admin && req.admin.username) || 'admin', Math.floor(Date.now() / 1000));
+        req.session.updateFlash = { kind: 'ok', message: `Deployed ${applied.length || 1} commits. Changelog entry added below.` };
+      } else {
+        req.session.updateFlash = { kind: 'ok', message: 'Re-synced — no new commits, no changelog entry written.' };
+      }
+    } catch (e) {
+      req.session.updateFlash = { kind: 'ok', message: 'Update applied. (Changelog auto-write skipped: ' + String(e.message || e).slice(0, 100) + ')' };
+    }
   } catch (e) {
     req.session.updateFlash = { kind: 'err', message: 'Deploy failed: ' + String(e.message || e).slice(0, 200) };
   }
