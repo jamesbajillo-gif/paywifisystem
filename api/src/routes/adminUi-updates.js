@@ -58,7 +58,7 @@ router.get('/updates', (req, res) => {
     rows, cats, filter: cat,
     git, updateState, fetchState, deployLog,
     flash: req.session.updateFlash || null,
-    csrfToken: req.csrfToken ? req.csrfToken() : ''
+    
   });
   delete req.session.updateFlash;
 });
