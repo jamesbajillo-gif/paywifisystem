@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title><%= title || 'PAYWIFI Operator' %></title>
+<script src="/tailwind.js"></script>
+<script>
+  tailwind.config = { theme: { extend: {
+    colors: { brand: { 400:'oklch(0.62 0.16 245)', 500:'oklch(0.62 0.16 245)', 600:'oklch(0.55 0.17 245)' } },
+    borderRadius: { 'xl':'0.75rem', '2xl':'1rem' },
+  }}};
+</script>
+<style>
+  :root {
+    --radius: 1rem;
+    --background: oklch(0.985 0.005 240); --foreground: oklch(0.20 0.02 250);
+    --card: oklch(1 0 0); --primary: oklch(0.62 0.16 245); --primary-foreground: oklch(1 0 0);
+    --secondary: oklch(0.96 0.01 240); --muted-foreground: oklch(0.50 0.02 250);
+    --accent: oklch(0.95 0.02 240); --destructive: oklch(0.62 0.20 25);
+    --success: oklch(0.65 0.16 155); --border: oklch(0.92 0.01 240); --input: oklch(0.98 0.005 240);
+  }
+  html, body { height: 100%; }
+  body { background-color: var(--background); color: var(--foreground); font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; }
+  .code { font-family: ui-monospace, Menlo, monospace; letter-spacing: 0.05em; }
+  button, [role="button"] { min-height: 36px; }
+  input, select, textarea { background-color: var(--input); color: var(--foreground); min-height: 44px; font-size: 16px; border: 2px solid var(--border); border-radius: 0.75rem; padding: 0 0.75rem; }
+  input::placeholder { color: var(--muted-foreground); opacity: 0.7; }
+  .op-nav { background-color: var(--card); border-bottom: 1px solid var(--border); }
+  .op-nav a.nav-link { color: var(--muted-foreground); padding: 0.4rem 0.75rem; border-radius: 0.5rem; transition: all 120ms; text-decoration: none; }
+  .op-nav a.nav-link:hover { background: var(--secondary); color: var(--foreground); }
+  .op-nav a.nav-link.active { background: color-mix(in oklab, var(--primary) 10%, var(--card)); color: var(--primary); font-weight: 600; }
+</style>
+</head>
+<body class="min-h-screen">
+<% if (active && active !== 'login') { %>
+  <nav class="op-nav px-6 py-2.5 flex items-center gap-1 flex-wrap text-sm sticky top-0 z-30">
+    <a href="/operator/" class="font-bold text-base mr-3" style="color:var(--primary)">PAYWIFI</a>
+    <a href="/operator/"          class="nav-link <%= active==='dash'     ? 'active' : '' %>">Dashboard</a>
+    <a href="/operator/sales"     class="nav-link <%= active==='sales'    ? 'active' : '' %>">Sales</a>
+    <a href="/operator/settings"  class="nav-link <%= active==='settings' ? 'active' : '' %>">Settings</a>
+    <span class="ml-auto flex items-center gap-3 text-xs" style="color: var(--muted-foreground)">
+      <% if (operator) { %>
+        <span class="hidden sm:inline">Store:</span>
+        <span class="font-semibold" style="color: var(--foreground)"><%= operator.store_name %></span>
+        <span class="opacity-60">@<%= operator.username %></span>
+      <% } %>
+      <form method="POST" action="/operator/logout" class="inline">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+        <button class="hover:underline" style="color: var(--destructive)" type="submit">Logout</button>
+      </form>
+    </span>
+  </nav>
+<% } %>
+<main class="px-4 sm:px-6 py-6 max-w-5xl mx-auto"><%- body %></main>
+</body>
+</html>

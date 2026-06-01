@@ -1,0 +1,1261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>PAYWIFI</title>
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+
+<div class="app" id="app">
+
+  <!-- ═══ STICKY HEADER ═══ -->
+  <header class="header">
+    <div class="header-inner container">
+
+      <!-- Brand + timer -->
+      <div class="brand-row">
+        <div class="logo-box">
+          <!-- Wifi icon -->
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/>
+            <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1 id="app-name">PAYWIFI</h1>
+          <p id="app-subtitle">Pay-as-you-go Hotspot</p>
+        </div>
+        <div id="inline-alerts-header" class="inline-alerts inline-alerts-compact"></div>
+      </div>
+
+      <!-- Voucher card slot -->
+      <div class="voucher-slot">
+        <div class="vc">
+          <div class="vc-body">
+
+            <!-- Not-connected form -->
+            <div id="form-view">
+              <div class="connect-form">
+                <input id="voucher-input" class="code-input" autocomplete="off"
+                  autocapitalize="characters" placeholder="Enter voucher code" maxlength="16"/>
+                <button id="btn-connect" class="btn-connect">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/>
+                    <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/>
+                  </svg>
+                  <span id="connect-label">Connect</span>
+                </button>
+              </div>
+
+            </div>
+
+            <!-- Connected / session view -->
+            <div id="session-view" class="hidden session-view">
+              <div class="session-top">
+                <div class="big-timer">
+                  <div class="lbl">Time Remaining</div>
+                  <div class="val" id="session-timer">00:00:00</div>
+                </div>
+                <div class="usage-group">
+                  <div class="usage-item">
+                    <div class="lbl">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="8 17 12 21 16 17"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
+                      Download
+                    </div>
+                    <div class="val" id="bytes-in">0 B</div>
+                  </div>
+                  <div class="usage-item">
+                    <div class="lbl">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 7 12 3 8 7"/><line x1="12" y1="21" x2="12" y2="3"/></svg>
+                      Upload
+                    </div>
+                    <div class="val" id="bytes-out">0 B</div>
+                  </div>
+                </div>
+              </div>
+              <div class="progress-wrap">
+                <div class="progress-labels">
+                  <span>Session Progress</span>
+                  <span id="pct-label">100% remaining</span>
+                </div>
+                <div class="prog-bar"><div class="prog-fill" id="prog-fill" style="width:100%"></div></div>
+              </div>
+              <div id="session-queue-box" style="margin:.25rem 0 .65rem;padding:.6rem .7rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:.6rem">
+                <div style="font-size:.72rem;font-weight:700;color:#475569;margin-bottom:.4rem">Add more time — enter another voucher</div>
+                <div style="display:flex;gap:.4rem">
+                  <input id="queue-voucher-input" type="text" placeholder="Enter code" onkeydown="if(event.key==='Enter')addToQueue()" style="flex:1;min-width:0;padding:.45rem .6rem;border:1px solid #cbd5e1;border-radius:.45rem;font-size:.85rem;text-transform:uppercase" />
+                  <button id="queue-add-btn" onclick="addToQueue()" style="background:#f97316;color:#fff;border:none;border-radius:.45rem;padding:.45rem .9rem;font-weight:700;font-size:.8rem;cursor:pointer">Add</button>
+                </div>
+                <div id="queue-add-msg" style="font-size:.7rem;margin-top:.35rem;display:none"></div>
+              </div>
+              <button class="btn-buy" id="btn-startbrowsing">Start Browsing</button>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ═══ MAIN ═══ -->
+  <main class="main container">
+    <div id="inline-alerts" class="inline-alerts"></div>
+    <div class="main-grid">
+
+      <!-- Left column: widgets rendered from /api/portal/config -->
+      <div class="col-info" id="col-info"></div>
+
+      <!-- Right column: plans (desktop) -->
+      <div class="col-plans">
+        <div class="plans-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
+          Available Plans
+        </div>
+        <div class="plans-grid" id="plans-grid-desktop">
+          <!-- Populated by JS -->
+          <div style="grid-column:1/-1;padding:2rem;text-align:center;color:var(--gray-400);font-size:.875rem">Loading plans…</div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- ═══ MOBILE BOTTOM SHEET — Plans ═══ -->
+  <div class="sheet-wrap" id="sheet">
+    <button class="sheet-handle" id="sheet-toggle" aria-label="Toggle plans">
+      <div class="handle-pill"></div>
+      <div class="handle-label">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
+        <span>Available Plans</span>
+        <svg id="sheet-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+      </div>
+      <div id="plans-peek" class="plans-peek"></div>
+    </button>
+    <div class="sheet-body">
+      <div class="sheet-grid" id="plans-grid-mobile">
+        <div style="grid-column:1/-1;padding:2rem;text-align:center;color:var(--gray-400);font-size:.875rem">Loading plans…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ PENDING PAYMENT SHEET (replaces Available Plans when a payment is pending) ═══ -->
+  <div class="sheet-wrap pp-sheet" id="pp-sheet" style="display:none">
+    <button class="sheet-handle" id="pp-sheet-toggle" aria-label="Resume payment">
+      <div class="handle-pill"></div>
+      <div class="handle-label">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <span id="pp-sheet-label">Resume Payment</span>
+        <span id="pp-sheet-cd" style="color:#c2410c;font-weight:800;font-size:.8rem;margin-left:.1rem"></span>
+        <svg id="pp-sheet-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-left:auto"><polyline points="18 15 12 9 6 15"/></svg>
+      </div>
+      <div id="pp-sheet-summary" class="pp-sheet-summary"></div>
+    </button>
+    <div class="sheet-body" id="pp-sheet-body"></div>
+  </div>
+
+  <!-- ═══ DEVICE LIMIT MODAL ═══ -->
+  <div class="overlay" id="device-overlay">
+    <div class="modal" style="max-width:26rem">
+      <div class="modal-handle"><div class="handle-pill"></div></div>
+      <div class="device-modal-body">
+        <h2>⚠ Voucher Already in Use</h2>
+        <p>This voucher is active on another device. You can disconnect that device and connect here instead.</p>
+        <div id="device-list"></div>
+        <div class="device-modal-btns">
+          <button class="btn-dm-cancel" id="btn-dm-cancel">Cancel</button>
+          <button class="btn-dm-kick" id="btn-dm-kick">Disconnect &amp; Continue</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ BUY WIZARD MODAL ═══ -->
+  <div class="overlay" id="wizard-overlay">
+    <div class="modal">
+      <div class="modal-handle"><div class="handle-pill"></div></div>
+
+      <!-- Wizard header -->
+      <div class="modal-header">
+        <div class="modal-header-left">
+          <p id="wiz-step-label">Step 1 of 4</p>
+          <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+            <h2 id="wiz-step-title" style="margin:0">Select a Plan</h2>
+
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:.75rem">
+          <div class="step-dots" id="wiz-dots"></div>
+          <button class="btn-close" id="btn-wiz-close">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Context banner -->
+      <div id="wiz-ctx" class="ctx-banner hidden">
+        <div>
+          <div class="ctx-amount-lbl" id="ctx-lbl">Amount to Pay</div>
+          <div class="ctx-amount-val" id="ctx-amount">₱0</div>
+        </div>
+        <div class="ctx-divider"></div>
+        <div style="text-align:right">
+          <div class="ctx-method-lbl">
+            <span style="width:.375rem;height:.375rem;border-radius:50%;background:var(--green-500);display:inline-block"></span>
+            Payment Mode
+          </div>
+          <div class="ctx-method-name" id="ctx-method-name">—</div>
+        </div>
+      </div>
+
+      <!-- Scrollable body -->
+      <div class="modal-body">
+
+        <!-- Step 1: Plan selection -->
+        <div id="wiz-step-plan">
+          <p id="wiz-plan-hint" style="font-size:.875rem;color:var(--gray-500);margin-bottom:.875rem">Pick the WiFi plan you want.</p>
+          <div id="wiz-preselect-banner" class="hidden" style="display:flex;align-items:center;gap:.5rem;font-size:.8rem;background:#fff7ed;border:1px solid #fed7aa;border-radius:.625rem;padding:.45rem .75rem;margin-bottom:.75rem"><span style="color:var(--gray-500)">Paying with</span><span id="wiz-preselect-name" style="display:inline-flex;align-items:center"></span><button onclick="clearPreselectedPayment()" style="margin-left:auto;font-size:.75rem;color:#c2410c;background:none;border:none;cursor:pointer;font-weight:600;padding:0">Change</button></div>
+          <!-- Store Partner selector — cash payment only -->
+          <div id="wiz-store-selector" class="hidden" style="margin-bottom:.875rem">
+            <label style="display:block;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--gray-400);margin-bottom:.375rem">📍 Select Store Partner</label>
+            <select id="wiz-store-select" onchange="wizSelectStore(this.value)" style="width:100%;height:2.625rem;border:1.5px solid #e5e7eb;border-radius:.625rem;padding:0 .875rem;font-size:.88rem;font-family:inherit;color:#111827;background:#fff;outline:none;cursor:pointer">
+              <option value="">— Choose nearest store —</option>
+            </select>
+          </div>
+          <!-- Plan grid with store-required overlay -->
+          <div style="position:relative">
+            <div class="step-plans-grid" id="wiz-plans-grid"><!-- JS populated --></div>
+            <div id="wiz-plans-overlay" style="display:none;position:absolute;inset:0;background:rgba(249,250,251,.92);border-radius:.5rem;flex-direction:column;align-items:center;justify-content:center;gap:.375rem;text-align:center;padding:1.25rem">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+              <p style="font-size:.8rem;font-weight:600;color:#374151;margin:0">Select the nearest Store Partner first</p>
+            </div>
+          </div>
+          <div style="margin-top:1rem">
+            <label for="buyer-phone-plan" style="display:block;font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-400);margin-bottom:.4rem">Text my voucher code (optional)</label>
+            <input id="buyer-phone-plan" type="tel" inputmode="numeric" maxlength="13" placeholder="09XXXXXXXXX" autocomplete="tel" style="width:100%;padding:.6rem .75rem;border:1px solid #cbd5e1;border-radius:.5rem;font-size:.9rem" />
+            <p style="font-size:.68rem;color:var(--gray-400);margin-top:.3rem">We'll SMS your code here so you don't lose it. Works with any payment method.</p>
+          </div>
+          <!-- C-01: Privacy disclosure shown here too (plan step reached via widget) -->
+          <div id="wiz-plan-privacy-notice" style="margin-top:.875rem;padding:.625rem .75rem;background:#f0f9ff;border:1px solid #bae6fd;border-radius:.5rem;font-size:.72rem;color:#0369a1;line-height:1.55">
+            🔒 <strong>Privacy Notice:</strong> By proceeding, your IP address, device identifier, and transaction data will be stored to process your payment and maintain your session. This data is handled under RA 10173 (Data Privacy Act). <a href="/terms.html" onclick="openLegalModal();return false" style="color:#0284c7;font-weight:600;text-decoration:underline">View Privacy Policy</a>
+          </div>
+        </div>
+
+        <div id="wiz-step-checkout" class="hidden">
+          <p style="font-size:.875rem;color:var(--gray-500);margin-bottom:.875rem">Review your order and choose how to pay.</p>
+          <div class="order-summary" id="wiz-order-summary">
+            <div class="order-detail">
+              <div class="lbl">Selected Plan</div>
+              <div class="name" id="wiz-plan-name">—</div>
+              <div class="sub" id="wiz-plan-sub">—</div>
+            </div>
+            <div style="text-align:right;flex-shrink:0">
+              <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--gray-400);margin-bottom:.2rem">Amount to Pay</div>
+              <div class="order-price" id="wiz-plan-price">₱0</div>
+            </div>
+          </div>
+          <div id="wiz-fee-line" style="font-size:.74rem;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:.45rem;padding:.4rem .6rem;margin-top:.5rem;display:none"></div>
+          <div style="margin-top:1.125rem">
+            <p style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-400);margin-bottom:.5rem">How would you like to pay?</p>
+            <div class="wiz-pm-grid" id="wiz-pm-grid">
+              <p style="font-size:.8rem;color:var(--gray-400);grid-column:1/-1;text-align:center;padding:.5rem 0">Loading…</p>
+            </div>
+          </div>
+          <div style="margin-top:1rem">
+            <label for="buyer-phone-checkout" style="display:block;font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-400);margin-bottom:.4rem">Text my voucher code (optional)</label>
+            <input id="buyer-phone-checkout" type="tel" inputmode="numeric" maxlength="13" placeholder="09XXXXXXXXX" autocomplete="tel" style="width:100%;padding:.6rem .75rem;border:1px solid #cbd5e1;border-radius:.5rem;font-size:.9rem" />
+            <p style="font-size:.68rem;color:var(--gray-400);margin-top:.3rem">We'll SMS your code here so you don't lose it.</p>
+          </div>
+          <!-- C-01: Privacy disclosure (RA 10173 compliance) -->
+          <div style="margin-top:.875rem;padding:.625rem .75rem;background:#f0f9ff;border:1px solid #bae6fd;border-radius:.5rem;font-size:.72rem;color:#0369a1;line-height:1.55">
+            🔒 <strong>Privacy Notice:</strong> By proceeding, your IP address, device identifier, and transaction data will be stored to process your payment and maintain your session. This data is handled under RA 10173 (Data Privacy Act). <a href="/terms.html" onclick="openLegalModal();return false" style="color:#0284c7;font-weight:600;text-decoration:underline">View Privacy Policy</a>
+          </div>
+        </div>
+
+        <div id="wiz-step-pay" class="hidden">
+          <!-- Plan summary banner -->
+          <div id="wiz-pay-plan-banner" class="order-summary" style="margin-bottom:.875rem">
+            <div class="order-detail">
+              <div class="lbl">You are paying for</div>
+              <div class="name" id="wiz-pay-plan-name">—</div>
+              <div class="sub" id="wiz-pay-plan-sub">—</div>
+            </div>
+            <div style="text-align:right;flex-shrink:0">
+              <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--gray-400);margin-bottom:.2rem">Amount to Pay</div>
+              <div class="order-price" id="wiz-pay-plan-price">₱0</div>
+            </div>
+          </div>
+          <div id="wiz-pay-fee-line" style="font-size:.72rem;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:.45rem;padding:.35rem .6rem;margin-bottom:.75rem;display:none"></div>
+          <div id="wiz-pay-phone-wrap" style="margin-bottom:.75rem">
+            <label for="buyer-phone-pay" style="display:block;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--gray-400);margin-bottom:.35rem">Text my voucher code (optional)</label>
+            <input id="buyer-phone-pay" type="tel" inputmode="numeric" maxlength="13" placeholder="09XXXXXXXXX" autocomplete="tel" onchange="savePayPhone()" onblur="savePayPhone()" style="width:100%;padding:.55rem .7rem;border:1px solid #cbd5e1;border-radius:.5rem;font-size:.9rem" />
+            <p id="buyer-phone-pay-msg" style="font-size:.66rem;color:var(--gray-400);margin-top:.25rem">We\'ll SMS your code to this number.</p>
+          </div>
+          <div id="wiz-resumed-notice" class="hidden" style="background:#fff7ed;border:1px solid #fed7aa;border-radius:.5rem;padding:.35rem .6rem;font-size:.72rem;color:#92400e;margin-bottom:.75rem">⚠ Resuming your previous payment — cancel below to start a new one.</div>
+          <!-- Loading -->
+          <div id="wiz-pay-loading" style="text-align:center;padding:2rem 0">
+            <div class="spin" style="width:2rem;height:2rem;border:3px solid var(--gray-100);border-top-color:var(--orange-500);border-radius:50%;margin:0 auto .75rem"></div>
+            <p style="font-size:.875rem;color:var(--gray-500)">Setting up payment…</p>
+          </div>
+          <!-- QR code -->
+          <div id="wiz-pay-qr" class="hidden wiz-qr-box">
+            <img id="wiz-qr-logo" src="" alt="" style="max-height:2.5rem;max-width:7rem;object-fit:contain;display:none;margin-bottom:.125rem">
+            <div class="wiz-pay-status">
+              <div class="spin" style="width:.75rem;height:.75rem;border:2px solid var(--gray-200);border-top-color:var(--orange-400);border-radius:50%"></div>
+              <span id="wiz-pay-status-text">Waiting for payment…</span>
+            </div>
+            <img id="wiz-qr-img" src="" alt="QR Code" width="200" height="200"
+              style="border-radius:.75rem;border:4px solid var(--orange-100);display:block">
+            <p id="wiz-qr-hint" style="font-size:.75rem;color:var(--gray-500);text-align:center;max-width:200px">Scan to pay</p>
+            <a id="wiz-qr-open-link" href="#" rel="noopener" class="hidden" style="display:none;margin-top:.1rem;padding:.45rem 1.1rem;border-radius:.75rem;background:var(--orange-500);color:#fff;font-weight:700;font-size:.8rem;text-decoration:none;align-items:center;gap:.35rem">Open <span id="wiz-qr-open-name"></span> App &#8599;</a>
+            <div id="wiz-how-wrap" class="hidden" style="margin-top:.75rem;width:100%;background:#fff7ed;border:1px solid #fed7aa;border-radius:.75rem;padding:.6rem .75rem"><p style="font-size:.75rem;font-weight:700;color:#92400e;margin:0 0 .35rem">How to pay</p><ol id="wiz-how-ol" style="margin:0;padding-left:1.1rem;font-size:.78rem;color:#374151;line-height:1.75"></ol></div>
+          </div>
+          <!-- eWallet -->
+          <div id="wiz-pay-ewallet" class="hidden" style="text-align:center;padding:1rem 0 .5rem">
+            <p style="font-size:.875rem;color:var(--gray-600);margin-bottom:1.25rem">
+              Tap to open <strong id="wiz-ewallet-name">your eWallet</strong> and complete payment.
+            </p>
+            <a id="wiz-ewallet-link" href="#" rel="noopener" style="display:inline-flex;align-items:center;gap:.5rem;padding:.75rem 1.5rem;border-radius:.875rem;background:var(--orange-500);color:#fff;font-weight:700;font-size:.875rem;text-decoration:none">Open <span id="wiz-ewallet-name2">eWallet</span> <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
+            <div class="wiz-pay-status" style="margin-top:1.25rem">
+              <div class="spin" style="width:.75rem;height:.75rem;border:2px solid var(--gray-200);border-top-color:var(--orange-400);border-radius:50%"></div>
+              <span id="wiz-pay-status-text2">Waiting for confirmation…</span>
+            </div>
+          </div>
+          <!-- Manual instructions -->
+          <div id="wiz-pay-manual" class="hidden">
+            <div class="wiz-instructions" id="wiz-manual-text">Please go to the counter to pay.</div>
+          </div>
+          <!-- Error -->
+          <div id="wiz-pay-error" class="hidden" style="text-align:center;padding:1.5rem 0">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#f43f5e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin:0 auto .5rem;display:block"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <p style="color:#f43f5e;font-size:.875rem;font-weight:600;margin-bottom:.35rem" id="wiz-pay-error-msg">Something went wrong.</p>
+            <p style="color:var(--gray-500);font-size:.78rem;margin-bottom:1rem" id="wiz-pay-error-hint"></p>
+          </div>
+        </div>
+
+        <div id="wiz-step-success" class="hidden">
+          <div style="text-align:center;margin-bottom:1rem">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin:0 auto .5rem"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            <p style="font-size:.875rem;color:var(--gray-600)">Payment confirmed — your voucher is ready.</p>
+          </div>
+          <button class="voucher-code-box" id="wiz-voucher-box" onclick="copyWizardCode()">
+            <div class="tap-lbl">Voucher Code · Tap to Copy</div>
+            <div class="code" id="wiz-voucher-code">— — — —</div>
+            <div class="sub" id="wiz-voucher-sub"></div>
+            <div class="copy-hint">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              Copy code
+            </div>
+          </button>
+          <div id="wiz-queue-note" style="display:none;margin-top:.85rem;padding:.7rem .8rem;background:#eff6ff;border:1px solid #bfdbfe;border-radius:.6rem;font-size:.8rem;color:#1d4ed8;text-align:center"></div>
+        </div>
+
+      </div><!-- /modal-body -->
+
+      <!-- Footer actions -->
+      <div class="modal-footer" id="wiz-footer">
+        <!-- JS swaps these -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ STATUS BAR ═══ -->
+  <div class="statusbar">
+    <span class="status-dot disconnected" id="sb-dot"></span>
+    <span class="status-text disconnected" id="sb-text">Not Connected</span>
+    <span class="status-footer">Powered by PAYWIFI</span>
+    <span class="status-device">
+      <span id="sb-ip" class="hidden">—</span>
+      <span id="sb-sep" class="status-sep hidden">·</span>
+      <span id="sb-mac" class="hidden">—</span>
+    </span>
+    <button id="vh-toggle" class="vh-bar-btn" onclick="toggleVoucherHistory()" aria-expanded="false" hidden>🎫 Vouchers</button>
+  </div>
+  <div id="vh-panel" class="vh-panel" hidden><div class="vh-panel-head">Voucher history</div><div id="vh-body" class="vh-body"></div></div>
+
+</div><!-- /app -->
+
+<script src="/app.js?v=6"></script>
+<script>
+/* ── Helpers ── */
+function hms(s) {
+  s = Math.max(0, Math.round(s));
+  const h = String(Math.floor(s/3600)).padStart(2,'0');
+  const m = String(Math.floor((s%3600)/60)).padStart(2,'0');
+  const sc= String(s%60).padStart(2,'0');
+  return `${h}:${m}:${sc}`;
+}
+function fmtBytes(n) {
+  n = Number(n)||0;
+  if (n < 1024) return n+' B';
+  const u=['KB','MB','GB','TB']; let i=-1;
+  do { n/=1024; i++; } while(n>=1024&&i<u.length-1);
+  return n.toFixed(1)+' '+u[i];
+}
+function fmtAgo(ts){
+  const s=Math.floor(Date.now()/1000)-ts;
+  if(s<60) return s+'s ago';
+  if(s<3600) return Math.floor(s/60)+'m ago';
+  return Math.floor(s/3600)+'h ago';
+}
+function toast(msg){ /* lightweight toast via status bar flash — not implemented in skeleton */ }
+
+/* ── State ── */
+let session = null;          // null = not connected
+let sessionDuration = null;
+let plans = [];
+let sheetOpen = false;
+let paymentOptions = [];
+let storePartners = [];
+let wizState = { open:false, step:'plan', plan:null, payOption:null, paymentId:null, payType:null, payData:null, pollTimer:null, isResumed:false, rlRetry:0, selectedStore:null };
+let deviceRL = {limited:false, retry_after:0, cancel_cooldown:15, _t:null};
+let rlServerCfg = {max:3, win_min:15, gap_sec:15, cancel_cooldown:15};
+function optIsDisabled(o){var b=(o.badge||'').toLowerCase();return b==='not available'||b==='offline';}
+function optBadgeClass(o){var b=(o.badge||'').toLowerCase();return b==='offline'?'pm-badge-offline':b==='not available'?'pm-badge-unavail':'pm-badge-status';}
+function optAllowsAmount(o,amt){if(!o)return true;var mn=(o.min_amount==null||o.min_amount==='')?null:Number(o.min_amount);var mx=(o.max_amount==null||o.max_amount==='')?null:Number(o.max_amount);amt=Number(amt)||0;if(mn!=null&&amt<mn)return false;if(mx!=null&&amt>mx)return false;return true;}
+function optAmountLabel(o){if(!o)return '';var mn=(o.min_amount==null||o.min_amount==='')?null:Number(o.min_amount);var mx=(o.max_amount==null||o.max_amount==='')?null:Number(o.max_amount);if(mn!=null&&mx!=null)return 'For ₱'+mn+'–₱'+mx;if(mn!=null)return 'For ₱'+mn+'+';if(mx!=null)return 'For ₱'+mx+' & below';return '';}
+var feeCfg={pass:false,display:true};
+function _r2c(n){n=Number(n)||0;return Math.round(n*100)/100;}
+function optFeeAmt(o,base){if(!o)return 0;if((o.icon_key||'')==='cash'||!o.module_action)return 0;var pct=Number(o.fee_percent)||0,fix=Number(o.fee_fixed)||0;return Math.round((Number(base)||0)*pct+fix*100)/100;}
+function optTotal(o,base){base=Number(base)||0;return feeCfg.pass?_r2c(base+optFeeAmt(o,base)):base;}
+function fmtPeso(n){n=Number(n)||0;return Number.isInteger(n)?('₱'+n):('₱'+n.toFixed(2));}
+function feeTotalStr(o,base){var t=optTotal(o,base);return Number.isInteger(t)?String(t):t.toFixed(2);}
+function updateFeeLines(){
+  var base=wizState.plan?Number(wizState.plan.price):0,opt=wizState.payOption;
+  var cl=document.getElementById('wiz-fee-line'),pe=document.getElementById('wiz-plan-price');
+  if(cl&&pe){
+    if(opt&&opt.module_action&&(opt.icon_key||'')!=='cash'){
+      var fee=optFeeAmt(opt,base),total=optTotal(opt,base);
+      pe.textContent=fmtPeso(total);
+      if(feeCfg.pass&&fee>0){cl.style.display='';cl.innerHTML='Plan '+fmtPeso(base)+' + '+opt.name+' fee '+fmtPeso(fee)+' = <strong>'+fmtPeso(total)+'</strong>';}
+      else if(fee>0&&feeCfg.display){cl.style.display='';cl.innerHTML='✓ '+fmtPeso(fee)+' processing fee absorbed — you pay only '+fmtPeso(base)+'.';}
+      else{cl.style.display='none';}
+    } else { if(wizState.plan)pe.textContent=fmtPeso(base); cl.style.display='none'; }
+  }
+  var pp=document.getElementById('wiz-pay-plan-price'),pl=document.getElementById('wiz-pay-fee-line'),pd=wizState.payData;
+  if(pp){
+    if(pd&&pd.amount!=null)pp.textContent=fmtPeso(pd.amount);
+    if(pl){ if(pd&&pd.fee_mode==='pass_on'&&Number(pd.fee_amount)>0){pl.style.display='';pl.innerHTML='Plan '+fmtPeso(pd.base_amount)+' + fee '+fmtPeso(pd.fee_amount)+' = <strong>'+fmtPeso(pd.amount)+'</strong>';}else{pl.style.display='none';} }
+  }
+}
+function startDeviceRLCountdown(){if(deviceRL._t)clearInterval(deviceRL._t);deviceRL._t=setInterval(()=>{deviceRL.retry_after=Math.max(0,(deviceRL.retry_after||1)-1);if(!deviceRL.retry_after){deviceRL.limited=false;clearInterval(deviceRL._t);deviceRL._t=null;renderPaymentOptions(paymentOptions);renderWizPayOptions();}},1000);}
+let pollTimer = null;
+
+/* ── Load portal config ── */
+fetch('/api/portal/config').then(r=>r.json()).then(d=>{
+  window.PAYWIFI_PARTNER=(d&&d.partner)||{};
+  if(d.ok){
+    const displayName = d.branding?.portal_name || d.app?.name || 'PAYWIFI';
+    const tagline     = d.app?.tagline || '';
+    document.getElementById('app-name').textContent    = displayName;
+    document.getElementById('app-subtitle').textContent= tagline;
+    document.title = displayName;
+    // Free trial header button visibility
+    var ftBtn=document.getElementById('header-trial-btn');
+    if(ftBtn)ftBtn.style.display=(d.free_trial&&d.free_trial.enabled===false)?'none':'flex';
+    ftCheckStatus();
+    // Wire in footer powered-by
+    const sbFooter = document.querySelector('.status-footer');
+    if(sbFooter) sbFooter.textContent = 'Powered by ' + displayName;
+    renderWidgets(d.widgets||[]);
+    if(Array.isArray(d.store_partners))storePartners=d.store_partners;
+  }
+}).catch(()=>{});
+
+/* ── Load plans ── */
+function renderPlanCard(plan, targetId) {
+  const isActive = session && session.plan_name === plan.name;
+  const isConnected = !!session;
+  return `<div class="plan-card${isActive?' active':''}" data-plan-id="${plan.id}">
+    <div>
+      <span class="plan-speed">${plan.speed}</span>
+      <div class="plan-price">₱${plan.price}</div>
+      <div class="plan-name">${plan.duration_label}</div>
+    </div>
+    <button class="btn-buy"
+      onclick="openWizard(${plan.id})"
+      ${isActive?'disabled':''}
+    >${isActive
+      ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:.25rem"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>Active'
+      : isConnected ? 'Buy Voucher'
+      : 'Buy Voucher'}</button>
+  </div>`;
+}
+
+function renderPlans() {
+  const dg = document.getElementById('plans-grid-desktop');
+  const mg = document.getElementById('plans-grid-mobile');
+  const wg = document.getElementById('wiz-plans-grid');
+  const wg2 = document.getElementById('plans-grid-widget');
+  const html = plans.length
+    ? plans.map(p=>renderPlanCard(p)).join('')
+    : '<div style="grid-column:1/-1;padding:2rem;text-align:center;color:var(--gray-400);font-size:.875rem">No plans available.</div>';
+  dg.innerHTML = html;
+  mg.innerHTML = html;
+  if(wg2) wg2.innerHTML = html;
+  var pk=document.getElementById('plans-peek');if(pk){pk.innerHTML=plans.slice(0,4).map(function(p){return '<div class="plan-chip"><div class="amt">₱'+p.price+'</div><div class="dur">'+(p.duration_label||'')+'</div></div>';}).join('');}
+
+  // Wizard plan grid
+  if(wg) wg.innerHTML = plans.map(p=>{
+    const isSel=wizState.plan&&wizState.plan.id===p.id;
+    const inelig=wizState.payOption&&!optAllowsAmount(wizState.payOption,p.price);
+    if(inelig){
+      return `<button class="wizard-plan-btn" data-plan-id="${p.id}" disabled style="opacity:.45;cursor:not-allowed">
+        <div><span class="plan-speed">${p.speed}</span><div class="plan-price">₱${p.price}</div><div class="plan-name">${p.duration_label}</div></div>
+        <span class="arr" style="color:#b45309;font-size:.68rem">Not available in ${wizState.payOption.name}</span>
+      </button>`;
+    }
+    return `<button class="wizard-plan-btn${isSel?' selected':''}" data-plan-id="${p.id}" onclick="wizSelectPlan(${p.id})">
+      <div>
+        <span class="plan-speed">${p.speed}</span>
+        <div class="plan-price">₱${p.price}</div>
+        <div class="plan-name">${p.duration_label}</div>
+      </div>
+      <span class="arr">${isSel?'✓ Selected':'Select <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>'}</span>
+    </button>`;
+  }).join('');
+}
+
+fetch('/api/portal/plans').then(r=>r.json()).then(d=>{
+  if(d.ok){ plans=d.plans; renderPlans(); }
+}).catch(()=>{});
+
+/* ── Session polling ── */
+function applySession(data) {
+  if (!data.authenticated) {
+    setDisconnected();
+    return;
+  }
+  session = data;
+  if (!sessionDuration && data.started_at && data.expires_at)
+    sessionDuration = data.expires_at - data.started_at;
+
+  const rem = data.remaining_seconds || 0;
+  const pct = sessionDuration ? Math.min(100,(rem/sessionDuration)*100) : 100;
+
+
+
+  // Session view
+  document.getElementById('form-view').classList.add('hidden');
+  document.getElementById('session-view').classList.remove('hidden');
+
+  const timerEl = document.getElementById('session-timer');
+  timerEl.textContent = hms(rem);
+  timerEl.className = 'val' + (rem<300?' crit':rem<600?' warn':'');
+
+  document.getElementById('bytes-in').textContent  = fmtBytes(data.bytes_in);
+  document.getElementById('bytes-out').textContent = fmtBytes(data.bytes_out);
+  document.getElementById('pct-label').textContent = Math.round(pct)+'% remaining';
+
+  const fill = document.getElementById('prog-fill');
+  fill.style.width = pct+'%';
+  fill.className = 'prog-fill'+(pct<10?' crit':pct<20?' warn':'');
+
+  // Status bar
+  const dot  = document.getElementById('sb-dot');
+  const text = document.getElementById('sb-text');
+  dot.className  = 'status-dot connected';
+  text.className = 'status-text connected';
+  text.textContent = 'Connected' + (data.plan_name ? ' · '+data.plan_name : '');
+
+  // Device info in status bar
+  if(data.ip) {
+    document.getElementById('sb-ip').textContent = data.ip;
+    document.getElementById('sb-ip').classList.remove('hidden');
+    document.getElementById('sb-sep').classList.remove('hidden');
+  }
+
+  renderPlans();
+}
+
+function setDisconnected() {
+  session = null; sessionDuration = null;
+  document.getElementById('form-view').classList.remove('hidden');
+  document.getElementById('session-view').classList.add('hidden');
+
+
+
+  document.getElementById('sb-dot').className  = 'status-dot disconnected';
+  document.getElementById('sb-text').className = 'status-text disconnected';
+  document.getElementById('sb-text').textContent = 'Not Connected';
+  document.getElementById('sb-ip').classList.add('hidden');
+  document.getElementById('sb-sep').classList.add('hidden');
+  renderPlans();
+}
+
+async function pollSession() {
+  try {
+    const r = await fetch('/api/session/status');
+    const d = await r.json();
+    if(d.ok) applySession(d);
+  } catch(e) {}
+}
+
+pollSession();
+setInterval(pollSession, 10000);
+
+/* ── Connect ── */
+document.getElementById('btn-connect').addEventListener('click', submitVoucher);
+document.getElementById('voucher-input').addEventListener('keydown', e=>{ if(e.key==='Enter') submitVoucher(); });
+
+// Captive release: once a session is active, nudge the OS captive assistant to
+// re-validate so the mini-browser (iOS CNA / Android login) hands off to full
+// internet. The device is already firewall-authorized at this point.
+var _captiveReleased=false;
+function releaseCaptive(){
+  if(_captiveReleased) return; _captiveReleased=true;
+  var ua=navigator.userAgent||"";
+  try{ new Image().src='http://connectivitycheck.gstatic.com/generate_204?_='+Date.now(); }catch(e){}
+  try{ new Image().src='http://captive.apple.com/hotspot-detect.html?_='+Date.now(); }catch(e){}
+  // NOTE: do NOT navigate the page to a captive-probe URL — if DNS/DNAT routes it
+  // back to the portal it creates an infinite reload loop. The OS captive assistant
+  // re-probes on its own; with no DNS hijack + device authorized, it reaches the real
+  // Success/204 and releases. Background probes above are harmless nudges only.
+}
+async function submitVoucher(force=false) {
+  const code = document.getElementById('voucher-input').value.trim().toUpperCase();
+  if(!code){ return; }
+  const btn = document.getElementById('btn-connect');
+  const lbl = document.getElementById('connect-label');
+  btn.disabled = true;
+  lbl.textContent = 'Connecting…';
+
+  try {
+    const r = await fetch('/api/auth/voucher', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({code, force: force===true})
+    });
+    const d = await r.json().catch(()=>({}));
+
+    if(d.ok){ pollSession(); try{ releaseCaptive(); }catch(e){} document.getElementById('voucher-input').value=''; return; }
+
+    if(r.status===409 && d.code==='DEVICE_LIMIT'){
+      showDeviceModal(d.sessions||[], code);
+      return;
+    }
+
+    // Show error briefly in connect label
+    lbl.textContent = d.error || 'That code did not work. Please check it and try again.';
+    setTimeout(()=>{ lbl.textContent='Connect'; btn.disabled=false; }, 2500);
+    return;
+  } catch(e) {
+    lbl.textContent = 'Connection problem. Please try again.';
+    setTimeout(()=>{ lbl.textContent='Connect'; btn.disabled=false; }, 2500);
+    return;
+  }
+  btn.disabled = false;
+  lbl.textContent = 'Connect';
+}
+
+/* ── Start Browsing (hand off to the default browser) ── */
+(function(){var b=document.getElementById('btn-startbrowsing');if(!b)return;
+  b.addEventListener('click', function(){
+    try { window.open('https://www.google.com', '_blank'); } catch(e){}
+    try { window.location.href='https://www.google.com'; } catch(e){}
+  });
+})();
+
+/* ── Mobile sheet ── */
+document.getElementById('sheet-toggle').addEventListener('click',()=>{
+  sheetOpen = !sheetOpen;
+  document.getElementById('sheet').classList.toggle('open', sheetOpen);
+  const ch = document.getElementById('sheet-chevron');
+  ch.style.transform = sheetOpen ? 'rotate(180deg)' : '';
+});
+(function(){var t=document.getElementById('pp-sheet-toggle');if(!t)return;t.addEventListener('click',function(){
+  // Resume Payment goes straight to the wizard Step 3 of 4 - Complete Payment
+  if(typeof resumePending==='function') resumePending();
+});})();
+
+/* ── Buy Wizard ── */
+function openWizard(planId) {
+  if(typeof pendingPay!=='undefined'&&pendingPay){resumePending();return;}
+  if(wizState.pollTimer){ clearInterval(wizState.pollTimer); }
+  wizState = { open:true, step:'plan', plan:null, payOption:null, paymentId:null, payType:null, payData:null, pollTimer:null, isResumed:false, rlRetry:0, selectedStore:null };
+  const p = plans.find(x=>x.id===planId);
+  if(p) { wizState.step='checkout'; wizState.plan=p; }
+  renderWizard();
+  document.getElementById('wizard-overlay').classList.add('open');
+}
+function openWizardWithOption(optId) {
+  if(typeof pendingPay!=='undefined'&&pendingPay){resumePending();return;}
+  if(wizState.pollTimer) clearInterval(wizState.pollTimer);
+  if(deviceRL.limited && (paymentOptions.find(o=>o.id===optId)||{}).icon_key!=='cash') return;
+  const opt = paymentOptions.find(o => o.id === optId); if(!opt) { openWizard(null); return; }
+  wizState = {open:true,step:'plan',plan:null,payOption:opt,paymentId:null,payType:null,payData:null,pollTimer:null,fromWidget:true,selectedStore:null};
+  const cp3=document.getElementById('channel-dialog');if(cp3)cp3.classList.remove('open');
+  renderPlans(); renderWizard(); document.getElementById('wizard-overlay').classList.add('open');
+}
+function closeChannelDialog(){var d=document.getElementById('channel-dialog');if(d)d.classList.remove('open');}
+function clearPreselectedPayment(){const d=document.getElementById('channel-dialog');if(!d)return;const g=document.getElementById('channel-dialog-grid');if(g)g.innerHTML=paymentOptions.map(function(o){var s=wizState.payOption&&wizState.payOption.id===o.id;var sOff4=optIsDisabled(o),dis4=!sOff4&&deviceRL.limited&&o.icon_key!=='cash',amtOff4=!sOff4&&wizState.plan&&!optAllowsAmount(o,wizState.plan.price),blk4=sOff4||dis4||amtOff4;if(amtOff4)return'';var IS='width:100%;height:auto;max-height:3rem;object-fit:contain';var iconHtml=o.icon_url?'<img src="'+o.icon_url+'" alt="'+o.name+'" style="'+IS+(sOff4?';opacity:.5':'')+'">':'<div class="pm-icon-wrap pm-icon-wrap-'+(o.icon_key||'card')+'"'+(sOff4?' style="opacity:.5"':'')+'>'+(PM_ICONS[o.icon_key]||PM_ICONS.card)+'</div>';var bdg=sOff4?'<span class="pm-badge-pill '+optBadgeClass(o)+'"><span class="pm-badge-dot"></span>'+(o.badge||'Unavailable')+'</span>':amtOff4?'<span class="pm-badge-pill pm-badge-unavail"><span class="pm-badge-dot"></span>'+(optAmountLabel(o)||'Unavailable')+'</span>':dis4?'<span class="pm-badge-pill pm-badge-unavail"><span class="pm-badge-dot"></span>Unavailable</span>':'<span class="pm-badge-pill"><span class="pm-badge-dot"></span>'+(o.badge||'Payment Mode')+'</span>';if(blk4)return'<div class="pm-card pm-card-status-off" style="cursor:not-allowed;pointer-events:none"><div class="pm-card-icon-wrap">'+iconHtml+'</div><span class="pm-label">'+o.name+'</span>'+bdg+'</div>';return'<div onclick="pickChannel('+o.id+')" class="pm-card" style="cursor:pointer;'+(s?'border-color:#f97316;':'')+'" title="'+o.name+'"><div class="pm-card-icon-wrap">'+iconHtml+'</div><span class="pm-label">'+o.name+'</span>'+bdg+'</div>';}).join('');d.classList.add('open');}
+function pickChannel(id){const opt=paymentOptions.find(o=>o.id===id);if(opt&&wizState.plan&&!optAllowsAmount(opt,wizState.plan.price))return;if(opt){wizState.payOption=opt;wizState.fromWidget=true;}document.getElementById('channel-dialog').classList.remove('open');renderPlans();renderWizard();}
+function openLegalModal(){var ex=document.getElementById('legal-overlay');if(ex)ex.remove();var o=document.createElement('div');o.id='legal-overlay';o.className='overlay open';o.innerHTML='<div class="modal" style="max-width:32rem"><div class="modal-handle"><div class="handle-pill"></div></div>'+'<div class="modal-header"><div class="modal-header-left"><p>Legal</p><div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap"><h2 style="margin:0">Privacy Policy &amp; Terms</h2></div></div>'+'<button class="btn-close" onclick="closeLegalModal()" aria-label="Close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>'+'<div class="modal-body" style="padding:0"><iframe src="/terms.html?v='+Date.now()+'" title="Privacy Policy and Terms" style="width:100%;height:62vh;border:none;display:block"></iframe></div>'+'<div class="modal-footer"><button class="btn-confirm" onclick="closeLegalModal()">Close</button></div></div>';o.addEventListener('click',function(e){if(e.target===o)o.remove();});document.body.appendChild(o);}
+function closeLegalModal(){var o=document.getElementById('legal-overlay');if(o)o.remove();}
+function closeWizard() {
+  if(wizState.pollTimer){ clearInterval(wizState.pollTimer); }
+  document.getElementById('wizard-overlay').classList.remove('open');
+  const cp2=document.getElementById('channel-dialog');if(cp2)cp2.classList.remove('open');
+  wizState = { open:false, step:'plan', plan:null, payOption:null, paymentId:null, payType:null, payData:null, pollTimer:null, isResumed:false, rlRetry:0, selectedStore:null };
+  try { checkPendingPayment(); } catch(e){}
+}
+document.getElementById('btn-wiz-close').addEventListener('click', closeWizard);
+document.getElementById('wizard-overlay').addEventListener('click', e=>{
+  if(e.target===e.currentTarget) closeWizard();
+});
+
+function wizSelectPlan(planId) {
+  const p = plans.find(x=>x.id===planId);
+  if(!p) return;
+  wizState.plan = p;
+  // Update grid selection visually
+  const wg=document.getElementById('wiz-plans-grid');
+  if(wg){wg.querySelectorAll('.wizard-plan-btn').forEach(btn=>{
+    const bid=parseInt(btn.getAttribute('data-plan-id'));
+    btn.classList.toggle('selected',bid===planId);
+    const arr=btn.querySelector('.arr');
+    if(arr)arr.innerHTML=bid===planId?'✓ Selected':'Select <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
+  });}
+  // Update footer
+  const hasOpt=!!wizState.payOption;
+  const isCashSP=hasOpt&&wizState.payOption.icon_key==='cash';
+  const hasStoreSP=!!wizState.selectedStore;
+  const canNextSP=!isCashSP||hasStoreSP;
+  document.getElementById('wiz-footer').innerHTML=`
+    <button class="btn-cancel" onclick="closeWizard()">Cancel</button>
+    <button class="btn-confirm" onclick="wizConfirmPlan()" ${canNextSP?'':'disabled'}>
+      ${isCashSP&&!hasStoreSP?'Select a store first':hasOpt?'Pay ₱'+feeTotalStr(wizState.payOption,p.price)+' →':'Next →'}
+    </button>`;
+}
+
+function wizConfirmPlan() {
+  if(!wizState.plan) return;
+  if(wizState.payOption){continueToPayment();return;}
+  wizState.step='checkout';
+  renderWizard();
+}
+
+function renderWizard() {
+  const step = wizState.step;
+  try{_ppBarActions();}catch(e){}
+  try{_ppSyncInfo();}catch(e){}
+  (function(){var els=['buyer-phone-plan','buyer-phone-checkout','buyer-phone-pay'].map(function(id){return document.getElementById(id);}).filter(Boolean);var v='';els.forEach(function(e){if(e.value)v=v||e.value;});if(v)els.forEach(function(e){if(!e.value)e.value=v;});})();
+  const plan = wizState.plan;
+  const STEPS={plan:1,checkout:2,pay:3,success:4},stepNum=STEPS[step]||1,total=4;
+  const TITLES={plan:'Select Plan',checkout:'Payment',pay:'Complete Payment',success:'Confirmed'};
+
+  document.getElementById('wiz-step-label').textContent = `Step ${stepNum} of ${total}`;
+  document.getElementById('wiz-step-title').textContent = TITLES[step] || 'Select a Plan';
+  (function(){var wc=document.getElementById('btn-wiz-close');if(!wc)return;wc.innerHTML=step==='pay'?'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>':'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';wc.setAttribute('aria-label',step==='pay'?'Collapse':'Close');wc.title=step==='pay'?'Collapse':'Close';})();
+
+  const dotsEl=document.getElementById('wiz-dots');
+  dotsEl.innerHTML=Array.from({length:total},(_,i)=>{const n=i+1;return`<div class="dot ${n===stepNum?'active':n<stepNum?'done':'next'}"></div>`;}).join('');
+
+  // Show/hide steps
+  document.getElementById('wiz-step-plan').classList.toggle('hidden', step!=='plan');
+  document.getElementById('wiz-step-checkout').classList.toggle('hidden', step!=='checkout');
+  document.getElementById('wiz-step-pay').classList.toggle('hidden', step!=='pay');
+  document.getElementById('wiz-step-success').classList.toggle('hidden', step!=='success');
+
+  const pb=document.getElementById('wiz-preselect-banner');
+  if(pb){pb.classList.toggle('hidden',!wizState.payOption);if(wizState.payOption){const _nm=document.getElementById('wiz-preselect-name');if(_nm)_nm.innerHTML=wizState.payOption.icon_url?'<img src="'+wizState.payOption.icon_url+'" alt="'+wizState.payOption.name+'" style="max-height:1.25rem;max-width:4.5rem;object-fit:contain;vertical-align:middle">':'<strong style="color:#92400e">'+wizState.payOption.name+'</strong>';}}
+  const rn=document.getElementById('wiz-resumed-notice');if(rn)rn.classList.toggle('hidden',!(step==='pay'&&wizState.isResumed));
+  // Store selector + overlay — shown only on plan step for cash payment
+  if(step==='plan'){const isCash=wizState.payOption&&wizState.payOption.icon_key==='cash';const ss=document.getElementById('wiz-store-selector');const ov=document.getElementById('wiz-plans-overlay');if(ss)ss.classList.toggle('hidden',!isCash);if(isCash)renderStoreDropdown();if(ov)ov.style.display=(isCash&&!wizState.selectedStore)?'flex':'none';}
+  // Render payment options grid when on checkout
+  if (step==='checkout') renderWizPayOptions();
+
+  // Context banner — success step only (✓ Paid confirmation)
+  const ctx = document.getElementById('wiz-ctx');
+  if (step==='success' && plan) {
+    ctx.classList.remove('hidden');
+    ctx.className = 'ctx-banner paid';
+    document.getElementById('ctx-lbl').textContent    = '✓ Paid';
+    document.getElementById('ctx-amount').textContent = `₱${plan.price}`;
+    const _cm=document.getElementById('ctx-method-name'),_co=wizState.payOption;_cm.innerHTML=_co?(_co.icon_url?'<img src="'+_co.icon_url+'" alt="'+_co.name+'" style="max-height:1.5rem;max-width:5rem;object-fit:contain;vertical-align:middle">':'<strong>'+_co.name+'</strong>'):'—';
+  } else { ctx.classList.add('hidden'); }
+
+
+  // Order summary (checkout step)
+  if (step==='checkout' && plan) {
+    document.getElementById('wiz-plan-name').textContent = plan.name;
+    document.getElementById('wiz-plan-sub').textContent  = `${plan.speed} · ${plan.duration_label}`;
+    document.getElementById('wiz-plan-price').textContent= `₱${plan.price}`;
+  }
+  // Plan banner (pay step)
+  if (step==='pay' && plan) {
+    document.getElementById('wiz-pay-plan-name').textContent  = plan.name;
+    document.getElementById('wiz-pay-plan-sub').textContent   = `${plan.speed} · ${plan.duration_label}`;
+    document.getElementById('wiz-pay-plan-price').textContent = `₱${plan.price}`;
+  }
+  // Hide the optional voucher-SMS phone field in error/cancelled/rate-limited states
+  if (step==='pay') { var _pw=document.getElementById('wiz-pay-phone-wrap');if(_pw)_pw.style.display=(wizState.payType==='error'||wizState.payType==='rate_limited')?'none':''; }
+
+  try{updateFeeLines();}catch(e){}
+
+  // Footer
+  const footer = document.getElementById('wiz-footer');
+  if (step==='success') {
+    footer.innerHTML=`
+      <button class="btn-share" onclick="shareVoucher()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+        Share
+      </button>
+      <button class="btn-use" onclick="useVoucher()">
+        Use Voucher
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>`;
+  } else if (step==='plan') {
+    const hasPlan=!!wizState.plan,hasOpt=!!wizState.payOption;
+    const isCashFt=hasOpt&&wizState.payOption.icon_key==='cash';
+    const hasStoreFt=!!wizState.selectedStore;
+    const canNextFt=hasPlan&&(!isCashFt||hasStoreFt);
+    footer.innerHTML=`
+      <button class="btn-cancel" onclick="closeWizard()">Cancel</button>
+      <button class="btn-confirm" onclick="wizConfirmPlan()" ${canNextFt?'':'disabled'}>
+        ${!hasPlan?'Select a plan':isCashFt&&!hasStoreFt?'Select a store first':hasOpt?'Pay ₱'+feeTotalStr(wizState.payOption,wizState.plan.price)+' →':'Next →'}
+      </button>`;
+  } else if (step==='checkout') {
+    const hasOpt = !!wizState.payOption;
+    footer.innerHTML=`
+      <button class="btn-back" onclick="wizGoBack()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        Back
+      </button>
+      <button class="btn-confirm" onclick="continueToPayment()" ${hasOpt?'':'disabled'}>
+        ${hasOpt ? `Pay ₱${feeTotalStr(wizState.payOption, plan?plan.price:0)} →` : 'Select a method'}
+      </button>`;
+  } else if (step==='pay') {
+    const isLoading=!wizState.payType,isManual=wizState.payType==='manual',isError=wizState.payType==='error';
+    if(isError){footer.innerHTML='<button class="btn-cancel" onclick="closeWizard()" style="flex:1">Close</button>';}else if(isLoading){footer.innerHTML='<button class="btn-cancel" onclick="wizGoBack()">← Back</button>';}
+    else if(wizState.isResumed){footer.innerHTML='<button class="btn-cancel" onclick="cancelPayment()">✕ Cancel Payment</button><button class="btn-confirm" onclick="'+(isManual?'wizManualDone()':'wizClaimPaid()')+'">'+(isManual?"I Have My Code":"I've Already Paid")+'</button>';}
+    else if(wizState.payType==='rate_limited'){footer.innerHTML='<button class="btn-cancel" onclick="closeWizard()" style="flex:1">Close</button>';}
+    else{footer.innerHTML='<button class="btn-back" onclick="wizGoBack()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg> Back</button><button class="btn-confirm" onclick="'+(isManual?'wizManualDone()':'wizClaimPaid()')+'">'+(isManual?"I Have My Code":"I've Already Paid")+'</button>';}
+  }
+}
+
+/* ── Wizard payment option rendering ── */
+function renderWizPayOptions() {
+  const grid = document.getElementById('wiz-pm-grid');
+  if (!grid) return;
+  if (!paymentOptions.length) {
+    grid.innerHTML = '<p style="font-size:.8rem;color:var(--gray-400);grid-column:1/-1;text-align:center;padding:.5rem 0">No payment options configured.</p>';
+    return;
+  }
+  grid.innerHTML = paymentOptions.map(opt => {
+    const sel = wizState.payOption && wizState.payOption.id === opt.id;
+    const sOff3=optIsDisabled(opt),dis3=!sOff3&&(deviceRL.limited||wizState.rlRetry>0)&&opt.icon_key!=='cash',amtOff3=!sOff3&&wizState.plan&&!optAllowsAmount(opt,wizState.plan.price),blk3=sOff3||dis3||amtOff3;
+    if(amtOff3) return '';
+    if((opt.icon_key||'').toLowerCase()==='cash'){
+      const noPartner = typeof storePartners==='undefined'||!storePartners||!storePartners.length;
+      const storeIcon='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:1.75rem;height:1.75rem;color:#16a34a"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>';
+      const cashIcon=opt.icon_url?`<img src="${opt.icon_url}" alt="${opt.name}" style="width:2.75rem;height:2.75rem;object-fit:contain${sOff3?';opacity:.5':''}">`:`<div class="pm-icon-wrap pm-icon-wrap-cash"${sOff3?' style="opacity:.5"':''}>${storeIcon}</div>`;
+      const cashBadge=noPartner?'<span class="pm-badge-pill" style="background:#fff7ed;color:#c2410c;border:1px solid #fed7aa"><span class="pm-badge-dot" style="background:#f97316"></span>No Partner Available</span>':(sOff3?`<span class="pm-badge-pill ${optBadgeClass(opt)}"><span class="pm-badge-dot"></span>${opt.badge||'Unavailable'}</span>`:`<span class="pm-badge-pill"><span class="pm-badge-dot"></span>${opt.badge||'Payment Mode'}</span>`);
+      const cashAction=noPartner?'onclick="openPartnerInfoPanel()" style="cursor:pointer"':(blk3?'style="cursor:not-allowed;pointer-events:none"':`onclick="selectWizPayOption(${opt.id})"`);
+      const cashSub=noPartner?'Partner stores coming soon.':'Bumili sa tindahan.';
+      return `<div class="pm-card pm-card-wide${sel?' selected':''}${(blk3&&!noPartner)?' rl-disabled':''}" ${cashAction}>${cashBadge}<div class="pm-card-icon-wrap">${cashIcon}</div><div class="pm-card-text"><span class="pm-card-title">Cash Payment</span><span class="pm-card-sub">${cashSub}</span></div></div>`;
+    }
+    const btnBase=`wiz-pm-card${sel?' selected':''}${blk3?' rl-disabled':''}`;
+    const btnAttrs=`onclick="selectWizPayOption(${opt.id})" ${blk3?'disabled':''}`;
+    const iconHtml=opt.icon_url?`<img src="${opt.icon_url}" alt="${opt.name}" style="width:100%;height:auto;max-height:3rem;object-fit:contain${sOff3?';opacity:.5':''}">` :`<div class="pm-icon-wrap pm-icon-wrap-${opt.icon_key||'card'}"${sOff3?' style="opacity:.5"':''}>` +(PM_ICONS[opt.icon_key]||PM_ICONS.card)+`</div>`;
+    const bdg=sOff3?`<span class="pm-badge-pill ${optBadgeClass(opt)}"><span class="pm-badge-dot"></span>${opt.badge||'Unavailable'}</span>`:amtOff3?`<span class="pm-badge-pill pm-badge-unavail"><span class="pm-badge-dot"></span>${optAmountLabel(opt)||'Unavailable'}</span>`:dis3?`<span class="pm-badge-pill pm-badge-unavail"><span class="pm-badge-dot"></span>Unavailable</span>` :`<span class="pm-badge-pill"><span class="pm-badge-dot"></span>${opt.badge||'Payment Mode'}</span>`;
+    return `<button class="${btnBase}" ${btnAttrs}><div class="pm-card-icon-wrap">${iconHtml}</div><span class="pm-label" style="font-size:.75rem">${opt.name}</span>${bdg}</button>`;
+  }).join('');
+}
+
+function selectWizPayOption(optId) {
+  const _opt=paymentOptions.find(o=>o.id===optId)||{};if(optIsDisabled(_opt))return;if(wizState.rlRetry>0&&_opt.icon_key!=='cash')return;if(wizState.plan&&!optAllowsAmount(_opt,wizState.plan.price))return;
+  wizState.payOption = paymentOptions.find(o => o.id === optId) || null;
+  renderWizPayOptions();
+  try{updateFeeLines();}catch(e){}
+  // Re-render footer to enable/update the Continue button
+  const plan = wizState.plan;
+  const footer = document.getElementById('wiz-footer');
+  footer.innerHTML=`
+    <button class="btn-back" onclick="wizGoBack()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      Back
+    </button>
+    <button class="btn-confirm" onclick="continueToPayment()">
+      Pay ₱${plan ? plan.price : '—'} →
+    </button>`;
+}
+
+function wizGoBack() {
+  if (wizState.pollTimer) { clearInterval(wizState.pollTimer); wizState.pollTimer = null; }
+  if (wizState.step === 'pay') {
+    wizState.step = wizState.fromWidget ? 'plan' : 'checkout'; wizState.payType = null; wizState.paymentId = null; wizState.payData = null; wizState.isResumed = false;
+  } else if (wizState.step === 'checkout') {
+    wizState.step = 'plan'; wizState.payOption = null;
+  }
+  renderWizard();
+}
+async function cancelPayment(){
+  if(wizState.pollTimer){clearInterval(wizState.pollTimer);wizState.pollTimer=null;}
+  try{await fetch('/api/portal/payment/cancel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({payment_id:wizState.paymentId})});}catch(e){}
+  deviceRL.limited=true;deviceRL.retry_after=deviceRL.cancel_cooldown||15;startDeviceRLCountdown();renderPaymentOptions(paymentOptions);
+  wizState.isResumed=false;showWizPayError('Payment cancelled.','Reason: Cancelled — tap Back to try a different payment method.');
+}
+
+async function continueToPayment() {
+  if (!wizState.payOption || !wizState.plan) return;
+  const _buyerPhone = (document.getElementById('buyer-phone-plan')||{}).value || (document.getElementById('buyer-phone-checkout')||{}).value || '';   // capture before re-render
+  wizState.step    = 'pay';
+  wizState.payType = null;   // triggers loading state
+  renderWizard();
+
+  try {
+    const r = await fetch('/api/portal/payment/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ plan_id: wizState.plan.id, option_id: wizState.payOption.id, phone: _buyerPhone })
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!d.ok) { showWizPayError(d.error || 'Could not start payment.', d.code === 'CHANNEL_NOT_ACTIVATED' ? 'Please go back and select a different payment method.' : ''); return; }
+    if (d.error==='rate_limited') { showRateLimited(d.retry_after||60, d.reason); return; }
+    if (d.existing) {
+      wizState.isResumed = true;
+      if (d.plan) wizState.plan = d.plan;
+      // Restore the original payment channel so all displays show the correct method
+      const origOpt = paymentOptions.find(o => o.id === d.option_id)
+                   || paymentOptions.find(o => o.name === d.channel_name);
+      if (origOpt) wizState.payOption = origOpt;
+    }
+    wizState.paymentId = d.payment_id;
+    wizState.payType   = d.type;
+    wizState.payData   = d;
+    deviceRL.limited   = false;
+    showPayStep(d);
+    if (d.type !== 'manual') {
+      wizState.pollTimer = setInterval(pollPaymentStatus, 3000);
+    }
+  } catch (e) {
+    showWizPayError('Connection problem. Please try again.');
+  }
+}
+
+function showPayStep(data) {
+  try { var _ppf=document.getElementById('buyer-phone-pay'); if(_ppf){ var pre=(document.getElementById('buyer-phone-plan')||{}).value||(document.getElementById('buyer-phone-checkout')||{}).value||(data&&data.buyer_phone?_to09(data.buyer_phone):'')||_ppf.value||''; _ppf.value=pre; var _m=document.getElementById('buyer-phone-pay-msg'); if(_m){_m.textContent=pre?("We'll SMS your code to "+pre):"We'll SMS your code to this number.";_m.style.color='';} } } catch(e){}
+  ['loading','qr','ewallet','manual','error'].forEach(k => {
+    const el = document.getElementById('wiz-pay-'+k);
+    if (el) el.classList.add('hidden');
+  });
+  const type = data.type;
+  if (type === 'qr_code' || (type === 'ewallet' && data.qr_image)) {
+    const el = document.getElementById('wiz-pay-qr');
+    el.classList.remove('hidden');
+    if (data.qr_image) { document.getElementById('wiz-qr-img').src = data.qr_image; }
+    const logoEl = document.getElementById('wiz-qr-logo');
+    if (logoEl) {
+      const iconUrl = wizState.payOption ? wizState.payOption.icon_url : null;
+      if (iconUrl) { logoEl.src = iconUrl; logoEl.alt = wizState.payOption.name; logoEl.style.display = 'block'; }
+      else { logoEl.style.display = 'none'; }
+    }
+    const hintEl = document.getElementById('wiz-qr-hint');
+    const openLinkEl = document.getElementById('wiz-qr-open-link');
+    if (type === 'ewallet') {
+      const name = wizState.payOption ? wizState.payOption.name : 'eWallet';
+      if (hintEl) hintEl.textContent = 'Scan to open ' + name + ' app';
+      if (openLinkEl && data.checkout_url) { openLinkEl.href = data.checkout_url; document.getElementById('wiz-qr-open-name').textContent = name; openLinkEl.style.display = 'inline-flex'; openLinkEl.classList.remove('hidden'); if(isMobile){openLinkEl.removeAttribute('target');openLinkEl.style.width='100%';openLinkEl.style.justifyContent='center';openLinkEl.style.padding='.65rem 1.1rem';openLinkEl.style.fontSize='.9rem';openLinkEl.onclick=function(e){e.preventDefault();location.href=this.href;};}else{openLinkEl.setAttribute('target','_blank');openLinkEl.onclick=null;} }
+    } else {
+      if (hintEl) hintEl.textContent = 'Scan to pay';
+      if (openLinkEl) { openLinkEl.style.display = 'none'; openLinkEl.classList.add('hidden'); }
+    }
+    const hwOl=document.getElementById('wiz-how-ol'),hwWrap=document.getElementById('wiz-how-wrap');
+    if(hwOl){const amt=data.amount||(wizState.plan?wizState.plan.price:'—'),nm=wizState.payOption?wizState.payOption.name:'eWallet';const custRaw=wizState.payOption&&wizState.payOption.instructions;const custSteps=custRaw?custRaw.split('\n').map(s=>s.trim().replace(/\{amount\}/g,amt).replace(/\{channel\}/g,nm)).filter(Boolean):null;const steps=custSteps&&custSteps.length?custSteps:(type==='qr_code'?['Open any <strong>QR Ph–enabled banking app</strong> (BPI, Metrobank, UnionBank, etc.)','Tap <strong>Scan QR</strong> and scan the QR code above','Send exactly <strong>₱'+amt+'</strong>','Come back here and tap <strong>Confirm Payment</strong>']:['Scan the QR code with your <strong>'+nm+'</strong> app','Complete the payment of <strong>₱'+amt+'</strong>','Return here — payment confirms automatically']);hwOl.innerHTML=steps.map(s=>'<li>'+s+'</li>').join('');if(hwWrap)hwWrap.classList.remove('hidden');}
+  } else if (type === 'ewallet') {
+    const el = document.getElementById('wiz-pay-ewallet');
+    el.classList.remove('hidden');
+    const name = wizState.payOption ? wizState.payOption.name : 'eWallet';
+    document.getElementById('wiz-ewallet-name').textContent  = name;
+    document.getElementById('wiz-ewallet-name2').textContent = name;
+    const link = document.getElementById('wiz-ewallet-link');
+    if (data.checkout_url) link.href = data.checkout_url;
+    if(isMobile){link.removeAttribute('target');link.style.width='100%';link.style.justifyContent='center';link.onclick=function(e){e.preventDefault();location.href=this.href;};}else{link.setAttribute('target','_blank');link.onclick=null;}
+  } else if (type === 'otc') {
+    const el = document.getElementById('wiz-pay-manual');
+    el.classList.remove('hidden');
+    const txt = document.getElementById('wiz-manual-text');
+    const code = data.payment_code || '—';
+    txt.innerHTML = `Show this payment code at any <strong>7-Eleven</strong> or <strong>Cebuana Lhuillier</strong> branch:<br><br><span style="display:block;font-size:1.5rem;font-weight:700;letter-spacing:.15em;font-family:monospace;text-align:center;padding:.5rem 0;color:var(--orange-500)">${code}</span><br>Pay <strong>₱${data.amount}</strong> for the <strong>${wizState.plan ? wizState.plan.name : 'plan'}</strong>. Once paid, tap <em>I Have My Code</em> below.`;
+  } else if (type === 'va') {
+    const el = document.getElementById('wiz-pay-manual');
+    el.classList.remove('hidden');
+    const txt = document.getElementById('wiz-manual-text');
+    const acct = data.va_number || '—';
+    txt.innerHTML = `Transfer <strong>₱${data.amount}</strong> to this virtual account:<br><br><span style="display:block;font-size:1.25rem;font-weight:700;letter-spacing:.1em;font-family:monospace;text-align:center;padding:.5rem 0;color:var(--orange-500)">${acct}</span><br>Once the transfer is confirmed, tap <em>I Have My Code</em> below.`;
+  } else {
+    const el = document.getElementById('wiz-pay-manual');
+    el.classList.remove('hidden');
+    const txt = document.getElementById('wiz-manual-text');
+    const _mAmt=data.amount||(wizState.plan?wizState.plan.price:'—'),_mNm=wizState.payOption?wizState.payOption.name:'';
+    const _mInst=wizState.payOption&&wizState.payOption.instructions;
+    const _isCash=wizState.payOption&&wizState.payOption.icon_key==='cash';
+    if(_isCash){
+      txt.innerHTML=buildCashInstructions(_mAmt);
+    } else if(_mInst){
+      txt.innerHTML=_mInst.split('\n').map(s=>s.trim().replace(/\{amount\}/g,_mAmt).replace(/\{channel\}/g,_mNm)).filter(Boolean).map(s=>'<p style="margin:.25rem 0">'+s+'</p>').join('');
+    } else {
+      txt.innerHTML=`Go to the <strong>counter</strong> and pay <strong>₱${data.amount || (wizState.plan ? wizState.plan.price : '—')}</strong> for the <strong>${wizState.plan ? wizState.plan.name : 'plan'}</strong>.<br><br>Once you have the code, tap <em>I Have My Code</em> below.`;
+    }
+  }
+  renderWizard();
+}
+
+function showRateLimited(sec,rsn){['loading','qr','ewallet','manual'].forEach(k=>{const e=document.getElementById('wiz-pay-'+k);if(e)e.classList.add('hidden');});
+const e=document.getElementById('wiz-pay-error');if(e)e.classList.remove('hidden');const m=document.getElementById('wiz-pay-error-msg'),h=document.getElementById('wiz-pay-error-hint');if(m)m.textContent='Too many payment attempts. Try again later.';
+if(h)h.innerHTML='<strong>Cash payment is still available.</strong> Online access restores in <span id="rl-cd" style="font-weight:700;color:#dc2626"></span>.';wizState.rlRetry=sec;const el=document.getElementById('rl-cd');if(el){const mn=Math.floor(wizState.rlRetry/60),sc=wizState.rlRetry%60;el.textContent=String(mn).padStart(2,'0')+':'+String(sc).padStart(2,'0');}
+deviceRL.limited=true;deviceRL.retry_after=wizState.rlRetry;startDeviceRLCountdown();renderPaymentOptions(paymentOptions);wizState.payType='rate_limited';if(wizState.pollTimer)clearInterval(wizState.pollTimer);wizState.pollTimer=setInterval(()=>{if(wizState.payType!=='rate_limited'){clearInterval(wizState.pollTimer);wizState.pollTimer=null;return;}wizState.rlRetry=Math.max(0,(wizState.rlRetry||1)-1);const el=document.getElementById('rl-cd');if(el){const mn=Math.floor(wizState.rlRetry/60),sc=wizState.rlRetry%60;el.textContent=String(mn).padStart(2,'0')+':'+String(sc).padStart(2,'0');}if(!wizState.rlRetry){clearInterval(wizState.pollTimer);wizState.pollTimer=null;renderWizard();}},1000);}
+function showWizPayError(msg, hint) {
+  ['loading','qr','ewallet','manual'].forEach(k=>{const e=document.getElementById('wiz-pay-'+k);if(e)e.classList.add('hidden');});
+  const el=document.getElementById('wiz-pay-error');if(el)el.classList.remove('hidden');var _fm=({rate_limited:'Too many payment attempts. Try again later.'})[msg]||(/^[a-z0-9_]+$/.test(String(msg||''))?'Something went wrong. Please try again.':msg);const m=document.getElementById('wiz-pay-error-msg');if(m)m.textContent=_fm;const h=document.getElementById('wiz-pay-error-hint');if(h)h.textContent=hint||'';
+  wizState.payType='error';renderWizard();
+}
+
+async function addToQueue(){
+  var inp=document.getElementById('queue-voucher-input'),btn=document.getElementById('queue-add-btn'),msg=document.getElementById('queue-add-msg');
+  if(!inp||!btn)return; var code=(inp.value||'').trim().toUpperCase(); if(!code)return;
+  btn.disabled=true; var ol=btn.textContent; btn.textContent='…';
+  try{
+    var r=await fetch('/api/auth/voucher',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:code})});
+    var d=await r.json().catch(()=>({})); msg.style.display='';
+    if(d.ok&&d.queued){ msg.style.color='#15803d'; msg.textContent='\u2713 Queued at position '+d.queue_position+'. Activates when your current session ends.'; inp.value=''; }
+    else if(d.ok){ msg.style.color='#15803d'; msg.textContent='\u2713 Voucher activated.'; inp.value=''; if(typeof pollSession==='function')pollSession(); }
+    else { msg.style.color='#b91c1c'; msg.textContent=d.error||'Could not add voucher.'; }
+  }catch(e){ msg.style.display=''; msg.style.color='#b91c1c'; msg.textContent='Connection problem. Please try again.'; }
+  btn.disabled=false; btn.textContent=ol;
+}
+function applyQueuedSuccessUI(){
+  var qn=document.getElementById('wiz-queue-note');
+  if(qn){ if(wizState.queued){ qn.style.display=''; qn.innerHTML='\u23F3 Added to your queue (position '+(wizState.queuePos||1)+'). It activates automatically when your current session ends.'; } else { qn.style.display='none'; } }
+  if(wizState.queued){ var ft=document.getElementById('wiz-footer'); if(ft) ft.innerHTML='<button class="btn-use" onclick="closeWizard();if(typeof showVoucherHistory===\'function\')showVoucherHistory();">View My Vouchers</button>'; }
+}
+async function pollPaymentStatus() {
+  if (!wizState.paymentId) return;
+  try {
+    const r = await fetch(`/api/portal/payment/status/${wizState.paymentId}`);
+    const d = await r.json().catch(() => ({}));
+    if (!d.ok) return;
+    if (d.status === 'paid') {
+      clearInterval(wizState.pollTimer); wizState.pollTimer = null;
+      wizState.step = 'success';
+      wizState.queued = !!d.queued; wizState.queuePos = d.queue_position || 0;
+      const code = (d.voucher_code || '').replace(/(.{4})(?=.)/g,'$1 ').trim();
+      document.getElementById('wiz-voucher-code').textContent = code || 'ERROR';
+      document.getElementById('wiz-voucher-sub').textContent  =
+        wizState.plan ? `${wizState.plan.name} · ${wizState.plan.speed} · ₱${wizState.plan.price}` : '';
+      renderWizard();
+      applyQueuedSuccessUI();
+    } else if (d.status === 'expired') {
+      clearInterval(wizState.pollTimer); wizState.pollTimer = null;
+      showWizPayError('Your payment time ran out. Please start again.');
+    }
+  } catch (e) {}
+}
+
+function wizManualDone() {
+  clearInterval(wizState.pollTimer);
+  closeWizard();
+  document.getElementById('voucher-input').focus();
+}
+
+async function wizClaimPaid() {
+  if (!wizState.paymentId) return;
+  const txt = document.getElementById('wiz-pay-status-text') || document.getElementById('wiz-pay-status-text2');
+  if (txt) txt.textContent = 'Checking…';
+  try {
+    const r = await fetch(`/api/portal/payment/status/${wizState.paymentId}`);
+    const d = await r.json().catch(() => ({}));
+    if (d.ok && d.status === 'paid') {
+      clearInterval(wizState.pollTimer); wizState.pollTimer = null;
+      wizState.step = 'success';
+      wizState.queued = !!d.queued; wizState.queuePos = d.queue_position || 0;
+      const code = (d.voucher_code||'').replace(/(.{4})(?=.)/g,'$1 ').trim();
+      document.getElementById('wiz-voucher-code').textContent = code || 'ERROR';
+      document.getElementById('wiz-voucher-sub').textContent  =
+        wizState.plan ? `${wizState.plan.name} · ${wizState.plan.speed} · ₱${wizState.plan.price}` : '';
+      renderWizard();
+      applyQueuedSuccessUI();
+    } else {
+      if (txt) txt.textContent = 'Not confirmed yet. Please complete payment.';
+    }
+  } catch (e) {
+    if (txt) txt.textContent = 'We could not check that yet. Please wait a moment.';
+  }
+}
+
+function copyWizardCode(){
+  const code = document.getElementById('wiz-voucher-code').textContent.replace(/\s/g,'');
+  if(code && code !== 'ENTERCODE')
+    navigator.clipboard?.writeText(code).catch(()=>{});
+}
+
+function useVoucher() {
+  const code = document.getElementById('wiz-voucher-code').textContent.replace(/\s/g,'');
+  closeWizard();
+  if(code && code !== 'ENTERCODE'){
+    document.getElementById('voucher-input').value = code;
+    document.getElementById('voucher-input').focus();
+  }
+}
+
+function shareVoucher() {
+  const plan = wizState.plan;
+  const code = document.getElementById('wiz-voucher-code').textContent.replace(/\s/g,'');
+  if(!plan) return;
+  const text = `📶 WiFi Voucher: ${code}\nPlan: ${plan.name} (${plan.speed}) — ₱${plan.price}\n\nEnter the code on the WiFi portal to connect.`;
+  if(navigator.share){ navigator.share({title:'PAYWIFI Voucher', text}).catch(()=>{}); }
+  else { navigator.clipboard?.writeText(text).catch(()=>{}); }
+}
+
+/* ── Device-limit modal ── */
+function showDeviceModal(sessions, code) {
+  const list = document.getElementById('device-list');
+  list.innerHTML = sessions.map(s=>`
+    <div class="device-row">
+      <div class="di">IP &nbsp; <span>${s.ip}</span></div>
+      <div class="di">MAC  <span>${s.mac}</span></div>
+      <div class="di">Connected <span>${fmtAgo(s.started_at)}</span></div>
+    </div>`).join('');
+  document.getElementById('device-overlay').dataset.code = code;
+  document.getElementById('device-overlay').classList.add('open');
+
+  // Reset connect button
+  const btn = document.getElementById('btn-connect');
+  const lbl = document.getElementById('connect-label');
+  btn.disabled = false; lbl.textContent = 'Connect';
+}
+
+document.getElementById('btn-dm-cancel').addEventListener('click',()=>{
+  document.getElementById('device-overlay').classList.remove('open');
+});
+
+document.getElementById('btn-dm-kick').addEventListener('click', async ()=>{
+  const code = document.getElementById('device-overlay').dataset.code;
+  const btn  = document.getElementById('btn-dm-kick');
+  btn.disabled=true; btn.textContent='Disconnecting…';
+  try {
+    const r = await fetch('/api/auth/voucher',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code,force:true})});
+    const d = await r.json().catch(()=>({}));
+    document.getElementById('device-overlay').classList.remove('open');
+    if(d.ok){ document.getElementById('voucher-input').value=''; pollSession(); try{ releaseCaptive(); }catch(e){} }
+    else {
+      const lbl=document.getElementById('connect-label');
+      lbl.textContent=d.error||'Error';
+      setTimeout(()=>lbl.textContent='Connect',2500);
+    }
+  } catch(e){
+    document.getElementById('device-overlay').classList.remove('open');
+  }
+  btn.disabled=false; btn.textContent='Disconnect & Continue';
+});
+
+/* ── Payment Options ── */
+const PM_ICONS = {
+  cash:     '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>',
+  card:     '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>',
+  qr:       '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>',
+  mobile:   '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>',
+  computer: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0891b2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>',
+  bank:     '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0369a1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="22" x2="21" y2="22"/><line x1="6" y1="18" x2="6" y2="11"/><line x1="10" y1="18" x2="10" y2="11"/><line x1="14" y1="18" x2="14" y2="11"/><line x1="18" y1="18" x2="18" y2="11"/><polygon points="12 2 2 7 22 7"/></svg>',
+  wallet:   '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12V22H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h16v4"/><path d="M20 12a2 2 0 0 0-2 2 2 2 0 0 0 2 2h4v-4z"/></svg>'
+};
+
+
+
+var isMobile=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+fetch('/api/portal/payment-options').then(r=>r.json()).then(d=>{
+  if(d.ok){ paymentOptions = d.options; feeCfg.pass=!!d.fee_pass; feeCfg.display=d.fee_display!==false; renderPaymentOptions(paymentOptions); }
+}).catch(()=>{});
+fetch('/api/portal/payment/rl-status').then(r=>r.json()).then(d=>{
+  if(d.cancel_cooldown)deviceRL.cancel_cooldown=d.cancel_cooldown;if(d.rl_gap_sec!==undefined)rlServerCfg.gap_sec=d.rl_gap_sec;if(d.rl_max_attempts!==undefined)rlServerCfg.max=d.rl_max_attempts;if(d.rl_window_min!==undefined)rlServerCfg.win_min=d.rl_window_min;rlServerCfg.cancel_cooldown=deviceRL.cancel_cooldown;if(d.ok&&d.limited){deviceRL.limited=true;deviceRL.retry_after=d.retry_after;startDeviceRLCountdown();renderPaymentOptions(paymentOptions);renderWizPayOptions();}
+}).catch(()=>{});
+
+/* ── Pending-payment soft lock + resume (Pending Payment UX) ── */
+let pendingPay = null;
+function _ppFmt(d){var s=d&&d._expiresAt?Math.max(0,d._expiresAt-Math.floor(Date.now()/1000)):(d&&d.expires_in||0);return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');}
+function _ppDim(on){['plans-grid-desktop','plans-grid-mobile','plans-grid-widget','pm-grid'].forEach(function(id){var g=document.getElementById(id);if(g){g.style.opacity=on?'.5':'';g.style.transition='opacity .2s';}});}
+function _ppBlur(on){['#col-info','.col-plans','#sheet','.header-icons'].forEach(function(sel){var el=document.querySelector(sel);if(el){if(on){el.style.filter='blur(3px) grayscale(.25)';el.style.opacity='.5';el.style.pointerEvents='none';el.style.userSelect='none';el.style.webkitUserSelect='none';el.style.transition='filter .2s,opacity .2s';}else{el.style.filter='';el.style.opacity='';el.style.pointerEvents='';el.style.userSelect='';el.style.webkitUserSelect='';}}});}
+function _ppGridOverlay(id,on,title,sub){var g=document.getElementById(id);if(!g)return;var par=g.parentElement;if(!par)return;var ovId=id+'-ppov';var ov=document.getElementById(ovId);if(on){if(getComputedStyle(par).position==='static')par.style.position='relative';if(!ov){ov=document.createElement('div');ov.id=ovId;ov.style.cssText='position:absolute;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:.45rem;padding:1rem;background:rgba(255,255,255,.80);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);border-radius:.75rem';par.appendChild(ov);}ov.innerHTML='<div style="font-size:.95rem;font-weight:800;color:#9a3412">'+title+'</div><div style="font-size:.76rem;color:#b45309;max-width:17rem;line-height:1.45">'+sub+'</div><button onclick="resumePending()" style="margin-top:.35rem;background:#f97316;color:#fff;border:none;border-radius:.55rem;padding:.5rem 1.15rem;font-weight:700;font-size:.82rem;cursor:pointer">Resume Payment</button>';ov.style.display='flex';}else if(ov){ov.style.display='none';}}
+function _ppBarActions(){var a=document.getElementById('pp-bar-actions');if(!a)return;var onPay=(typeof wizState!=='undefined'&&wizState&&wizState.open&&wizState.step==='pay');a.style.display=onPay?'none':'inline-flex';}
+function _ppRenderInfo(d){
+  var info=document.getElementById('pp-info');
+  if(!info){info=document.createElement('div');info.id='pp-info';document.body.appendChild(info);}
+  else if(info.parentElement!==document.body){document.body.appendChild(info);}
+  info.className='overlay open'; info.style.cssText='';
+  var money=function(n){return '₱'+(Number(n||0)).toFixed(2);};
+  var base=(d.base_amount!=null?d.base_amount:d.amount), fee=(d.fee_amount!=null?d.fee_amount:0), total=d.amount;
+  var pl=d.plan||{};
+  var created=d.created_at?new Date(d.created_at*1000).toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}):'—';
+  var ref=d.reference||('PW-'+d.payment_id);
+  info.innerHTML=
+    '<div class="modal">'
+      +'<div class="modal-handle"><div class="handle-pill"></div></div>'
+      +'<div class="modal-header"><div class="modal-header-left"><p>Resume Payment</p><div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap"><h2 style="margin:0">You Have an Ongoing Payment</h2></div></div>'
+        +'<button class="btn-close" onclick="minimizePending()" aria-label="Minimize"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>'
+      +'</div>'
+      +'<div class="ctx-banner paid"><div><div class="ctx-amount-lbl">Total to Pay</div><div class="ctx-amount-val">'+money(total)+'</div></div><div class="ctx-divider"></div><div style="text-align:right"><div class="ctx-method-lbl"><span style="width:.375rem;height:.375rem;border-radius:50%;background:var(--green-500);display:inline-block"></span>Payment Method</div><div class="ctx-method-name">'+(d.channel_name||'—')+'</div></div></div>'
+      +'<div class="modal-body">'
+        +'<div class="order-summary"><div class="order-detail"><div class="lbl">Plan</div><div class="name">'+(pl.name||'WiFi Access')+'</div><div class="sub">'+((pl.speed||'')+(pl.duration_label?(' · '+pl.duration_label):''))+'</div></div></div>'
+        +'<div style="margin-top:.875rem;border:1px solid var(--gray-100);border-radius:.75rem;padding:.7rem .9rem">'
+          +'<div style="display:flex;justify-content:space-between;font-size:.82rem;color:var(--gray-600);padding:.22rem 0"><span>Plan amount</span><span>'+money(base)+'</span></div>'
+          +(fee>0?'<div style="display:flex;justify-content:space-between;font-size:.82rem;color:var(--gray-600);padding:.22rem 0"><span>Channel fee</span><span>'+money(fee)+'</span></div>':'')
+          +'<div style="display:flex;justify-content:space-between;font-size:.95rem;font-weight:900;color:var(--gray-900);padding:.4rem 0 0;border-top:1px solid var(--gray-100);margin-top:.25rem"><span>Total</span><span>'+money(total)+'</span></div>'
+        +'</div>'
+        +'<div style="margin-top:.875rem;font-size:.78rem;color:var(--gray-500)">'
+          +'<div style="display:flex;justify-content:space-between;padding:.22rem 0"><span>Session ID</span><span style="font-family:ui-monospace,monospace;color:var(--gray-700)">#'+d.payment_id+'</span></div>'
+          +'<div style="display:flex;justify-content:space-between;padding:.22rem 0"><span>Reference</span><span style="font-family:ui-monospace,monospace;color:var(--gray-700)">'+ref+'</span></div>'
+          +'<div style="display:flex;justify-content:space-between;padding:.22rem 0"><span>Created</span><span>'+created+'</span></div>'
+          +'<div style="display:flex;justify-content:space-between;padding:.22rem 0"><span>Payment expires in</span><strong id="pending-cd" style="color:#c2410c">'+_ppFmt(d)+'</strong></div>'
+        +'</div>'
+      +'</div>'
+      +'<div class="modal-footer"><button class="btn-cancel" onclick="cancelPendingFromBar()">Cancel Payment</button><button class="btn-confirm" onclick="resumePending()">Resume Payment</button></div>'
+    +'</div>';
+  info.style.display='flex';
+}
+function _ppSheetBody(d){return '';}
+function _ppShowSheet(d){var sh=document.getElementById('pp-sheet'),plans=document.getElementById('sheet');if(!sh)return;var bd=document.getElementById('pp-sheet-body');if(bd)bd.innerHTML=_ppSheetBody(d);var lbl=document.getElementById('pp-sheet-cd');if(lbl)lbl.textContent='\u00b7 '+_ppFmt(d);var sm=document.getElementById('pp-sheet-summary');var pl=d.plan||{};if(sm)sm.innerHTML='<div class="order-summary" style="margin:0"><div class="order-detail"><div class="lbl">You are paying for</div><div class="name">'+((pl.name)||'WiFi Access')+'</div><div class="sub">'+((pl.speed||'')+(pl.duration_label?(' · '+pl.duration_label):''))+'</div></div><div style="text-align:right;flex-shrink:0"><div style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--gray-400);margin-bottom:.2rem">Amount to Pay</div><div class="order-price">₱'+Number(d.amount||0).toFixed(2)+'</div></div></div>';if(plans)plans.style.display='none';sh.style.display='block';}
+function openPendingModal(){if(!pendingPay)return;_ppRenderInfo(pendingPay);}
+function minimizePending(){var i=document.getElementById('pp-info');if(i){i.classList.remove('open');i.style.display='none';}var sh=document.getElementById('pp-sheet');if(sh&&pendingPay)sh.style.display='block';}
+function _ppSyncInfo(){ if(pendingPay && !(typeof wizState!=='undefined'&&wizState&&wizState.open)){ _ppShowSheet(pendingPay);} }
+function showPendingLock(d){
+  d._expiresAt=Math.floor(Date.now()/1000)+(d.expires_in||0);
+  _ppBlur(true);
+  if(pendingPay&&pendingPay._cd)clearInterval(pendingPay._cd);
+  d._cd=setInterval(function(){var left=d._expiresAt-Math.floor(Date.now()/1000);if(left<=0){clearInterval(d._cd);checkPendingPayment();return;}var f=_ppFmt(d);['pending-cd','pp-sheet-cd','pp-sheet-cd2'].forEach(function(id){var el=document.getElementById(id);if(el)el.textContent=f;});},1000);
+  pendingPay=d;
+  _ppShowSheet(d);
+}
+window.addEventListener('resize',function(){try{_ppSyncInfo();}catch(e){}});
+function hidePendingLock(){var i=document.getElementById('pp-info');if(i){i.classList.remove('open');i.style.display='none';}var sh=document.getElementById('pp-sheet');if(sh){sh.classList.remove('open');sh.style.display='none';}var plans=document.getElementById('sheet');if(plans)plans.style.display='';if(pendingPay&&pendingPay._cd)clearInterval(pendingPay._cd);_ppBlur(false);pendingPay=null;}
+function hidePendingModal(){var i=document.getElementById('pp-info');if(i){i.classList.remove('open');i.style.display='none';}if(pendingPay)pendingPay._dismissed=true;}
+function resumePending(){
+  var d=pendingPay;if(!d){checkPendingPayment();return;}
+  if(wizState&&wizState.pollTimer)clearInterval(wizState.pollTimer);
+  wizState={open:true,step:'pay',plan:d.plan||null,payOption:null,paymentId:d.payment_id,payType:d.type,payData:d,pollTimer:null,isResumed:true,rlRetry:0,selectedStore:null};
+  var o=paymentOptions.find(function(x){return x.id===d.option_id})||paymentOptions.find(function(x){return x.name===d.channel_name});
+  if(o)wizState.payOption=o;
+  document.getElementById('wizard-overlay').classList.add('open');
+  renderWizard();showPayStep(d);
+  if(d.type!=='manual')wizState.pollTimer=setInterval(pollPaymentStatus,3000);
+}
+function _to09(p){p=String(p||'').replace(/\D/g,'');if(p.indexOf('63')===0&&p.length===12)return '0'+p.slice(2);if(p.length===10&&p.charAt(0)==='9')return '0'+p;return p;}
+function savePayPhone(){
+  var el=document.getElementById('buyer-phone-pay'); if(!el)return;
+  var v=(el.value||'').trim();
+  var a=document.getElementById('buyer-phone-plan'),b=document.getElementById('buyer-phone-checkout'); if(a)a.value=v; if(b)b.value=v;
+  var m=document.getElementById('buyer-phone-pay-msg');
+  if(wizState&&wizState.paymentId){
+    fetch('/api/portal/payment/set-phone',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({payment_id:wizState.paymentId,phone:v})}).then(function(r){return r.json();}).then(function(d){if(m){if(d&&d.ok){m.textContent=v?("\u2713 We'll SMS your code to "+v):"We'll SMS your code to this number.";m.style.color=v?'#15803d':'';}else{m.textContent=(d&&d.error)||'Could not save number.';m.style.color='#dc2626';}}}).catch(function(){});
+  } else if(m){ m.textContent=v?("We'll SMS your code to "+v):"We'll SMS your code to this number."; }
+}
+function cancelPendingFromBar(){var d=pendingPay;if(!d)return;if(!confirm('Cancel your pending payment? You can start a new one after.'))return;fetch('/api/portal/payment/cancel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({payment_id:d.payment_id})}).then(function(){hidePendingLock();checkPendingPayment();}).catch(function(){});}
+function checkPendingPayment(){fetch('/api/portal/payment/pending').then(function(r){return r.json();}).then(function(d){if(d&&d.ok&&d.pending){showPendingLock(d);}else{hidePendingLock();}}).catch(function(){});}
+checkPendingPayment();
+
+</script>
+<div id="ft-modal" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(17,24,39,.4);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);align-items:center;justify-content:center;padding:.75rem"></div>
+<div id="channel-dialog" class="overlay" onclick="if(event.target===this)closeChannelDialog()"><div class="modal"><div class="modal-handle"><div style="width:2.5rem;height:.375rem;border-radius:999px;background:var(--gray-200)"></div></div><div class="modal-header"><div class="modal-header-left"><h2>Select payment channel</h2></div><button class="btn-close" onclick="closeChannelDialog()" aria-label="Close"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="2" y1="2" x2="12" y2="12"/><line x1="12" y1="2" x2="2" y2="12"/></svg></button></div><div class="modal-body"><div id="channel-dialog-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem"></div></div></div></div>
+</body></html>

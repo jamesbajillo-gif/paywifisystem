@@ -1,0 +1,259 @@
+<header class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+  <div class="min-w-0">
+    <p class="text-[11px] font-bold uppercase tracking-[0.2em]" style="color:var(--primary)">PAYWIFI · Operator</p>
+    <h1 class="text-3xl font-bold tracking-tight"><%= operator.store_name %></h1>
+    <p class="text-sm mt-1" style="color: var(--muted-foreground)">Cash payments routed to your store. Auto-refreshes every 5s.</p>
+  </div>
+  <button id="refresh-btn" type="button" class="rounded-xl border-2 px-3 h-10 text-sm font-semibold inline-flex items-center gap-1.5"
+    style="border-color: var(--border); background: var(--card)">Refresh</button>
+</header>
+
+<div class="grid grid-cols-2 gap-3 mb-6">
+  <div class="rounded-2xl border-2 p-4" style="background: var(--card); border-color: var(--border)">
+    <p class="text-[11px] uppercase tracking-wider" style="color: var(--muted-foreground)">Today's revenue</p>
+    <p class="text-2xl font-bold tabular-nums mt-0.5"><%= fmtPHP(todayRev) %></p>
+  </div>
+  <div class="rounded-2xl border-2 p-4" style="background: var(--card); border-color: var(--border)">
+    <p class="text-[11px] uppercase tracking-wider" style="color: var(--muted-foreground)">Vouchers today</p>
+    <p class="text-2xl font-bold tabular-nums mt-0.5"><%= todayCount %></p>
+  </div>
+</div>
+
+<section class="rounded-2xl border-2 p-4 mb-6" style="background: var(--card); border-color: var(--border)">
+  <div class="flex items-center justify-between gap-3 mb-3">
+    <h2 class="text-lg font-bold">Awaiting confirmation</h2>
+    <span id="pending-count" class="text-xs font-bold tabular-nums px-2 py-0.5 rounded-full"
+      style="background: color-mix(in oklab, var(--primary) 10%, var(--card)); color: var(--primary)"><%= pending.length %></span>
+  </div>
+  <ul id="pending-list" class="flex flex-col divide-y -mx-4" style="border-color: var(--border)">
+    <% pending.forEach(function(p){ %>
+      <li class="px-4 py-3 flex items-center gap-3 min-w-0">
+        <div class="flex-1 min-w-0">
+          <p class="font-mono font-bold text-sm tracking-wider"><%= String(p.id).padStart(6,'0') %></p>
+          <p class="text-xs mt-0.5 truncate" style="color: var(--muted-foreground)">
+            <%= p.plan_name %> · <span class="font-semibold" style="color: var(--foreground)"><%= fmtPHP(p.amount) %></span>
+            · <%= relTime(p.created_at) %>
+            <% if (p.buyer_phone) { %> · <span class="code"><%= String(p.buyer_phone).replace(/^63/,'0') %></span><% } %>
+          </p>
+        </div>
+        <button type="button" class="op-confirm-btn rounded-xl h-9 px-3 text-sm font-bold shrink-0"
+          data-pid="<%= p.id %>" data-ref="<%= String(p.id).padStart(6,'0') %>"
+          data-plan="<%= p.plan_name %>" data-amount="<%= p.amount %>" data-phone="<%= p.buyer_phone || '' %>"
+          style="background: var(--primary); color: var(--primary-foreground)">Confirm</button>
+      </li>
+    <% }) %>
+  </ul>
+  <% if (!pending.length) { %>
+    <p id="pending-empty" class="text-sm text-center py-10" style="color: var(--muted-foreground)">No cash payments awaiting confirmation.</p>
+  <% } %>
+</section>
+
+<!-- Confirm modal -->
+<div id="confirm-overlay" class="fixed inset-0 z-50 hidden items-center justify-center px-4" style="background: rgba(0,0,0,0.5)">
+  <div class="w-full max-w-md rounded-2xl border-2 p-6 shadow-2xl" style="background: var(--card); border-color: var(--border)">
+    <div id="confirm-review">
+      <div class="flex items-center justify-between gap-3 mb-2">
+        <h2 class="text-lg font-bold">Confirm payment</h2>
+        <button type="button" id="confirm-close-x" class="h-8 w-8" style="color: var(--muted-foreground)">✕</button>
+      </div>
+      <p class="text-sm mb-4" style="color: var(--muted-foreground)">Confirm only after cash is received. This issues the voucher and cannot be undone.</p>
+      <div class="rounded-2xl border-2 p-4 text-center mb-3"
+        style="border-color: var(--primary); background: color-mix(in oklab, var(--primary) 5%, var(--card))">
+        <p class="text-[11px] font-bold uppercase tracking-wider" style="color:var(--primary)">Amount due</p>
+        <p id="confirm-amount" class="text-4xl font-black tabular-nums mt-1" style="color:var(--primary)">₱0</p>
+        <p id="confirm-plan" class="text-sm mt-1" style="color: var(--muted-foreground)">—</p>
+      </div>
+      <dl class="rounded-2xl border-2 divide-y mb-4" style="border-color: var(--border)">
+        <div class="flex items-center justify-between px-3 py-2.5">
+          <dt class="text-xs uppercase tracking-wider" style="color: var(--muted-foreground)">Reference</dt>
+          <dd id="confirm-ref" class="font-mono font-bold">—</dd>
+        </div>
+        <div class="flex items-center justify-between px-3 py-2.5" id="confirm-phone-row">
+          <dt class="text-xs uppercase tracking-wider" style="color: var(--muted-foreground)">SMS receipt</dt>
+          <dd id="confirm-phone" class="code text-sm font-semibold">—</dd>
+        </div>
+      </dl>
+      <label class="flex items-center gap-2 mb-4">
+        <input type="checkbox" id="confirm-received" class="h-5 w-5">
+        <span class="text-sm font-semibold">I have received the cash</span>
+      </label>
+      <div class="flex flex-col gap-2">
+        <button type="button" id="confirm-submit" disabled class="rounded-xl h-12 px-4 text-base font-bold"
+          style="background: var(--primary); color: var(--primary-foreground); opacity: 0.45;">Confirm &amp; generate voucher</button>
+        <!-- APPLY-CANCEL-RECS-2026-06-01-OPDASH — Decline action for no-shows -->
+        <button type="button" id="confirm-decline" class="rounded-xl h-11 px-4 text-sm font-semibold border-2 transition-colors"
+          style="border-color: color-mix(in oklab, var(--destructive) 40%, var(--border)); color: var(--destructive); background: var(--card)">
+          Decline (customer didn't show up)
+        </button>
+        <button type="button" id="confirm-cancel" class="rounded-xl h-10 px-4 text-sm font-semibold border-2" style="border-color: var(--border)">Cancel</button>
+      </div>
+    </div>
+    <div id="confirm-processing" class="hidden text-center py-8">
+      <div class="h-12 w-12 mx-auto rounded-full border-4 animate-spin" style="border-color: color-mix(in oklab, var(--primary) 30%, transparent); border-top-color: var(--primary)"></div>
+      <p class="mt-3 text-sm font-semibold">Generating voucher…</p>
+    </div>
+    <div id="confirm-success" class="hidden text-center py-2">
+      <div class="h-16 w-16 mx-auto rounded-full flex items-center justify-center" style="background: color-mix(in oklab, var(--success) 12%, var(--card)); color: var(--success)">✓</div>
+      <h2 class="text-xl font-bold mt-3">Voucher issued</h2>
+      <p class="text-sm mt-1" style="color: var(--muted-foreground)">Hand this code to the customer.</p>
+      <div class="rounded-2xl border-2 p-4 mt-4"
+        style="background: color-mix(in oklab, var(--success) 5%, var(--card)); border-color: color-mix(in oklab, var(--success) 35%, var(--border))">
+        <p class="text-[11px] font-bold uppercase tracking-wider" style="color: var(--success)">Voucher code</p>
+        <p id="confirm-success-code" class="text-3xl font-mono font-black mt-2 tracking-wider">—</p>
+        <button type="button" id="confirm-copy" class="mt-3 rounded-xl border-2 px-3 h-9 text-xs font-semibold" style="border-color: var(--border); background: var(--card)">Copy</button>
+      </div>
+      <p id="confirm-success-sms" class="text-xs mt-3 hidden" style="color: var(--muted-foreground)"></p>
+      <button type="button" id="confirm-done" class="rounded-xl h-12 px-4 text-base font-bold mt-4 w-full" style="background: var(--primary); color: var(--primary-foreground)">Done — next customer</button>
+    </div>
+    <div id="confirm-error" class="hidden text-center py-2">
+      <div class="h-16 w-16 mx-auto rounded-full flex items-center justify-center" style="background: color-mix(in oklab, var(--destructive) 12%, var(--card)); color: var(--destructive)">✕</div>
+      <h2 class="text-xl font-bold mt-3">Something went wrong</h2>
+      <p id="confirm-error-msg" class="text-sm mt-1" style="color: var(--muted-foreground)">Please try again.</p>
+      <div class="flex gap-2 mt-4">
+        <button type="button" id="confirm-error-retry" class="rounded-xl h-12 px-4 text-base font-bold flex-1" style="background: var(--primary); color: var(--primary-foreground)">Retry</button>
+        <button type="button" id="confirm-error-close" class="rounded-xl h-12 px-4 text-sm font-semibold border-2" style="border-color: var(--border)">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  const CSRF = "<%= csrfToken %>";
+  const ovr = document.getElementById('confirm-overlay');
+  const stages = ['review','processing','success','error'].reduce((a,k) => (a[k]=document.getElementById('confirm-'+k), a), {});
+  let activePid = null;
+  function setStage(s) { for (const k in stages) stages[k].classList.toggle('hidden', k !== s); }
+  function openConfirm(btn) {
+    activePid = btn.dataset.pid;
+    document.getElementById('confirm-amount').textContent = '₱' + Number(btn.dataset.amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    document.getElementById('confirm-plan').textContent = btn.dataset.plan || '—';
+    document.getElementById('confirm-ref').textContent = btn.dataset.ref || '—';
+    const phone = (btn.dataset.phone || '').replace(/^63/, '0');
+    if (phone) { document.getElementById('confirm-phone').textContent = phone; document.getElementById('confirm-phone-row').style.display = ''; }
+    else { document.getElementById('confirm-phone-row').style.display = 'none'; }
+    document.getElementById('confirm-received').checked = false;
+    const submit = document.getElementById('confirm-submit'); submit.disabled = true; submit.style.opacity = 0.45;
+    setStage('review'); ovr.style.display = 'flex'; ovr.classList.remove('hidden');
+  }
+  function closeConfirm() { ovr.style.display = 'none'; ovr.classList.add('hidden'); activePid = null; document.body.style.overflow = ''; }
+  document.getElementById('confirm-received').addEventListener('change', (e) => {
+    const submit = document.getElementById('confirm-submit'); submit.disabled = !e.target.checked; submit.style.opacity = e.target.checked ? 1 : 0.45;
+  });
+  function wireRows() { document.querySelectorAll('.op-confirm-btn').forEach(b => b.onclick = () => openConfirm(b)); }
+  wireRows();
+  document.getElementById('confirm-close-x').onclick = closeConfirm;
+  document.getElementById('confirm-cancel').onclick = closeConfirm;
+  // APPLY-CANCEL-RECS-2026-06-01-OPDASH — Decline handler
+  document.getElementById('confirm-decline').onclick = async () => {
+    if (!activePid) return;
+    if (!confirm('Decline this payment? The customer will need to start a new one.')) return;
+    setStage('processing');
+    try {
+      const r = await fetch('/operator/api/cancel/' + activePid, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-csrf-token': CSRF }, body: '{}',
+      }).then(r => r.json());
+      if (!r.ok && !r.already) {
+        document.getElementById('confirm-error-msg').textContent = ({
+          already_paid:    'This payment was already confirmed.',
+          not_your_store:  'This payment was routed to a different store.',
+          not_found:       'That payment no longer exists.',
+          wrong_state:     'Cannot decline in current state.',
+          race_lost:       'Another action claimed this payment first.',
+        }[r.error] || (r.error || 'Could not decline payment.'));
+        setStage('error'); return;
+      }
+      closeConfirm(); refresh();
+    } catch (e) {
+      document.getElementById('confirm-error-msg').textContent = 'Network error.'; setStage('error');
+    }
+  };
+  document.getElementById('confirm-error-close').onclick = closeConfirm;
+  document.getElementById('confirm-done').onclick = () => { closeConfirm(); refresh(); };
+  async function submitConfirm() {
+    if (!activePid) return; setStage('processing');
+    try {
+      const r = await fetch('/operator/api/confirm/' + activePid, { method:'POST', headers:{'Content-Type':'application/json','x-csrf-token':CSRF}, body:'{}' }).then(r => r.json());
+      if (!r.ok) {
+        document.getElementById('confirm-error-msg').textContent = ({
+          already_confirmed:'This payment was already confirmed.', cancelled:'This payment was cancelled.',
+          expired:'This payment expired before it was confirmed.', race_lost:'Another channel claimed it first.',
+          wrong_state:'Cannot confirm in current state.', mint_failed:'Voucher generation failed.',
+          not_found:'Payment not found.', not_your_store:'Routed to a different store.',
+        }[r.error] || (r.error || 'Unknown error'));
+        setStage('error'); return;
+      }
+      document.getElementById('confirm-success-code').textContent = (r.code || '').replace(/(.{4})(?=.)/g, '$1-');
+      const smsEl = document.getElementById('confirm-success-sms');
+      if (r.sms_attempted && r.masked_phone) {
+        // OP-SMS-POLL-2026-06-01 — show initial status + live-poll delivery report.
+        const masked = r.masked_phone;
+        const msgId  = (r.sms && r.sms.message_id) || null;
+        let label = msgId ? '⏱ Queued — sending to ' + masked + '…' : '✓ SMS dispatched to ' + masked;
+        if (r.sms && !r.sms.ok) label = '✕ SMS failed — please share the code manually with ' + masked;
+        smsEl.textContent = label; smsEl.classList.remove('hidden');
+
+        // Live-poll the Semaphore delivery status if we have a message_id.
+        if (msgId && r.sms && r.sms.ok) {
+          let polls = 0;
+          const tick = async () => {
+            polls += 1;
+            try {
+              const s = await fetch('/operator/api/sms-status/' + encodeURIComponent(msgId)).then(r => r.json());
+              if (s && s.ok) {
+                if (s.status === 'sent') {
+                  smsEl.textContent = '✓ SMS delivered to ' + masked;
+                  smsEl.style.color = 'var(--success)';
+                  return; // stop polling
+                }
+                if (s.status === 'failed') {
+                  smsEl.textContent = '✕ SMS delivery failed for ' + masked + ' — share code manually';
+                  smsEl.style.color = 'var(--destructive)';
+                  return;
+                }
+                // still queued / pending → keep polling
+              }
+            } catch (_) {}
+            if (polls < 20) setTimeout(tick, 3000);  // up to 60s
+            else { smsEl.textContent = '⏱ SMS still pending for ' + masked + ' — should arrive shortly'; }
+          };
+          setTimeout(tick, 2500);
+        }
+      } else smsEl.classList.add('hidden');
+      document.getElementById('confirm-copy').onclick = async () => { try { await navigator.clipboard.writeText(r.code); } catch (_) {} };
+      setStage('success');
+      // OP-SMS-POLL-2026-06-01 — body scroll lock (matches source UX)
+      document.body.style.overflow = 'hidden';
+    } catch (e) { document.getElementById('confirm-error-msg').textContent = 'Network error.'; setStage('error'); }
+  }
+  document.getElementById('confirm-submit').onclick = submitConfirm;
+  document.getElementById('confirm-error-retry').onclick = submitConfirm;
+
+  async function refresh() {
+    try {
+      const r = await fetch('/operator/api/pending').then(r => r.json()); if (!r.ok) return;
+      const list = document.getElementById('pending-list');
+      const empty = document.getElementById('pending-empty');
+      const count = document.getElementById('pending-count');
+      if (count) count.textContent = r.items.length;
+      if (!list) return;
+      if (!r.items.length) { list.innerHTML = ''; if (empty) empty.style.display = ''; return; }
+      if (empty) empty.style.display = 'none';
+      const now = Math.floor(Date.now()/1000);
+      list.innerHTML = r.items.map(p => {
+        const ago = (function(t){const s=now-t;return s<60?(s+'s ago'):s<3600?(Math.floor(s/60)+'m ago'):Math.floor(s/3600)+'h ago';})(p.created_at);
+        const phone = p.buyer_phone ? String(p.buyer_phone).replace(/^63/, '0') : '';
+        const ref = String(p.id).padStart(6, '0');
+        const amt = '₱' + Number(p.amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+        return '<li class="px-4 py-3 flex items-center gap-3 min-w-0">' +
+          '<div class="flex-1 min-w-0"><p class="font-mono font-bold text-sm tracking-wider">' + ref + '</p>' +
+          '<p class="text-xs mt-0.5 truncate" style="color: var(--muted-foreground)">' + p.plan_name + ' · <span class="font-semibold" style="color: var(--foreground)">' + amt + '</span> · ' + ago + (phone ? ' · <span class="code">' + phone + '</span>' : '') + '</p></div>' +
+          '<button type="button" class="op-confirm-btn rounded-xl h-9 px-3 text-sm font-bold" data-pid="' + p.id + '" data-ref="' + ref + '" data-plan="' + (p.plan_name||'') + '" data-amount="' + (p.amount||0) + '" data-phone="' + (p.buyer_phone||'') + '" style="background: var(--primary); color: var(--primary-foreground)">Confirm</button></li>';
+      }).join('');
+      wireRows();
+    } catch (_) {}
+  }
+  document.getElementById('refresh-btn').onclick = refresh;
+  setInterval(refresh, 5000);
+})();
+</script>

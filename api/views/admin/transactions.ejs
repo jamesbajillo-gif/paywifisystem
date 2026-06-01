@@ -1,0 +1,230 @@
+<%
+const STATUS = {
+  paid:    { border:'border-emerald-500', badge:'bg-emerald-900 text-emerald-300', label:'✓ Paid' },
+  pending: { border:'border-amber-500',   badge:'bg-amber-900 text-amber-300',     label:'⏳ Pending' },
+  expired: { border:'border-rose-700',    badge:'bg-rose-900 text-rose-300',       label:'✗ Expired' },
+  manual:  { border:'border-slate-600',   badge:'bg-slate-700 text-slate-300',     label:'— Manual' },
+  failed:  { border:'border-rose-700',    badge:'bg-rose-900 text-rose-300',       label:'✗ Failed' },
+};
+function badge(status) {
+  const b = STATUS[status] || { badge:'bg-slate-700 text-slate-300', label:status };
+  return `<span class="inline-block px-1.5 py-0 rounded text-[10px] font-semibold ${b.badge}">${b.label}</span>`;
+}
+function fmtTs(unix) {
+  if (!unix) return '—';
+  return new Date(unix * 1000).toLocaleString('en-PH', {
+    timeZone: 'Asia/Manila', year: 'numeric', month: 'short',
+    day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit'
+  });
+}
+function fmtPHP(n) { return '₱' + Number(n || 0).toFixed(2); }
+function chBadge(ch) {
+  const m = {
+    'QR Ph':           'bg-orange-900 text-orange-300',
+    'GCash':           'bg-blue-900 text-blue-300',
+    'GrabPay':         'bg-green-900 text-green-300',
+    'PayMaya':         'bg-purple-900 text-purple-300',
+    'ShopeePay':       'bg-orange-900 text-orange-300',
+    'Over-the-Counter':'bg-yellow-900 text-yellow-300',
+    'Virtual Account': 'bg-cyan-900 text-cyan-300',
+    'Credit Card':     'bg-indigo-900 text-indigo-300',
+  };
+  const c = m[ch] || 'bg-slate-700 text-slate-400';
+  return `<span class="inline-block px-1.5 py-0 rounded text-[10px] font-semibold ${c}">${ch}</span>`;
+}
+function evIcon(t) {
+  return { created:'🔵', webhook:'📡', webhook_rejected:'🚫',
+           api_poll:'🔄', voucher_issued:'🎟️', expired:'⏱️',
+           manual_confirm:'✅' }[t] || '·';
+}
+function expiredClass(row) {
+  return (row.status === 'pending' && Math.floor(Date.now() / 1000) > row.expires_at)
+    ? 'text-rose-400' : 'text-slate-500';
+}
+%>
+
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-2xl font-bold">Transaction History</h1>
+  <button onclick="location.reload()"
+          class="text-xs text-slate-400 hover:text-slate-100 border border-slate-700 px-3 py-1.5 rounded transition-colors">
+    ↻ Refresh
+  </button>
+</div>
+
+<!-- Summary cards -->
+<div class="flex flex-wrap gap-3 mb-6">
+  <div class="bg-slate-800 rounded-lg px-5 py-3 min-w-[90px]">
+    <div class="text-[10px] text-slate-400 uppercase tracking-wide mb-1">All</div>
+    <div class="text-2xl font-bold"><%= totalAll %></div>
+  </div>
+  <div class="bg-slate-800 rounded-lg px-5 py-3 min-w-[90px]">
+    <div class="text-[10px] text-slate-400 uppercase tracking-wide mb-1">Paid</div>
+    <div class="text-2xl font-bold text-emerald-400"><%= summary.paid || 0 %></div>
+  </div>
+  <div class="bg-slate-800 rounded-lg px-5 py-3 min-w-[90px]">
+    <div class="text-[10px] text-slate-400 uppercase tracking-wide mb-1">Pending</div>
+    <div class="text-2xl font-bold text-amber-400"><%= summary.pending || 0 %></div>
+  </div>
+  <div class="bg-slate-800 rounded-lg px-5 py-3 min-w-[90px]">
+    <div class="text-[10px] text-slate-400 uppercase tracking-wide mb-1">Expired</div>
+    <div class="text-2xl font-bold text-rose-400"><%= (summary.expired || 0) + (summary.failed || 0) %></div>
+  </div>
+  <div class="bg-slate-800 rounded-lg px-5 py-3 min-w-[140px]">
+    <div class="text-[10px] text-slate-400 uppercase tracking-wide mb-1">Revenue Collected</div>
+    <div class="text-2xl font-bold text-brand-400">₱<%= Number(totalRevenue || 0).toFixed(2) %></div>
+  </div>
+</div>
+
+<!-- Filter tabs -->
+<div class="flex flex-wrap items-center gap-2 mb-5">
+  <% [['','All',totalAll],['paid','Paid',summary.paid||0],['pending','Pending',summary.pending||0],
+     ['expired','Expired',(summary.expired||0)+(summary.failed||0)],['manual','Manual',summary.manual||0]
+  ].forEach(function([val, lbl, cnt]) { %>
+    <a href="/admin/transactions?status=<%= val %>&limit=<%= limit %>"
+       class="px-3 py-1.5 rounded text-xs font-medium border transition-colors
+              <%= filter === val ? 'bg-brand-600 border-brand-600 text-white'
+                                : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700' %>">
+      <%= lbl %><span class="ml-1 opacity-60"><%= cnt %></span>
+    </a>
+  <% }) %>
+  <div class="ml-auto flex items-center gap-3 text-xs text-slate-400">
+    Show:
+    <% [50, 100, 200, 500].forEach(function(n) { %>
+      <a href="/admin/transactions?status=<%= filter %>&limit=<%= n %>"
+         class="<%= limit === n ? 'text-brand-400 font-semibold' : 'hover:text-slate-100' %>"><%= n %></a>
+    <% }) %>
+  </div>
+</div>
+
+<!-- Log entries -->
+<% if (!rows || !rows.length) { %>
+  <div class="bg-slate-800 rounded-lg px-4 py-10 text-center text-slate-500 text-sm">No transactions found.</div>
+<% } %>
+
+<div class="space-y-1">
+<% rows.forEach(function(row) {
+  const s = STATUS[row.status] || STATUS.manual;
+%>
+  <div class="border-l-2 <%= s.border %> bg-slate-800/70 rounded-r-md px-3 py-2 text-xs leading-relaxed">
+
+    <!-- Line 1: timestamp · id · amount · status · channel · gateway · plan -->
+    <div class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+      <span class="font-mono text-slate-500 tabular-nums shrink-0 text-[10px]"><%= fmtTs(row.created_at) %></span>
+      <span class="font-mono font-bold text-brand-400 shrink-0">#<%= row.id %></span>
+      <span class="font-bold text-slate-100 shrink-0"><%= fmtPHP(row.amount) %></span>
+      <%- badge(row.status) %>
+      <%- chBadge(row.channel_name) %>
+      <% if (row.gateway_name && row.gateway_name !== 'Manual') { %>
+        <span class="text-slate-500 shrink-0 text-[10px]">via <span class="text-slate-400"><%= row.gateway_name %></span></span>
+      <% } %>
+      <% if (row.plan_name) { %>
+        <span class="text-slate-400 shrink-0">· <%= row.plan_name %></span>
+      <% } %>
+    </div>
+
+    <!-- Line 2: client · voucher · paid-at · expiry -->
+    <div class="flex flex-wrap gap-x-3 gap-y-0 mt-0.5 text-[11px]">
+      <% if (row.client_ip) { %>
+        <span class="font-mono text-slate-400"><%= row.client_ip %></span>
+      <% } %>
+      <% if (row.client_mac) { %>
+        <span class="font-mono text-slate-500"><%= row.client_mac %></span>
+      <% } %>
+      <% if (row.voucher_code) { %>
+        <span class="font-mono font-bold text-emerald-400">🎟 <%= row.voucher_code %></span>
+      <% } %>
+      <% if (row.paid_at) { %>
+        <span class="text-emerald-600 text-[10px]">paid <%= fmtTs(row.paid_at) %></span>
+      <% } %>
+      <% if (row.status === 'pending' && row.expires_at) { %>
+        <span class="<%= expiredClass(row) %> text-[10px]">exp <%= fmtTs(row.expires_at) %></span>
+      <% } %>
+      <% if (['pending','manual','reserving'].includes(row.status)) { %>
+        <!-- APPLY-CANCEL-RECS-2026-06-01-TXEJS — admin inline cancel -->
+        <form method="POST" action="/admin/transactions/<%= row.id %>/cancel" class="inline" onsubmit="return confirm('Cancel payment #<%= row.id %>? This flips it to status=cancelled and notifies the customer\'s portal.')">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <button type="submit" class="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border transition-colors"
+            style="border-color: color-mix(in oklab, var(--destructive) 40%, var(--border)); color: var(--destructive); background: var(--card)">
+            Cancel
+          </button>
+        </form>
+      <% } %>
+    </div>
+
+    <!-- Line 3: refs / IDs -->
+    <% if (row.external_id || row.gateway_payment_id) { %>
+    <div class="flex flex-wrap gap-x-4 gap-y-0 mt-0.5 text-[10px]">
+      <% if (row.external_id) { %>
+        <span class="font-mono text-slate-600" title="<%= row.external_id %>">
+          ref: <span class="text-slate-500"><%= row.external_id.length > 52 ? row.external_id.slice(0, 52) + '…' : row.external_id %></span>
+        </span>
+      <% } %>
+      <% if (row.gateway_payment_id) { %>
+        <span class="font-mono text-slate-600" title="<%= row.gateway_payment_id %>">
+          gw: <span class="text-slate-500"><%= row.gateway_payment_id.length > 52 ? row.gateway_payment_id.slice(0, 52) + '…' : row.gateway_payment_id %></span>
+        </span>
+      <% } %>
+    </div>
+    <% } %>
+
+    <!-- Events (collapsed) -->
+    <% if (row.events && row.events.length) { %>
+      <div class="mt-1">
+        <button onclick="toggleEv('ev-<%= row.id %>')"
+                class="text-slate-600 hover:text-slate-300 text-[10px] font-mono transition-colors select-none">
+          ▸ <%= row.events.length %> event<%= row.events.length !== 1 ? 's' : '' %>
+        </button>
+        <div id="ev-<%= row.id %>" class="hidden mt-1 pl-3 border-l border-slate-700 space-y-px">
+          <% row.events.forEach(function(ev) {
+            let payload = {};
+            try { payload = JSON.parse(ev.payload || '{}'); if (!payload || typeof payload !== 'object') payload = {}; } catch(e) { payload = {}; }
+          %>
+          <div class="flex flex-wrap items-baseline gap-x-2 text-[10px] text-slate-500 leading-snug">
+            <span class="shrink-0 text-[11px]"><%= evIcon(ev.event_type) %></span>
+            <span class="font-mono tabular-nums text-slate-600 shrink-0"><%= fmtTs(ev.created_at) %></span>
+            <span class="text-slate-400 font-semibold shrink-0"><%= ev.event_type.replace(/_/g, ' ') %></span>
+            <% if (ev.status_before || ev.status_after) { %>
+              <span class="text-slate-700 shrink-0">
+                <%= ev.status_before || '' %><% if (ev.status_before && ev.status_after) { %> → <% } %><span class="<%= ev.status_after === 'paid' ? 'text-emerald-600' : ev.status_after === 'expired' ? 'text-rose-600' : 'text-slate-500' %>"><%= ev.status_after || '' %></span>
+              </span>
+            <% } %>
+            <% if (payload.voucher_code) { %>
+              <span class="font-mono font-bold text-emerald-600 shrink-0"><%= payload.voucher_code %></span>
+            <% } %>
+            <% if (ev.ip_address) { %>
+              <span class="font-mono text-slate-700 shrink-0"><%= ev.ip_address %></span>
+            <% } %>
+          </div>
+          <% }) %>
+          <% if (row.webhook_url) { %>
+            <div class="text-[10px] font-mono text-slate-700 mt-0.5 break-all">↓ wh: <%= row.webhook_url %></div>
+          <% } %>
+          <% if (row.payment_api_url) { %>
+            <div class="text-[10px] font-mono text-slate-700 mt-0.5 break-all">↑ api: <%= row.payment_api_url %></div>
+          <% } %>
+          <div class="text-[10px] font-mono text-slate-700 mt-0.5 break-all">↔ poll: <%= baseUrl %>/api/portal/payment/status/<%= row.id %></div>
+          <% if (row.qr_string) { %>
+            <div class="text-[10px] font-mono text-slate-700 mt-0.5 break-all">qr: <%= row.qr_string.slice(0, 80) %><%= row.qr_string.length > 80 ? '…' : '' %></div>
+          <% } %>
+        </div>
+      </div>
+    <% } %>
+
+  </div>
+<% }) %>
+</div>
+
+<div class="mt-3 text-[10px] text-slate-600">
+  Showing <%= rows.length %> of <%= totalAll %> total · All times PHT (UTC+8)
+</div>
+
+<script>
+function toggleEv(id) {
+  const el = document.getElementById(id);
+  const btn = el ? el.previousElementSibling : null;
+  if (!el) return;
+  const open = !el.classList.contains('hidden');
+  el.classList.toggle('hidden');
+  if (btn) btn.textContent = btn.textContent.replace(open ? '▾' : '▸', open ? '▸' : '▾');
+}
+</script>

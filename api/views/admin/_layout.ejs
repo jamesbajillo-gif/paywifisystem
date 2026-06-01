@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<!-- ADMIN-THEME-PORT-2026-06-01 — paywifi-theme-basic design system applied
+     globally. Light OKLCH palette, white cards, rounded-2xl, source typography.
+     Every existing slate-* utility used by the admin pages is remapped to
+     the new token below — no per-page edits required. -->
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title><%= title || 'PAYWIFI Admin' %></title>
+<script src="/tailwind.js"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          // Map Tailwind's `brand-*` to our --primary so existing brand-400/500
+          // calls land on the source's blue automatically.
+          brand: {
+            50:  'oklch(0.97 0.02 245)',
+            100: 'oklch(0.94 0.04 245)',
+            400: 'oklch(0.62 0.16 245)',
+            500: 'oklch(0.62 0.16 245)',
+            600: 'oklch(0.55 0.17 245)',
+            700: 'oklch(0.48 0.16 245)',
+          },
+        },
+        borderRadius: {
+          'xl':  '0.75rem',
+          '2xl': '1rem',
+          '3xl': '1.25rem',
+        },
+      },
+    },
+  };
+</script>
+<style>
+  /* ── paywifi-theme-basic root tokens ────────────────────────────────── */
+  :root {
+    --radius: 1rem;
+    --background:              oklch(0.985 0.005 240);
+    --foreground:              oklch(0.20 0.02 250);
+    --card:                    oklch(1 0 0);
+    --card-foreground:         oklch(0.20 0.02 250);
+    --primary:                 oklch(0.62 0.16 245);
+    --primary-foreground:      oklch(1 0 0);
+    --secondary:               oklch(0.96 0.01 240);
+    --secondary-foreground:    oklch(0.25 0.02 250);
+    --muted:                   oklch(0.96 0.01 240);
+    --muted-foreground:        oklch(0.50 0.02 250);
+    --accent:                  oklch(0.95 0.02 240);
+    --accent-foreground:       oklch(0.25 0.02 250);
+    --destructive:             oklch(0.62 0.20 25);
+    --destructive-foreground:  oklch(1 0 0);
+    --success:                 oklch(0.65 0.16 155);
+    --success-foreground:      oklch(1 0 0);
+    --border:                  oklch(0.92 0.01 240);
+    --input:                   oklch(0.98 0.005 240);
+    --ring:                    oklch(0.62 0.16 245);
+  }
+
+  /* ── Base ───────────────────────────────────────────────────────────── */
+  html, body { height: 100%; }
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .code-cell { font-family: ui-monospace, Menlo, monospace; letter-spacing: 0.05em; }
+
+  /* ── Tap target minimum (44px) — matches source body{} ─────────────── */
+  button, [role="button"], input[type="submit"], input[type="button"] { min-height: 36px; }
+  /* Note: relaxed from 44px → 36px for admin (denser data tables, mouse-driven). */
+
+  /* ── Skin-swap: remap dark-theme slate classes to the new light tokens.
+       This lets every existing admin EJS page (sessions, audit, plans,
+       settings, etc.) inherit the new look without edits. The order
+       matters — higher-specificity selectors come last. ──────────────── */
+
+  /* Surfaces — dark cards become white-ish, dark page bg becomes light */
+  .bg-slate-900       { background-color: var(--background) !important; }
+  .bg-slate-900\/60  { background-color: color-mix(in oklab, var(--background) 60%, transparent) !important; }
+  .bg-slate-900\/40  { background-color: color-mix(in oklab, var(--background) 40%, transparent) !important; }
+  .bg-slate-900\/70  { background-color: color-mix(in oklab, var(--background) 70%, transparent) !important; }
+  .bg-slate-800       { background-color: var(--card) !important; }
+  .bg-slate-800\/60  { background-color: color-mix(in oklab, var(--card) 60%, transparent) !important; }
+  .bg-slate-800\/40  { background-color: color-mix(in oklab, var(--card) 40%, transparent) !important; }
+  .bg-slate-700       { background-color: var(--secondary) !important; }
+  .bg-slate-700\/60  { background-color: color-mix(in oklab, var(--secondary) 60%, transparent) !important; }
+  .bg-slate-700\/40  { background-color: color-mix(in oklab, var(--secondary) 40%, transparent) !important; }
+  .bg-slate-700\/30  { background-color: color-mix(in oklab, var(--secondary) 30%, transparent) !important; }
+  .bg-slate-700\/20  { background-color: color-mix(in oklab, var(--secondary) 20%, transparent) !important; }
+  .bg-slate-600       { background-color: var(--accent) !important; }
+
+  .hover\:bg-slate-600:hover { background-color: var(--accent) !important; }
+  .hover\:bg-slate-700:hover { background-color: var(--secondary) !important; }
+  .hover\:bg-slate-700\/30:hover,
+  .hover\:bg-slate-700\/20:hover { background-color: color-mix(in oklab, var(--secondary) 50%, transparent) !important; }
+
+  /* Text — invert the slate text scale (was light on dark, now dark on light) */
+  .text-slate-100, .text-slate-50  { color: var(--foreground) !important; }
+  .text-slate-200, .text-slate-300 { color: var(--foreground) !important; }
+  .text-slate-400                  { color: var(--muted-foreground) !important; }
+  .text-slate-500                  { color: color-mix(in oklab, var(--muted-foreground) 75%, var(--foreground) 25%) !important; }
+  .text-slate-600                  { color: var(--muted-foreground) !important; }
+
+  /* Borders */
+  .border-slate-500, .border-slate-600, .border-slate-700, .border-slate-700\/60, .border-slate-700\/50,
+  .border-slate-800 { border-color: var(--border) !important; }
+  .border-slate-700\/80 { border-color: var(--border) !important; }
+  .divide-slate-700 > :not([hidden]) ~ :not([hidden]) { border-color: var(--border) !important; }
+  .divide-slate-700\/60 > :not([hidden]) ~ :not([hidden]) { border-color: var(--border) !important; }
+  .divide-slate-700\/50 > :not([hidden]) ~ :not([hidden]) { border-color: var(--border) !important; }
+
+  /* Form inputs */
+  input, select, textarea {
+    background-color: var(--input);
+    color: var(--foreground);
+  }
+  input::placeholder, textarea::placeholder { color: var(--muted-foreground); opacity: 0.7; }
+
+  /* Subtle status backgrounds we use in pills — keep their tints visible */
+  .bg-emerald-800, .bg-emerald-900        { background-color: color-mix(in oklab, var(--success) 18%, var(--card)) !important; }
+  .bg-emerald-900\/40, .bg-emerald-900\/50, .bg-emerald-900\/60 { background-color: color-mix(in oklab, var(--success) 14%, var(--card)) !important; }
+  .text-emerald-200, .text-emerald-300, .text-emerald-400 { color: var(--success) !important; }
+  .bg-rose-800, .bg-rose-900              { background-color: color-mix(in oklab, var(--destructive) 18%, var(--card)) !important; }
+  .bg-rose-900\/40, .bg-rose-900\/50, .bg-rose-900\/60 { background-color: color-mix(in oklab, var(--destructive) 14%, var(--card)) !important; }
+  .text-rose-200, .text-rose-300, .text-rose-400 { color: var(--destructive) !important; }
+  .bg-amber-800, .bg-amber-900            { background-color: color-mix(in oklab, oklch(0.78 0.18 80) 18%, var(--card)) !important; }
+  .bg-amber-900\/40, .bg-amber-900\/50, .bg-amber-900\/60 { background-color: color-mix(in oklab, oklch(0.78 0.18 80) 14%, var(--card)) !important; }
+  .text-amber-200, .text-amber-300, .text-amber-400 { color: oklch(0.55 0.18 80) !important; }
+
+  /* Sky / brand button accents — keep the bright blue from source primary */
+  .bg-sky-500, .bg-sky-600 { background-color: var(--primary) !important; }
+  .hover\:bg-sky-500:hover, .hover\:bg-sky-400:hover { background-color: color-mix(in oklab, var(--primary) 85%, white) !important; }
+  .text-sky-400, .text-sky-500 { color: var(--primary) !important; }
+  .bg-sky-500\/15, .bg-sky-500\/10 { background-color: color-mix(in oklab, var(--primary) 12%, var(--card)) !important; }
+  .bg-emerald-500\/15, .bg-emerald-500\/10 { background-color: color-mix(in oklab, var(--success) 12%, var(--card)) !important; }
+  .bg-violet-500\/15 { background-color: color-mix(in oklab, oklch(0.55 0.22 285) 12%, var(--card)) !important; }
+  .text-violet-400  { color: oklch(0.55 0.22 285) !important; }
+  .bg-amber-500\/15, .bg-amber-500\/10 { background-color: color-mix(in oklab, oklch(0.78 0.18 80) 14%, var(--card)) !important; }
+  .bg-rose-500\/15, .bg-rose-500\/10 { background-color: color-mix(in oklab, var(--destructive) 12%, var(--card)) !important; }
+
+  /* Nav top bar — make it a clean white sticky header */
+  .admin-nav {
+    background-color: var(--card);
+    border-bottom: 1px solid var(--border);
+    box-shadow: 0 1px 0 rgba(0,0,0,0.02);
+  }
+  .admin-nav a.nav-link {
+    color: var(--muted-foreground);
+    padding: 0.4rem 0.75rem;
+    border-radius: 0.5rem;
+    transition: all 120ms;
+  }
+  .admin-nav a.nav-link:hover { background: var(--secondary); color: var(--foreground); }
+  .admin-nav a.nav-link.active {
+    background: color-mix(in oklab, var(--primary) 10%, var(--card));
+    color: var(--primary);
+    font-weight: 600;
+  }
+
+  /* Print friendliness preserved */
+  @media print {
+    .no-print { display: none !important; }
+    body { background: white !important; color: black !important; }
+  }
+</style>
+</head>
+<body class="min-h-screen">
+
+<% if (admin) { %>
+  <nav class="admin-nav no-print px-6 py-2.5 flex items-center gap-1 flex-wrap text-sm sticky top-0 z-30">
+    <a href="/admin/" class="font-bold text-base mr-3" style="color:var(--primary)">PAYWIFI</a>
+    <a href="/admin/"             class="nav-link <%= active === 'dash'         ? 'active' : '' %>">Dashboard</a>
+    <a href="/admin/vouchers"     class="nav-link <%= active === 'vouchers'     ? 'active' : '' %>">Vouchers</a>
+    <a href="/admin/sessions"     class="nav-link <%= active === 'sessions'     ? 'active' : '' %>">Sessions</a>
+    <a href="/admin/plans"        class="nav-link <%= active === 'plans'        ? 'active' : '' %>">Plans</a>
+    <a href="/admin/audit"        class="nav-link <%= active === 'audit'        ? 'active' : '' %>">Audit</a>
+    <a href="/admin/reports"      class="nav-link <%= active === 'reports'      ? 'active' : '' %>">Reports</a>
+    <a href="/admin/payments"     class="nav-link <%= (active === 'payments' || active === 'payment-options' || active === 'payment-modules') ? 'active' : '' %>">Payments</a>
+    <a href="/admin/transactions" class="nav-link <%= active === 'transactions' ? 'active' : '' %>">Transactions</a>
+    <a href="/admin/payment-fees" class="nav-link <%= active === 'payment-fees' ? 'active' : '' %>">Fees</a>
+    <a href="/admin/rate-limits"  class="nav-link <%= active === 'rate-limits'  ? 'active' : '' %>">Rate Limits</a>
+    <a href="/admin/firewall"     class="nav-link <%= active === 'firewall'     ? 'active' : '' %>">Firewall</a>
+    <a href="/admin/queue"        class="nav-link <%= active === 'queue'        ? 'active' : '' %>">Queue</a>
+    <a href="/admin/maintenance"  class="nav-link <%= active === 'maintenance'  ? 'active' : '' %>">Maintenance</a>
+    <a href="/admin/nurturing"    class="nav-link <%= active === 'nurturing'    ? 'active' : '' %>">Pipelines</a>
+    <a href="/admin/free-trial"   class="nav-link <%= active === 'free-trial'   ? 'active' : '' %>">Campaigns</a>
+    <a href="/admin/sms"          class="nav-link <%= active === 'sms'          ? 'active' : '' %>">SMS</a>
+    <a href="/admin/widgets"      class="nav-link <%= active === 'widgets'      ? 'active' : '' %>">Widgets</a>
+    <a href="/admin/settings"     class="nav-link <%= active === 'settings'     ? 'active' : '' %>">Settings</a>
+    <a href="/admin/compliance"   class="nav-link <%= active === 'compliance'   ? 'active' : '' %>">Compliance</a>
+    <a href="/admin/updates"      class="nav-link <%= active === 'updates'      ? 'active' : '' %>">Updates</a>
+    <a href="/admin/infra"        class="nav-link <%= active === 'infra'        ? 'active' : '' %>">Health</a>
+    <a href="/admin/devices"      class="nav-link <%= active === 'devices'      ? 'active' : '' %>">Devices</a>
+    <a href="/admin/cloudflare"   class="nav-link <%= active === 'cloudflare'   ? 'active' : '' %>">Cloudflare</a>
+    <span class="ml-auto text-xs flex items-center gap-3" style="color: var(--muted-foreground)">
+      <span><%= admin.username %></span>
+      <form method="POST" action="/admin/logout" class="inline">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+        <button class="hover:underline" style="color: var(--destructive)" type="submit">Logout</button>
+      </form>
+    </span>
+  </nav>
+<% } %>
+
+<% if (flash && flash.length) { %>
+  <div class="no-print px-6 pt-4">
+    <% flash.forEach(function(f) { %>
+      <div class="rounded-xl px-4 py-2 mb-2 border" style="background-color: <%= f.kind==='err' ? 'color-mix(in oklab, var(--destructive) 12%, var(--card))' : 'color-mix(in oklab, var(--success) 12%, var(--card))' %>; color: <%= f.kind==='err' ? 'var(--destructive)' : 'var(--success)' %>;">
+        <%= f.msg %>
+      </div>
+    <% }) %>
+  </div>
+<% } %>
+
+<main class="px-6 py-6 max-w-7xl mx-auto"><%- body %></main>
+
+</body>
+</html>

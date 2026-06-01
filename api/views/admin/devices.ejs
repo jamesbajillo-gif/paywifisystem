@@ -1,0 +1,52 @@
+<div class="max-w-6xl mx-auto">
+  <div class="flex items-center justify-between mb-4">
+    <h1 class="text-2xl font-bold">Device Diagnostics</h1>
+    <a href="/admin/devices" class="text-sm text-brand-400 hover:underline">&#8635; Refresh</a>
+  </div>
+  <p class="text-sm text-slate-400 mb-5">Per connected device: OS, firewall state, captive-probe activity and a verdict on why the portal is / isn\'t showing. Updated every 30s by the connection monitor.
+    <% if (lastRun) { %>Last update: <%= new Date(lastRun*1000).toLocaleString() %>.<% } %></p>
+
+  <div class="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden mb-6">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-900 text-slate-400 text-xs uppercase">
+        <tr><th class="text-left px-3 py-2">IP</th><th class="text-left px-3 py-2">MAC</th><th class="text-left px-3 py-2">Host</th><th class="text-left px-3 py-2">OS</th><th class="text-left px-3 py-2">State</th><th class="text-left px-3 py-2">Last probe</th><th class="text-left px-3 py-2">Verdict</th></tr>
+      </thead>
+      <tbody>
+        <% if(!rows.length){ %><tr><td colspan="7" class="px-3 py-6 text-center text-slate-500">No devices currently connected (no active LAN leases).</td></tr><% } %>
+        <% rows.forEach(function(d){ var st = d.authorized? 'text-emerald-400':'text-amber-300'; %>
+          <tr class="border-t border-slate-700/60">
+            <td class="px-3 py-2 text-slate-200 whitespace-nowrap"><%= d.ip %></td>
+            <td class="px-3 py-2 text-slate-400 whitespace-nowrap"><%= d.mac || '' %></td>
+            <td class="px-3 py-2 text-slate-400"><%= d.hostname || '' %></td>
+            <td class="px-3 py-2 text-slate-300"><%= d.os || 'unknown' %></td>
+            <td class="px-3 py-2 font-semibold <%= st %>"><%= d.authorized ? 'Authorized' : 'Gated' %></td>
+            <td class="px-3 py-2 text-slate-400 whitespace-nowrap"><%= d.last_probe_ts ? (new Date(d.last_probe_ts*1000).toLocaleTimeString()+' ('+(d.last_probe_status||'')+')') : '—' %></td>
+            <td class="px-3 py-2 text-slate-300"><%= d.verdict || '' %></td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 class="text-sm font-semibold text-slate-300 mb-2">Recent captive / portal events</h2>
+  <div class="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-900 text-slate-400 text-xs uppercase">
+        <tr><th class="text-left px-3 py-2">Time</th><th class="text-left px-3 py-2">IP</th><th class="text-left px-3 py-2">Kind</th><th class="text-left px-3 py-2">Path</th><th class="text-left px-3 py-2">Status</th><th class="text-left px-3 py-2">OS</th></tr>
+      </thead>
+      <tbody>
+        <% if(!events.length){ %><tr><td colspan="6" class="px-3 py-6 text-center text-slate-500">No events yet.</td></tr><% } %>
+        <% events.forEach(function(e){ var kc = e.kind==='portal'?'text-sky-400':'text-slate-300'; %>
+          <tr class="border-t border-slate-700/60">
+            <td class="px-3 py-2 text-slate-400 whitespace-nowrap"><%= new Date(e.ts*1000).toLocaleTimeString() %></td>
+            <td class="px-3 py-2 text-slate-300 whitespace-nowrap"><%= e.ip %></td>
+            <td class="px-3 py-2 font-semibold <%= kc %>"><%= e.kind %></td>
+            <td class="px-3 py-2 text-slate-400 truncate" style="max-width:22rem"><%= e.path %></td>
+            <td class="px-3 py-2 text-slate-400"><%= e.status %></td>
+            <td class="px-3 py-2 text-slate-400"><%= e.os %></td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+</div>

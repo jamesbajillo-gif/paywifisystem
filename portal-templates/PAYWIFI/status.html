@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PAYWIFI — Connected</title>
+<style>
+  :root{ --orange:#f97316; --red:#ef4444; --green:#16a34a; --yellow:#d97706;
+         --gray-50:#f9fafb; --gray-100:#f3f4f6; --gray-400:#9ca3af; --gray-600:#4b5563; --gray-900:#111827; }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html{ background:#f1f3f5; }
+  body{ font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+        background:transparent; color:var(--gray-900); min-height:100vh;
+        display:flex; align-items:center; justify-content:center; padding:1rem; }
+  .card{ background:#fff; border-radius:1.25rem; padding:2rem 1.75rem; max-width:420px; width:100%;
+         box-shadow:0 10px 40px rgba(0,0,0,.12); border:1px solid var(--gray-100);
+         position:relative; animation:pwOverlayIn .28s ease; }
+  h1{ margin:0 0 .25rem; font-size:1.4rem; font-weight:900; color:var(--green);
+      display:flex; align-items:center; gap:.5rem; }
+  h1 span.dot{ width:10px; height:10px; background:var(--green); border-radius:50%;
+               display:inline-block; animation:pulse 2s infinite; }
+  @keyframes pulse{ 0%,100%{opacity:1} 50%{opacity:.3} }
+  .sub{ font-size:.8rem; color:var(--gray-400); margin-top:.1rem; }
+  .grid{ display:grid; grid-template-columns:1fr 1fr; gap:.75rem; margin:1.25rem 0; }
+  .stat{ background:var(--gray-50); border:1px solid var(--gray-100); border-radius:.75rem; padding:.85rem 1rem; }
+  .stat .label{ font-size:.7rem; color:var(--gray-400); text-transform:uppercase; letter-spacing:.06em; margin-bottom:.3rem; }
+  .stat .value{ font-size:1.3rem; font-weight:800; color:var(--gray-900); }
+  .stat .value.warn{ color:var(--yellow); }
+  .stat .value.crit{ color:var(--red); }
+  .progress-bar{ height:6px; background:var(--gray-100); border-radius:3px; margin:.3rem 0 0; overflow:hidden; }
+  .progress-bar .fill{ height:100%; background:var(--orange); border-radius:3px; transition:width .5s ease; }
+  .progress-bar .fill.warn{ background:var(--yellow); }
+  .progress-bar .fill.crit{ background:var(--red); }
+  button.disconnect{ width:100%; margin-top:1rem; padding:.75rem; background:#fff; color:var(--red);
+         border:1.5px solid var(--red); border-radius:.75rem; font-size:.95rem; font-weight:700; cursor:pointer;
+         font-family:inherit; transition:background .15s,color .15s; }
+  button.disconnect:hover{ background:#fef2f2; }
+  .loading{ text-align:center; color:var(--gray-400); padding:2rem 0; font-size:.9rem; }
+  .expired{ text-align:center; padding:1rem 0; }
+  .expired p{ color:var(--gray-600); margin:.5rem 0 1rem; font-size:.85rem; }
+  button.reconnect{ width:100%; padding:.75rem; background:linear-gradient(to right,var(--orange),var(--red)); color:#fff;
+         border:none; border-radius:.75rem; font-size:.95rem; font-weight:800; cursor:pointer; font-family:inherit;
+         box-shadow:0 4px 16px rgba(249,115,22,.3); transition:filter .15s; }
+  button.reconnect:hover{ filter:brightness(1.08); }
+  footer{ text-align:center; margin-top:1.25rem; font-size:.72rem; color:var(--gray-400); }
+  /* === Layered captive-portal overlay (replica blurred background) === */
+  .pw-portal-bg{ position:fixed; inset:0; z-index:-2; background:#f1f3f5; overflow:hidden; filter:blur(10px); transform:scale(1.12); pointer-events:none; }
+  .pw-portal-bg .pb-header{ position:absolute; top:0; left:0; right:0; height:64px; background:linear-gradient(to right,#f97316,#ef4444); }
+  .pw-portal-bg .pb-card{ position:absolute; left:50%; transform:translateX(-50%); width:min(88%,440px); background:#fff; border-radius:18px; box-shadow:0 8px 24px rgba(0,0,0,.07); }
+  .pw-portal-bg .pb1{ top:88px; height:118px; }
+  .pw-portal-bg .pb2{ top:222px; height:182px; }
+  .pw-portal-bg .pb3{ top:420px; height:150px; }
+  .pw-portal-scrim{ position:fixed; inset:0; z-index:-1; background:rgba(248,250,252,.5); pointer-events:none; }
+  .pw-close{ position:fixed; top:calc(env(safe-area-inset-top,0px) + .85rem); right:calc(env(safe-area-inset-right,0px) + .85rem); z-index:60; width:2.5rem; height:2.5rem; border-radius:50%; background:rgba(255,255,255,.92); border:1px solid #e5e7eb; box-shadow:0 2px 12px rgba(0,0,0,.14); font-size:1.6rem; line-height:1; color:#374151; display:flex; align-items:center; justify-content:center; cursor:pointer; -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px); transition:background .15s,transform .15s; }
+  .pw-close:hover{ background:#fff; color:#111827; }
+  .pw-close:active{ transform:scale(.92); }
+  @keyframes pwOverlayIn{ from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:none} }
+</style>
+</head>
+<body>
+<div class="pw-portal-bg" aria-hidden="true"><div class="pb-header"></div><div class="pb-card pb1"></div><div class="pb-card pb2"></div><div class="pb-card pb3"></div></div>
+<div class="pw-portal-scrim" aria-hidden="true"></div>
+<button type="button" class="pw-close" aria-label="Close and return to portal" onclick="pwCloseOverlay()">&times;</button>
+<div class="card">
+  <div id="loading" class="loading">Checking session…</div>
+
+  <div id="connected" style="display:none">
+    <h1><span class="dot"></span> Connected</h1>
+    <div class="sub">You're online via PAYWIFI</div>
+    <div class="grid">
+      <div class="stat">
+        <div class="label">Time remaining</div>
+        <div class="value" id="time-remaining">—</div>
+        <div class="progress-bar"><div class="fill" id="time-bar" style="width:100%"></div></div>
+      </div>
+      <div class="stat">
+        <div class="label">Speed limit</div>
+        <div class="value" id="bandwidth">—</div>
+      </div>
+      <div class="stat">
+        <div class="label">Downloaded</div>
+        <div class="value" id="bytes-in">—</div>
+      </div>
+      <div class="stat">
+        <div class="label">Uploaded</div>
+        <div class="value" id="bytes-out">—</div>
+      </div>
+    </div>
+    <button class="disconnect" id="btn-disconnect">Disconnect</button>
+  </div>
+
+  <div id="expired" style="display:none">
+    <div class="expired">
+      <h1 style="color:var(--red);justify-content:center">Session ended</h1>
+      <p>Your session has expired or you have been disconnected.</p>
+      <button class="reconnect" onclick="location.href='/'">Get a new voucher</button>
+    </div>
+  </div>
+
+  <footer id="footer" style="display:none">Voucher: <span id="voucher-code">—</span></footer>
+</div>
+
+<script>
+function pwCloseOverlay(){try{var so=document.referrer&&document.referrer.indexOf(location.protocol+'//'+location.host)===0;if(so&&window.history.length>1){window.history.back();return;}}catch(e){}location.href='/';}
+document.addEventListener('keydown',function(e){if(e.key==='Escape')pwCloseOverlay();});
+
+function fmtBytes(n) {
+  n = Number(n) || 0;
+  if (n < 1024) return n + ' B';
+  const u = ['KB','MB','GB','TB'];
+  let i = -1; do { n /= 1024; i++; } while (n >= 1024 && i < u.length - 1);
+  return n.toFixed(1) + ' ' + u[i];
+}
+function fmtTime(sec) {
+  sec = Math.max(0, Math.round(sec));
+  if (sec < 60) return sec + 's';
+  const m = Math.floor(sec / 60) % 60;
+  const h = Math.floor(sec / 3600);
+  if (h > 0) return h + 'h ' + String(m).padStart(2,'0') + 'm';
+  return m + 'm ' + String(sec % 60).padStart(2,'0') + 's';
+}
+function fmtBandwidth(kbps) {
+  if (!kbps) return '—';
+  if (kbps >= 1000) return (kbps/1000).toFixed(kbps%1000===0?0:1) + ' Mbps';
+  return kbps + ' Kbps';
+}
+
+let sessionDuration = null;
+
+async function refresh() {
+  try {
+    const r = await fetch('/api/session/status');
+    const d = await r.json();
+    document.getElementById('loading').style.display = 'none';
+    if (!d.ok || !d.authenticated) {
+      document.getElementById('connected').style.display = 'none';
+      document.getElementById('expired').style.display = 'block';
+      return;
+    }
+    document.getElementById('connected').style.display = 'block';
+    document.getElementById('expired').style.display = 'none';
+    document.getElementById('footer').style.display = 'block';
+    const remaining = d.remaining_seconds || 0;
+    const timeEl = document.getElementById('time-remaining');
+    const barEl  = document.getElementById('time-bar');
+    timeEl.textContent = fmtTime(remaining);
+    timeEl.className = 'value' + (remaining < 300 ? ' crit' : remaining < 600 ? ' warn' : '');
+    if (!sessionDuration && d.started_at && d.expires_at) {
+      sessionDuration = d.expires_at - d.started_at;
+    }
+    const pct = sessionDuration ? Math.min(100, (remaining / sessionDuration) * 100) : 100;
+    barEl.style.width = pct + '%';
+    barEl.className = 'fill' + (pct < 10 ? ' crit' : pct < 20 ? ' warn' : '');
+    document.getElementById('bandwidth').textContent = fmtBandwidth(d.bandwidth_kbps);
+    document.getElementById('bytes-in').textContent  = fmtBytes(d.bytes_in);
+    document.getElementById('bytes-out').textContent = fmtBytes(d.bytes_out);
+    document.getElementById('voucher-code').textContent = d.voucher_code || '—';
+  } catch(e) {
+    console.warn('Status fetch failed:', e);
+  }
+}
+
+document.getElementById('btn-disconnect').addEventListener('click', async () => {
+  if (!confirm('Disconnect from the network?')) return;
+  try { await fetch('/api/session/logout', { method: 'POST' }); } catch(e) {}
+  location.href = '/';
+});
+
+refresh();
+setInterval(refresh, 10000);
+</script>
+</body>
+</html>

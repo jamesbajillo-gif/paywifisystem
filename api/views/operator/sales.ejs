@@ -1,0 +1,41 @@
+<header class="mb-6">
+  <p class="text-[11px] font-bold uppercase tracking-[0.2em]" style="color:var(--primary)">PAYWIFI · Operator</p>
+  <h1 class="text-3xl font-bold tracking-tight"><%= operator.store_name %> · Sales</h1>
+  <p class="text-sm mt-1" style="color: var(--muted-foreground)">Today + last 7 days for your store.</p>
+</header>
+<div class="grid grid-cols-2 gap-3 mb-6">
+  <div class="rounded-2xl border-2 p-4" style="background: var(--card); border-color: var(--border)">
+    <p class="text-[11px] uppercase tracking-wider" style="color: var(--muted-foreground)">Today's revenue</p>
+    <p class="text-3xl font-bold tabular-nums mt-1"><%= fmtPHP(todayRev) %></p>
+    <p class="text-xs mt-1" style="color: var(--muted-foreground)"><%= todayCount %> vouchers</p>
+  </div>
+  <div class="rounded-2xl border-2 p-4" style="background: var(--card); border-color: var(--border)">
+    <p class="text-[11px] uppercase tracking-wider" style="color: var(--muted-foreground)">Lifetime</p>
+    <p class="text-3xl font-bold tabular-nums mt-1"><%= fmtPHP(lifetimeRev) %></p>
+    <% if (lifetimeRefunds > 0) { %><p class="text-xs mt-1" style="color: var(--destructive)">−<%= fmtPHP(lifetimeRefunds) %> refunded</p>
+    <% } else { %><p class="text-xs mt-1" style="color: var(--muted-foreground)">Net of refunds</p><% } %>
+  </div>
+</div>
+<section class="rounded-2xl border-2 p-4" style="background: var(--card); border-color: var(--border)">
+  <h2 class="text-lg font-bold mb-3">Recent vouchers</h2>
+  <% if (!recent.length) { %>
+    <p class="text-sm text-center py-8" style="color: var(--muted-foreground)">No vouchers issued in the last 7 days.</p>
+  <% } else { %>
+    <ul class="flex flex-col divide-y -mx-4" style="border-color: var(--border)">
+      <% recent.forEach(function(v){ const refunded = !!v.refunded_at; %>
+        <li class="px-4 py-3 flex items-center gap-3 min-w-0">
+          <div class="flex-1 min-w-0">
+            <p class="font-mono font-bold text-sm tracking-wider <%= refunded ? 'line-through opacity-50' : '' %>"><%= fmtVoucherCode(v.code) %></p>
+            <p class="text-xs mt-0.5 truncate" style="color: var(--muted-foreground)">
+              <%= v.plan_name || '—' %> · <span class="font-semibold" style="color: <%= refunded ? 'var(--destructive)' : 'var(--foreground)' %>"><%= v.amount != null ? fmtPHP(v.amount) : '—' %></span> · <%= relTime(v.created_at) %>
+              <% if (refunded) { %> · <span style="color: var(--destructive)">refunded</span><% } %>
+            </p>
+          </div>
+          <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-lg shrink-0"
+            style="background: color-mix(in oklab, <%= v.v_status==='active' ? 'var(--success)' : v.v_status==='expired' ? 'var(--muted-foreground)' : 'var(--primary)' %> 10%, var(--card));
+                   color: <%= v.v_status==='active' ? 'var(--success)' : v.v_status==='expired' ? 'var(--muted-foreground)' : 'var(--primary)' %>"><%= v.v_status || 'unused' %></span>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
+</section>

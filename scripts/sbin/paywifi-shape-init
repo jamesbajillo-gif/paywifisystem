@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Initialize tc qdiscs for PAYWIFI shaping.
+# - LAN egress: HTB root on ens19 (limits uploads from each client)
+# - WAN ingress -> IFB egress: HTB root on ifb-paywifi (limits downloads to each client)
+set -e
+
+LAN="ens19"
+WAN="ens18"
+IFB="ifb-paywifi"
+
+# Create (idempotent) + bring up the IFB device
+ip link add "$IFB" type ifb 2>/dev/null || true
+ip link set "$IFB" up 2>/dev/null || true
+
+# ---- LAN egress (client upload shaping) ------------------------------------
+tc qdisc del dev "$LAN" root 2>/dev/null || true
+tc qdisc add dev "$LAN" root handle 1: htb default 9999
+# Default class for unmatched (authorized) traffic — generous; per-IP classes override
+tc class add dev "$LAN" parent 1: classid 1:9999 htb rate 1000mbit ceil 1000mbit
+
+# ---- WAN ingress -> IFB egress (client download shaping) -------------------
+tc qdisc del dev "$WAN"  ingress 2>/dev/null || true
+tc qdisc del dev "$IFB"  root    2>/dev/null || true
+
+tc qdisc add dev "$WAN" handle ffff: ingress
+# Mirror all inbound WAN traffic to IFB, where we can egress-shape it
+tc filter add dev "$WAN" parent ffff: protocol ip u32 match u32 0 0 \
+    action mirred egress redirect dev "$IFB"
+
+tc qdisc add dev "$IFB" root handle 1: htb default 9999
+tc class add dev "$IFB" parent 1: classid 1:9999 htb rate 1000mbit ceil 1000mbit
+
+echo "paywifi-shape-init: tc base setup complete on $LAN/$WAN/$IFB"

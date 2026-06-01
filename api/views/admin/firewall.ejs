@@ -1,0 +1,383 @@
+<% if (locals.flash && flash.length) { %>
+  <% flash.forEach(function(f){ %>
+    <div class="mb-4 px-4 py-2 rounded text-sm font-medium
+      <%= f.kind === 'ok' ? 'bg-green-900/50 text-green-300' : f.kind === 'warn' ? 'bg-yellow-900/50 text-yellow-300' : 'bg-red-900/50 text-red-300' %>">
+      <%= f.msg %>
+    </div>
+  <% }); %>
+<% } %>
+
+<div class="flex items-center justify-between mb-2">
+  <div>
+    <h1 class="text-2xl font-bold">Firewall</h1>
+    <p class="text-sm text-slate-400 mt-0.5">Manage network access rules for the captive portal gateway.</p>
+  </div>
+  <button onclick="location.reload()" class="text-xs text-slate-400 hover:text-slate-100 border border-slate-700 px-3 py-1.5 rounded transition-colors">↻ Refresh</button>
+</div>
+
+<!-- ── SSH ACCESS TOGGLE ────────────────────────────────────────────────── -->
+<div class="bg-slate-800 rounded-lg p-5 mb-6 border border-slate-700">
+  <div class="flex items-start justify-between gap-4">
+    <div class="flex items-start gap-3">
+      <!-- Terminal icon -->
+      <svg class="shrink-0 mt-0.5" width="22" height="22" viewBox="0 0 24 24" fill="none"
+           stroke="<%= sshAllowLan ? '#f97316' : '#60a5fa' %>" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>
+      </svg>
+      <div>
+        <h2 class="font-semibold text-slate-100 leading-tight">SSH Access</h2>
+        <p class="text-xs text-slate-400 mt-0.5 max-w-lg">
+          Controls which network interfaces accept SSH connections (port 22).
+          <strong class="text-slate-300">WAN only</strong> is recommended — restricts SSH to your management network.
+          <strong class="text-slate-300">WAN + LAN</strong> also allows SSH from hotspot clients (use only for on-site troubleshooting).
+        </p>
+        <!-- Live status badge -->
+        <div class="mt-2 flex items-center gap-2">
+          <span class="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full
+            <%= sshAllowLan ? 'bg-orange-900/60 text-orange-300 border border-orange-700' : 'bg-blue-900/60 text-blue-300 border border-blue-800' %>">
+            <span class="w-1.5 h-1.5 rounded-full inline-block <%= sshAllowLan ? 'bg-orange-400' : 'bg-blue-400' %>"></span>
+            <%= sshAllowLan ? 'WAN + LAN active' : 'WAN only active' %>
+          </span>
+          <span class="text-[10px] text-slate-500">nftables live</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toggle form -->
+    <form method="POST" action="/admin/firewall/ssh" class="shrink-0">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="ssh_allow_lan" value="<%= sshAllowLan ? '0' : '1' %>">
+      <button type="submit"
+        onclick="return confirm('<%= sshAllowLan
+          ? 'Restrict SSH to WAN only? Hotspot clients will no longer reach port 22.'
+          : 'Allow SSH from LAN (hotspot clients)? Only do this for on-site troubleshooting.' %>')"
+        class="flex items-center gap-2 px-4 py-2 rounded text-sm font-semibold transition-colors
+          <%= sshAllowLan
+            ? 'bg-blue-700 hover:bg-blue-600 text-white'
+            : 'bg-orange-700/70 hover:bg-orange-600 text-orange-100' %>">
+        <% if (sshAllowLan) { %>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          Restrict to WAN only
+        <% } else { %>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+          Allow LAN access
+        <% } %>
+      </button>
+    </form>
+  </div>
+
+  <!-- Info row -->
+  <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+    <div class="flex items-start gap-2 px-3 py-2 rounded bg-slate-900 border border-slate-700/60">
+      <span class="text-blue-400 shrink-0 mt-px">●</span>
+      <div>
+        <div class="font-semibold text-slate-200">WAN only <span class="text-slate-500 font-normal">(recommended)</span></div>
+        <div class="text-slate-500 mt-0.5">SSH only from <code class="font-mono text-[10px] bg-slate-800 px-1 rounded">ens18</code> — your management/office network. Hotspot clients cannot reach port 22.</div>
+      </div>
+    </div>
+    <div class="flex items-start gap-2 px-3 py-2 rounded bg-slate-900 border border-slate-700/60">
+      <span class="text-orange-400 shrink-0 mt-px">●</span>
+      <div>
+        <div class="font-semibold text-slate-200">WAN + LAN</div>
+        <div class="text-slate-500 mt-0.5">SSH accepted from both <code class="font-mono text-[10px] bg-slate-800 px-1 rounded">ens18</code> and <code class="font-mono text-[10px] bg-slate-800 px-1 rounded">ens19</code>. Use for on-site laptop access. Switch back when done.</div>
+      </div>
+    </div>
+  </div>
+
+  <% if (locals.flash && flash.length) { %>
+    <% flash.forEach(function(f){ %>
+      <% if (f.msg && f.msg.toLowerCase().includes('ssh')) { %>
+        <div class="mt-3 px-4 py-2 rounded text-sm font-medium
+          <%= f.kind === 'ok' ? 'bg-green-900/50 text-green-300' : 'bg-red-900/50 text-red-300' %>">
+          <%= f.msg %>
+        </div>
+      <% } %>
+    <% }); %>
+  <% } %>
+</div>
+
+<!-- ── ADMIN UI ACCESS TOGGLE ───────────────────────────────────────────── -->
+<div class="bg-slate-800 rounded-lg p-5 mb-6 border border-slate-700">
+  <div class="flex items-start justify-between gap-4">
+    <div class="flex items-start gap-3">
+      <!-- Lock / shield icon -->
+      <svg class="shrink-0 mt-0.5" width="22" height="22" viewBox="0 0 24 24" fill="none"
+           stroke="<%= adminAllowLan ? '#f97316' : '#34d399' %>" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+      </svg>
+      <div>
+        <h2 class="font-semibold text-slate-100 leading-tight">Admin UI Access</h2>
+        <p class="text-xs text-slate-400 mt-0.5 max-w-lg">
+          Controls which clients can reach <code class="font-mono text-[10px] bg-slate-700 px-1 rounded">/admin</code>
+          via nginx ACL.
+          <strong class="text-slate-300">Management only</strong> restricts access to your office/management subnet
+          (<code class="font-mono text-[10px] bg-slate-700 px-1 rounded">192.168.89.0/24</code>).
+          <strong class="text-slate-300">Allow LAN</strong> also permits hotspot clients (use only for on-site admin work).
+        </p>
+        <!-- Live status badge -->
+        <div class="mt-2 flex items-center gap-2">
+          <span class="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full
+            <%= adminAllowLan ? 'bg-orange-900/60 text-orange-300 border border-orange-700' : 'bg-emerald-900/60 text-emerald-300 border border-emerald-800' %>">
+            <span class="w-1.5 h-1.5 rounded-full inline-block <%= adminAllowLan ? 'bg-orange-400' : 'bg-emerald-400' %>"></span>
+            <%= adminAllowLan ? 'Management + LAN active' : 'Management only active' %>
+          </span>
+          <span class="text-[10px] text-slate-500">nginx ACL live</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toggle form -->
+    <form method="POST" action="/admin/firewall/admin-acl" class="shrink-0">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="admin_allow_lan" value="<%= adminAllowLan ? '0' : '1' %>">
+      <button type="submit"
+        onclick="return confirm('<%= adminAllowLan
+          ? 'Restrict Admin UI to management network only? Hotspot clients will receive 403.'
+          : 'Allow Admin UI access from LAN (hotspot clients)? Switch back when done.' %>')"
+        class="flex items-center gap-2 px-4 py-2 rounded text-sm font-semibold transition-colors
+          <%= adminAllowLan
+            ? 'bg-emerald-700 hover:bg-emerald-600 text-white'
+            : 'bg-orange-700/70 hover:bg-orange-600 text-orange-100' %>">
+        <% if (adminAllowLan) { %>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+          Restrict to mgmt only
+        <% } else { %>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 8.83-4.64"/>
+          </svg>
+          Allow LAN access
+        <% } %>
+      </button>
+    </form>
+  </div>
+
+  <!-- Info row -->
+  <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+    <div class="flex items-start gap-2 px-3 py-2 rounded bg-slate-900 border border-slate-700/60">
+      <span class="text-emerald-400 shrink-0 mt-px">●</span>
+      <div>
+        <div class="font-semibold text-slate-200">Management only <span class="text-slate-500 font-normal">(recommended)</span></div>
+        <div class="text-slate-500 mt-0.5">Admin UI only accessible from
+          <code class="font-mono text-[10px] bg-slate-800 px-1 rounded">192.168.89.0/24</code> and
+          <code class="font-mono text-[10px] bg-slate-800 px-1 rounded">127.0.0.1</code>.
+          Hotspot clients receive <span class="text-rose-400">403 Forbidden</span>.</div>
+      </div>
+    </div>
+    <div class="flex items-start gap-2 px-3 py-2 rounded bg-slate-900 border border-slate-700/60">
+      <span class="text-orange-400 shrink-0 mt-px">●</span>
+      <div>
+        <div class="font-semibold text-slate-200">Management + LAN</div>
+        <div class="text-slate-500 mt-0.5">Admin UI also reachable from
+          <code class="font-mono text-[10px] bg-slate-800 px-1 rounded">10.10.0.0/24</code>.
+          Use for on-site admin access from a connected device. Switch back to mgmt-only when done.</div>
+      </div>
+    </div>
+  </div>
+
+  <% if (locals.flash && flash.length) { %>
+    <% flash.forEach(function(f){ %>
+      <% if (f.msg && f.msg.toLowerCase().includes('admin')) { %>
+        <div class="mt-3 px-4 py-2 rounded text-sm font-medium
+          <%= f.kind === 'ok' ? 'bg-green-900/50 text-green-300' : 'bg-red-900/50 text-red-300' %>">
+          <%= f.msg %>
+        </div>
+      <% } %>
+    <% }); %>
+  <% } %>
+</div>
+
+
+<!-- Tab nav (future tabs: Rules, Blocked) -->
+<div class="flex gap-2 mb-6 border-b border-slate-700 pb-0">
+  <button class="px-4 py-2 -mb-px border-b-2 border-brand-400 text-brand-400 text-sm font-semibold">Whitelist</button>
+</div>
+
+<!-- ── AUTO-GENERATED FROM INTEGRATIONS ────────────────────────────────── -->
+<div class="bg-slate-800 rounded-lg p-5 mb-4">
+  <div class="flex flex-wrap items-start justify-between gap-3 mb-4">
+    <div>
+      <h2 class="font-semibold text-slate-100">Auto-generated from Integrations</h2>
+      <p class="text-xs text-slate-400 mt-0.5 max-w-xl">
+        Domains and IPs used by your enabled payment modules.
+        Whitelisting lets unauthenticated clients reach these endpoints during checkout.
+        <span class="text-slate-500">Server-only entries (no client access needed) are marked.</span>
+      </p>
+    </div>
+    <% if (suggestions.length) { %>
+    <form method="POST" action="/admin/firewall/whitelist/auto-apply">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <button class="px-4 py-1.5 rounded bg-brand-500 hover:bg-brand-400 text-slate-900 text-sm font-semibold whitespace-nowrap transition-colors">
+        ✓ Apply All
+      </button>
+    </form>
+    <% } %>
+  </div>
+
+  <% if (!suggestions.length) { %>
+    <p class="text-sm text-slate-500 italic py-2">
+      No payment modules are currently enabled.
+      <a href="/admin/payments" class="text-brand-400 hover:underline">Configure payment modules →</a>
+    </p>
+  <% } else {
+    // Group by module
+    var grouped = {};
+    suggestions.forEach(function(sg){
+      if(!grouped[sg.module_slug]) grouped[sg.module_slug]={name:sg.module_name,slug:sg.module_slug,entries:[]};
+      grouped[sg.module_slug].entries.push(sg);
+    });
+    Object.values(grouped).forEach(function(grp){ %>
+    <!-- Module group -->
+    <div class="mb-3">
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+        <div class="flex items-center gap-2">
+          <span class="text-xs bg-brand-900 text-brand-300 px-2 py-0.5 rounded font-semibold uppercase tracking-wide"><%= grp.slug %></span>
+          <span class="text-sm font-semibold text-slate-200"><%= grp.name %></span>
+        </div>
+        <form method="POST" action="/admin/firewall/whitelist/auto-apply">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <input type="hidden" name="slug" value="<%= grp.slug %>">
+          <button class="text-xs text-brand-400 hover:text-brand-300 border border-brand-800 hover:border-brand-600 px-3 py-1 rounded transition-colors">
+            Apply <%= grp.name %> IPs
+          </button>
+        </form>
+      </div>
+
+      <div class="space-y-1 pl-0">
+      <% grp.entries.forEach(function(sg) { %>
+        <div class="flex flex-wrap items-start gap-3 px-3 py-2 rounded bg-slate-900 border border-slate-700/60 text-xs">
+          <!-- Status dot -->
+          <div class="shrink-0 pt-0.5">
+            <% if (sg.all_active) { %>
+              <span class="block w-2 h-2 rounded-full bg-emerald-400" title="All IPs whitelisted"></span>
+            <% } else if (sg.any_active) { %>
+              <span class="block w-2 h-2 rounded-full bg-amber-400" title="Partially active"></span>
+            <% } else { %>
+              <span class="block w-2 h-2 rounded-full bg-slate-600" title="Not whitelisted"></span>
+            <% } %>
+          </div>
+
+          <!-- Domain + IPs -->
+          <div class="flex-1 min-w-0">
+            <div class="flex flex-wrap items-baseline gap-2">
+              <span class="font-mono text-slate-200 font-semibold"><%= sg.domain %></span>
+              <% if (sg.server_only) { %>
+                <span class="text-[10px] bg-slate-700 text-slate-400 px-1.5 py-0.5 rounded">server-only</span>
+              <% } %>
+              <span class="text-slate-500"><%= sg.note %></span>
+            </div>
+            <% if (sg.ips.length) { %>
+              <div class="flex flex-wrap gap-1.5 mt-1">
+                <% sg.ips.forEach(function(ip) { %>
+                  <span class="font-mono text-[10px] px-1.5 py-0.5 rounded <%- walledIPs.indexOf(ip) !== -1 ? 'bg-emerald-900 text-emerald-300' : 'bg-slate-800 text-slate-400' %>">
+                    <%= ip %><% if(walledIPs.indexOf(ip) !== -1){ %> ✓<% } %>
+                  </span>
+                <% }) %>
+              </div>
+            <% } else { %>
+              <div class="text-[10px] text-rose-500 mt-1">Could not resolve — DNS lookup failed</div>
+            <% } %>
+          </div>
+
+          <!-- Per-entry apply -->
+          <div class="shrink-0">
+            <% if (sg.all_active) { %>
+              <span class="text-emerald-400">✓ Active</span>
+            <% } else if (sg.ips.length) { %>
+              <form method="POST" action="/admin/firewall/whitelist/auto-apply">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <input type="hidden" name="slug" value="<%= sg.module_slug %>">
+                <button class="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 transition-colors">
+                  + Add IP<%= sg.ips.length > 1 ? 's' : '' %>
+                </button>
+              </form>
+            <% } %>
+          </div>
+        </div>
+      <% }) %>
+      </div>
+    </div>
+  <% }) %>
+  <% } %>
+</div>
+
+<!-- ── CURRENT WHITELIST ──────────────────────────────────────────────────── -->
+<div class="bg-slate-800 rounded-lg p-5">
+  <div class="flex items-center justify-between mb-4">
+    <div>
+      <h2 class="font-semibold text-slate-100">
+        Current Whitelist
+        <span class="text-slate-500 font-normal text-sm ml-1">(<%= ipDetails.length %> entries)</span>
+      </h2>
+      <p class="text-xs text-slate-400 mt-0.5">
+        IPs in the live <code class="font-mono text-[10px] bg-slate-700 px-1 rounded">nftables paywifi_walled</code> set.
+        Persisted entries re-apply automatically on restart.
+      </p>
+    </div>
+  </div>
+
+  <!-- Add form -->
+  <form method="POST" action="/admin/firewall/whitelist/add"
+        class="flex flex-wrap gap-2 mb-4 pb-4 border-b border-slate-700">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input name="ip" placeholder="IP address  e.g. 203.0.113.5"
+           pattern="^(\d{1,3}\.){3}\d{1,3}$"
+           class="flex-1 min-w-[160px] px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-sm text-slate-200 outline-none focus:border-brand-500 font-mono placeholder:font-sans placeholder:text-slate-500">
+    <input name="domain" placeholder="Domain (optional — resolved to IP)"
+           class="flex-1 min-w-[220px] px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-sm text-slate-200 outline-none focus:border-brand-500 placeholder:text-slate-500">
+    <input name="note" placeholder="Label / note"
+           class="w-36 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-sm text-slate-200 outline-none focus:border-brand-500 placeholder:text-slate-500">
+    <button class="px-4 py-1.5 rounded bg-brand-500 hover:bg-brand-400 text-slate-900 text-sm font-semibold transition-colors">+ Add</button>
+  </form>
+
+  <!-- IP list -->
+  <div class="space-y-1">
+  <% if (!ipDetails.length) { %>
+    <p class="text-sm text-slate-500 italic py-4 text-center">Whitelist is empty.</p>
+  <% } %>
+  <% ipDetails.forEach(function(entry) {
+    var srcLabel = entry.source;
+    var srcCls   = 'bg-slate-700 text-slate-400';
+    if (entry.source === 'system')        { srcLabel = 'system';         srcCls = 'bg-slate-700 text-slate-400'; }
+    else if (entry.source === 'manual')   { srcLabel = 'manual';         srcCls = 'bg-slate-700 text-slate-300'; }
+    else if (entry.source === 'runtime')  { srcLabel = 'runtime';        srcCls = 'bg-slate-700 text-slate-500'; }
+    else if (entry.source.startsWith('module:')) {
+      srcLabel = entry.source.replace('module:','');
+      srcCls   = 'bg-brand-900 text-brand-300';
+    }
+    var removable = entry.source !== 'system';
+  %>
+    <div class="flex flex-wrap items-center gap-2 px-3 py-2 rounded bg-slate-900 text-xs">
+      <span class="font-mono text-slate-100 shrink-0 tabular-nums"><%= entry.ip %></span>
+      <% if (entry.domain) { %>
+        <span class="font-mono text-slate-500 shrink-0 truncate max-w-[200px]" title="<%= entry.domain %>"><%= entry.domain %></span>
+      <% } %>
+      <% if (entry.note) { %>
+        <span class="text-slate-500 flex-1 truncate"><%= entry.note %></span>
+      <% } else { %><span class="flex-1"></span><% } %>
+      <span class="text-[10px] px-1.5 py-0.5 rounded font-semibold shrink-0 <%= srcCls %>"><%= srcLabel %></span>
+      <% if (entry.created_at) { %>
+        <span class="text-slate-600 text-[10px] shrink-0">
+          <%= new Date(entry.created_at*1000).toLocaleString('en-PH',{timeZone:'Asia/Manila',month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit'}) %>
+        </span>
+      <% } %>
+      <% if (removable) { %>
+        <form method="POST" action="/admin/firewall/whitelist/remove" class="shrink-0">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <input type="hidden" name="ip" value="<%= entry.ip %>">
+          <button class="text-rose-500 hover:text-rose-300 px-1 transition-colors" title="Remove from whitelist">✕</button>
+        </form>
+      <% } else { %>
+        <span class="w-5 shrink-0"></span>
+      <% } %>
+    </div>
+  <% }) %>
+  </div>
+</div>
+
+<div class="mt-3 text-[10px] text-slate-600">
+  Walled garden controls pre-authentication access. System entries (DNS, gateway) are permanent.
+  Persisted entries are restored to the live nft set on each page load.
+</div>

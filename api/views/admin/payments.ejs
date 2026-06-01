@@ -1,0 +1,834 @@
+<!-- Payments page: Options + Modules tabs -->
+<div class="flex items-center justify-between mb-5">
+  <h1 class="text-2xl font-bold">Payments</h1>
+</div>
+
+<% if (flash && flash.length) { %>
+  <% flash.forEach(function(f) { %>
+  <div class="mb-4 rounded-lg px-4 py-3 text-sm flex items-center gap-2 <%= f.kind === 'err' ? 'bg-rose-900/40 border border-rose-700 text-rose-200' : 'bg-emerald-900/40 border border-emerald-700 text-emerald-200' %>">
+    <% if (f.kind === 'ok') { %><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg><% } else { %><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg><% } %>
+    <%- f.msg %>
+  </div>
+  <% }) %>
+<% } %>
+<!-- Tab bar -->
+<div class="flex gap-1 mb-6 border-b border-slate-700">
+  <button id="tab-btn-options" onclick="showTab('options')"
+    class="tab-btn px-4 py-2 text-sm font-medium rounded-t border-b-2 border-transparent transition-colors">
+    Payment Options
+  </button>
+  <button id="tab-btn-modules" onclick="showTab('modules')"
+    class="tab-btn px-4 py-2 text-sm font-medium rounded-t border-b-2 border-transparent transition-colors">
+    Payment Modules
+  </button>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ OPTIONS TAB ═══ -->
+<div id="tab-options" class="tab-panel">
+  <p class="text-xs text-slate-500 mb-4">Payment methods shown on the portal's payment screen. Toggle visibility, assign a gateway module to each option, or add new ones.</p>
+
+  <%
+  var ICON_KEYS   = ['cash','card','qr','mobile','computer','bank','wallet'];
+  var ICON_LABELS = { cash:'Cash / Bills', card:'Credit/Debit Card', qr:'QR Code',
+    mobile:'Mobile / E-Wallet', computer:'Online / Web Pay', bank:'Bank Transfer', wallet:'Wallet' };
+  var ICON_SVG = {
+    cash:     '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>',
+    card:     '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>',
+    qr:       '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>',
+    mobile:   '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>',
+    computer: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>',
+    bank:     '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="22" x2="21" y2="22"/><line x1="6" y1="18" x2="6" y2="11"/><line x1="10" y1="18" x2="10" y2="11"/><line x1="14" y1="18" x2="14" y2="11"/><line x1="18" y1="18" x2="18" y2="11"/><polygon points="12 2 20 7 4 7"/></svg>',
+    wallet:   '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12V22H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h16v4"/><path d="M20 12a2 2 0 0 0-2 2v2a2 2 0 0 0 2 2h4v-6z"/><circle cx="18" cy="14" r="1"/></svg>'
+  };
+  function modName(id) {
+    if (!id) return null;
+    var m = modules.find(function(x){ return x.id === id; });
+    return m ? m.name : null;
+  }
+  %>
+
+  <div class="grid md:grid-cols-2 gap-6">
+    <!-- Left: current options list -->
+    <div class="bg-slate-800 rounded-lg p-4">
+      <h2 class="font-semibold mb-1">Current options</h2>
+      <p class="text-xs text-slate-500 mb-4">Toggle visibility or edit. Hidden options are not shown to guests.</p>
+      <div class="space-y-2">
+        <% options.forEach(function(o){ %>
+          <div class="bg-slate-900 rounded-lg p-3 border border-slate-700">
+            <div class="flex items-center gap-3">
+              <div class="w-9 h-9 rounded-lg bg-slate-700 flex items-center justify-center flex-shrink-0 text-slate-300">
+                <% if (o.icon_url) { %>
+                  <img src="<%= o.icon_url %>" width="22" height="22" style="object-fit:contain;border-radius:4px">
+                <% } else { %>
+                  <%- ICON_SVG[o.icon_key] || ICON_SVG.card %>
+                <% } %>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="font-semibold text-sm truncate"><%= o.name %></div>
+                <div class="flex items-center gap-2 mt-0.5 flex-wrap">
+                  <span class="text-xs px-1.5 py-0.5 rounded-full <%= o.badge.toLowerCase()==='available' ? 'bg-emerald-800 text-emerald-200' : o.badge.toLowerCase()==='not available' ? 'bg-red-900 text-red-300' : 'bg-slate-700 text-slate-400' %>">
+                    <%= o.badge %>
+                  </span>
+                  <% if (o.module_id) { var mn = modName(o.module_id); %>
+                    <span class="text-xs text-sky-400 flex items-center gap-1">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/></svg>
+                      <%= mn || 'Module #'+o.module_id %>
+                      <% if (o.module_action) { %><span class="text-slate-500">· <%= o.module_action %></span><% } %>
+                    </span>
+                  <% } %>
+                </div>
+              </div>
+              <span class="text-xs px-2 py-0.5 rounded-full flex-shrink-0 <%= o.is_active ? 'bg-emerald-900 text-emerald-300' : 'bg-slate-700 text-slate-500' %>">
+                <%= o.is_active ? 'Visible' : 'Hidden' %>
+              </span>
+              <div class="flex gap-1 flex-shrink-0">
+                <button onclick="openEdit(<%= JSON.stringify(o) %>)"
+                  class="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-xs text-slate-300">Edit</button>
+                <form method="POST" action="/admin/payment-options/<%= o.id %>/toggle" class="inline">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <button class="px-2 py-1 rounded text-xs <%= o.is_active ? 'bg-amber-900 text-amber-300 hover:bg-amber-800' : 'bg-emerald-900 text-emerald-300 hover:bg-emerald-800' %>">
+                    <%= o.is_active ? 'Hide' : 'Show' %>
+                  </button>
+                </form>
+                <form method="POST" action="/admin/payment-options/<%= o.id %>/delete" class="inline"
+                      onsubmit="return confirm('Delete \'<%= o.name %>\'?')">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <button class="px-2 py-1 rounded bg-rose-900 text-rose-300 hover:bg-rose-800 text-xs">&times;</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        <% }) %>
+        <% if (!options.length) { %>
+          <p class="text-slate-500 text-sm py-4 text-center">No payment options yet. Add one →</p>
+        <% } %>
+      </div>
+    </div>
+
+    <!-- Right: add new option -->
+    <div class="bg-slate-800 rounded-lg p-4">
+      <h2 class="font-semibold mb-3">Add option</h2>
+      <form method="POST" action="/admin/payment-options" class="space-y-3 text-sm">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <div>
+          <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Name</label>
+          <input name="name" required placeholder="e.g. GCash, QR Ph, Cash"
+                 class="w-full px-3 py-2 rounded bg-slate-900 border border-slate-700 focus:border-brand-500 outline-none">
+        </div>
+        <div>
+          <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Icon preset</label>
+          <select name="icon_key" class="w-full px-3 py-2 rounded bg-slate-900 border border-slate-700">
+            <% ICON_KEYS.forEach(function(k){ %>
+              <option value="<%= k %>"><%= ICON_LABELS[k] %></option>
+            <% }) %>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Custom image URL <span class="normal-case text-slate-500 font-normal">(overrides preset)</span></label>
+          <input name="icon_url" type="url" placeholder="https://example.com/logo.png"
+                 class="w-full px-3 py-2 rounded bg-slate-900 border border-slate-700 focus:border-brand-500 outline-none">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Status</label>
+            <select name="badge" class="w-full px-3 py-2 rounded bg-slate-900 border border-slate-700 focus:border-brand-500 outline-none">
+              <option value="Available">Available</option>
+              <option value="Not Available">Not Available</option>
+              <option value="Offline">Offline</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Sort order</label>
+            <input name="sort_order" type="number" value="<%= (options.length + 1) * 10 %>" min="0"
+                   class="w-full px-3 py-2 rounded bg-slate-900 border border-slate-700 focus:border-brand-500 outline-none">
+          </div>
+        </div>
+        <% if (modules && modules.length) { %>
+        <div class="border-t border-slate-700 pt-3 space-y-3">
+          <p class="text-xs font-semibold text-slate-300 uppercase tracking-wide">Payment module (optional)</p>
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Gateway module</label>
+            <select name="module_id" id="add-module-id" onchange="syncActions('add')"
+              class="w-full px-3 py-2 rounded bg-slate-900 border border-slate-700">
+              <option value="">— None (display only) —</option>
+              <% modules.forEach(function(m){ %>
+                <option value="<%= m.id %>"><%= m.name %><% if (!m.is_active) { %> (inactive)<% } %></option>
+              <% }) %>
+            </select>
+          </div>
+          <div id="add-action-wrap">
+            <label class="block text-xs text-slate-400 mb-2">Action / payment method</label>
+            <div id="add-action-cards" class="space-y-2">
+              <p class="text-xs text-slate-500 italic">Select a gateway module above to see available actions.</p>
+            </div>
+            <input type="hidden" name="module_action" id="add-module-action-val">
+          </div>
+        </div>
+        <% } %>
+        <button class="w-full py-2 rounded bg-brand-500 hover:bg-brand-400 text-slate-900 font-semibold">Add option</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Edit modal -->
+  <div id="edit-overlay" class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center p-4">
+    <div class="bg-slate-800 rounded-xl w-full max-w-md p-5 space-y-3 text-sm overflow-y-auto max-h-screen">
+      <div class="flex items-center justify-between mb-1">
+        <h2 class="font-bold text-lg">Edit option</h2>
+        <button onclick="closeEdit()" class="text-slate-400 hover:text-slate-100 text-xl leading-none">&times;</button>
+      </div>
+      <form method="POST" id="edit-form" action="/admin/payment-options/0/edit" class="space-y-3">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input type="hidden" name="_id" id="edit-id">
+        <div>
+          <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Name</label>
+          <input id="edit-name" name="name" required
+                 class="w-full px-3 py-2 rounded bg-slate-900 border border-slate-700 focus:border-brand-500 outline-none">
+        </div>
+        <div>
+          <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Icon preset</label>
+          <select id="edit-icon-key" name="icon_key" class="w-full px-3 py-2 rounded bg-slate-900 border border-slate-700">
+            <% ICON_KEYS.forEach(function(k){ %>
+              <option value="<%= k %>"><%= ICON_LABELS[k] %></option>
+            <% }) %>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Custom image URL</label>
+          <input id="edit-icon-url" name="icon_url" type="url" placeholder="https://example.com/logo.png"
+                 class="w-full px-3 py-2 rounded bg-slate-900 border border-slate-700 focus:border-brand-500 outline-none">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Status</label>
+            <select id="edit-badge" name="badge" class="w-full px-3 py-2 rounded bg-slate-900 border border-slate-700 focus:border-brand-500 outline-none">
+              <option value="Available">Available</option>
+              <option value="Not Available">Not Available</option>
+              <option value="Offline">Offline</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Sort order</label>
+            <input id="edit-sort" name="sort_order" type="number" min="0"
+                   class="w-full px-3 py-2 rounded bg-slate-900 border border-slate-700 focus:border-brand-500 outline-none">
+          </div>
+        </div>
+        <% if (modules && modules.length) { %>
+        <div class="border-t border-slate-700 pt-3 space-y-3">
+          <p class="text-xs font-semibold text-slate-300 uppercase tracking-wide">Payment module</p>
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Gateway module</label>
+            <select name="module_id" id="edit-module-id" onchange="syncActions('edit')"
+              class="w-full px-3 py-2 rounded bg-slate-900 border border-slate-700">
+              <option value="">— None (display only) —</option>
+              <% modules.forEach(function(m){ %>
+                <option value="<%= m.id %>"><%= m.name %><% if (!m.is_active) { %> (inactive)<% } %></option>
+              <% }) %>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 mb-2">Action / payment method</label>
+            <div id="edit-action-cards" class="space-y-2">
+              <p class="text-xs text-slate-500 italic">Select a gateway module above to see available actions.</p>
+            </div>
+            <input type="hidden" name="module_action" id="edit-module-action-val">
+          </div>
+        </div>
+        <% } %>
+        <div class="flex gap-2 pt-1">
+          <button type="submit" class="flex-1 py-2 rounded bg-brand-500 hover:bg-brand-400 text-slate-900 font-semibold">Save</button>
+          <button type="button" onclick="closeEdit()" class="px-4 py-2 rounded bg-slate-700 hover:bg-slate-600">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div><!-- /tab-options -->
+
+<!-- ═══════════════════════════════════════════════════════ MODULES TAB ═══ -->
+<div id="tab-modules" class="tab-panel hidden">
+  <p class="text-sm text-slate-400 mb-5">Configure payment gateway integrations. Wire each module to a Payment Option to enable live payments.</p>
+
+  <div class="space-y-4">
+  <% modules.forEach(function(mod) {
+    var cfg = mod.config || {};
+    var isSandbox = (cfg.environment || 'sandbox') === 'sandbox';
+  %>
+    <div class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden" data-mod-id="<%= mod.id %>">
+      <div class="flex items-center gap-4 px-5 py-4">
+        <div class="w-10 h-10 rounded-lg bg-slate-700 flex items-center justify-center flex-shrink-0 text-brand-400">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="font-bold text-base"><%= mod.name %></span>
+            <span class="text-xs px-1.5 py-0.5 rounded <%= mod.is_active ? 'bg-emerald-900 text-emerald-300' : 'bg-slate-700 text-slate-400' %>">
+              <%= mod.is_active ? 'Active' : 'Inactive' %>
+            </span>
+            <% if (mod.is_active) { %>
+              <span class="text-xs px-1.5 py-0.5 rounded <%= isSandbox ? 'bg-amber-900 text-amber-300' : 'bg-sky-900 text-sky-300' %>">
+                <%= isSandbox ? 'Sandbox' : 'Live' %>
+              </span>
+            <% } %>
+            <% if (!mod.hasAdapter) { %>
+              <span class="text-xs px-1.5 py-0.5 rounded bg-rose-900 text-rose-300">Adapter missing</span>
+            <% } %>
+          </div>
+          <p class="text-sm text-slate-400 mt-0.5 truncate"><%= mod.description %></p>
+        </div>
+        <div class="flex gap-2 flex-shrink-0 items-center">
+          <% if (mod.hasAdapter) { %>
+          <button onclick="testModule('<%= mod.slug %>')" id="test-btn-<%= mod.slug %>"
+            class="px-3 py-1.5 rounded bg-slate-700 hover:bg-slate-600 text-sm text-slate-200 flex items-center gap-1.5">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            Test
+          </button>
+          <% } %>
+          <button onclick="toggleConfig('<%= mod.slug %>')"
+            class="px-3 py-1.5 rounded bg-slate-700 hover:bg-slate-600 text-sm text-slate-200">
+            Configure
+          </button>
+          <form method="POST" action="/admin/payment-modules/<%= mod.slug %>/toggle" class="inline">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <button class="px-3 py-1.5 rounded text-sm
+              <%= mod.is_active ? 'bg-amber-900 text-amber-300 hover:bg-amber-800' : 'bg-emerald-900 text-emerald-300 hover:bg-emerald-800' %>">
+              <%= mod.is_active ? 'Disable' : 'Enable' %>
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Test result banner -->
+      <div id="test-result-<%= mod.slug %>"
+           class="hidden border-t border-slate-700 px-5 py-3 flex items-center gap-3 text-sm">
+        <span id="test-icon-<%= mod.slug %>"></span>
+        <span id="test-msg-<%= mod.slug %>" class="flex-1"></span>
+        <button onclick="dismissTest('<%= mod.slug %>')" class="text-slate-500 hover:text-slate-200 text-lg leading-none">&times;</button>
+      </div>
+
+      <!-- Config panel -->
+      <div id="config-<%= mod.slug %>" class="hidden border-t border-slate-700 bg-slate-950/40 px-6 py-6">
+        <form method="POST" action="/admin/payment-modules/<%= mod.slug %>/configure" class="text-sm">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <% if (mod.slug === 'xendit') { %>
+          <% var enabledActions = Array.isArray(cfg.enabled_actions) ? cfg.enabled_actions : null; %>
+          <div class="grid grid-cols-2 gap-6 items-start">
+
+            <!-- LEFT: Credentials card -->
+            <div class="bg-slate-800/60 rounded-xl border border-slate-700/80 p-5 space-y-5">
+              <h3 class="text-[11px] font-bold uppercase tracking-widest text-slate-400 pb-3 border-b border-slate-700">
+                API Credentials
+              </h3>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-300 mb-1.5">Environment</label>
+                <select name="environment" class="w-full px-3 py-2.5 rounded-lg bg-slate-900 border border-slate-600 focus:border-brand-500 outline-none text-slate-200 text-xs">
+                  <option value="sandbox" <%= (cfg.environment||'sandbox')==='sandbox' ? 'selected' : '' %>>Sandbox — for testing</option>
+                  <option value="live"    <%= cfg.environment==='live' ? 'selected' : '' %>>Live — real payments</option>
+                </select>
+                <p class="text-xs text-slate-500 mt-1.5">Switch to <strong class="text-slate-400">Live</strong> only when ready to accept real payments.</p>
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-300 mb-1.5">
+                  Secret Key
+                  <span class="ml-1.5 text-[10px] font-normal text-slate-500">Dashboard → Settings → API Keys</span>
+                </label>
+                <input name="secret_key" type="password" autocomplete="new-password"
+                  placeholder="<%= cfg.secret_key ? '••••••••' : 'xnd_development_...' %>" value=""
+                  class="w-full px-3 py-2.5 rounded-lg bg-slate-900 border border-slate-600 focus:border-brand-500 outline-none font-mono text-xs text-slate-200">
+                <p class="text-xs text-slate-500 mt-1.5">Leave blank to keep the current value.</p>
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-300 mb-1.5">Public Key</label>
+                <input name="public_key" type="text" autocomplete="off"
+                  value="<%= cfg.public_key || '' %>" placeholder="xnd_public_development_..."
+                  class="w-full px-3 py-2.5 rounded-lg bg-slate-900 border border-slate-600 focus:border-brand-500 outline-none font-mono text-xs text-slate-200">
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-300 mb-1.5">
+                  Webhook Token
+                  <span class="ml-1.5 text-[10px] font-normal text-slate-500">Dashboard → Webhooks → Callback Token</span>
+                </label>
+                <input name="webhook_token" type="password" autocomplete="new-password"
+                  placeholder="<%= cfg.webhook_token ? '••••••••' : 'Callback verification token' %>" value=""
+                  class="w-full px-3 py-2.5 rounded-lg bg-slate-900 border border-slate-600 focus:border-brand-500 outline-none font-mono text-xs text-slate-200">
+                <p class="text-xs text-slate-500 mt-1.5">Leave blank to keep the current value.</p>
+              </div>
+
+              <!-- Callback URL -->
+              <!-- PHASE1-PAYMENTSETTINGS-2026-06-01 — Test/Live mode banner -->
+              <% var _mode = (moduleModes && moduleModes[mod.slug]) || null; %>
+              <% if (_mode === 'test') { %>
+                <div class="rounded-lg bg-amber-500/10 border border-amber-500/40 px-3 py-2 flex items-center gap-2 mb-3">
+                  <svg class="h-4 w-4 text-amber-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 2v7.31"/><path d="M14 9.3V1.99"/><path d="M8.5 2h7"/><path d="M14 9.3a6.5 6.5 0 1 1-4 0"/></svg>
+                  <p class="text-xs text-amber-300 leading-snug"><strong class="font-bold">Test mode</strong> — using <code class="font-mono">xnd_development_*</code> key. No real money is moving.</p>
+                </div>
+              <% } else if (_mode === 'live') { %>
+                <div class="rounded-lg bg-emerald-500/10 border border-emerald-500/40 px-3 py-2 flex items-center gap-2 mb-3">
+                  <svg class="h-4 w-4 text-emerald-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+                  <p class="text-xs text-emerald-300 leading-snug"><strong class="font-bold">Live mode</strong> — using <code class="font-mono">xnd_production_*</code> key. Real charges will apply.</p>
+                </div>
+              <% } %>
+
+              <!-- PHASE1-PAYMENTSETTINGS-2026-06-01 — Test API-key button -->
+              <% if (mod.slug === 'xendit') { %>
+              <div class="rounded-lg bg-slate-900 border border-slate-700 p-3 flex items-center gap-3 mb-3">
+                <div class="h-8 w-8 rounded-lg bg-sky-500/15 text-sky-400 flex items-center justify-center shrink-0">
+                  <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 11h-6"/></svg>
+                </div>
+                <div class="min-w-0 flex-1">
+                  <p class="text-xs font-semibold text-slate-200">Verify connection</p>
+                  <p class="text-[11px] text-slate-500 truncate">Pings Xendit /balance with the saved key.</p>
+                </div>
+                <button type="button"
+                  data-test-slug="<%= mod.slug %>"
+                  data-test-id="<%= mod.id %>"
+                  class="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold shrink-0"
+                  onclick="testModuleKey(this)">Test</button>
+                <span id="test-result-<%= mod.slug %>" class="text-[11px] font-bold whitespace-nowrap"></span>
+              </div>
+              <% } %>
+
+              <div class="rounded-lg bg-slate-900 border border-slate-700 p-3.5">
+                <p class="text-xs font-semibold text-slate-300 mb-1">Webhook Callback URL</p>
+                <p class="text-xs text-slate-500 mb-2.5">Paste this in Xendit Dashboard → Webhooks:</p>
+                <div class="flex items-center gap-2">
+                  <code class="text-xs text-brand-400 bg-slate-800 px-2.5 py-1.5 rounded flex-1 select-all break-all" id="cb-url-<%= mod.slug %>"><%= webhookBase %>/api/webhooks/<%= mod.slug %></code>
+                  <button type="button" onclick="copyUrl('<%= mod.slug %>')"
+                    class="text-xs px-2.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 flex-shrink-0 border border-slate-600">Copy</button>
+                </div>
+              </div>
+
+              <!-- Key status chips -->
+              <div class="grid grid-cols-3 gap-2">
+                <div class="flex flex-col items-center gap-1.5 rounded-lg bg-slate-900/70 border border-slate-700 py-2.5 px-2">
+                  <span class="w-2 h-2 rounded-full <%= cfg.secret_key ? 'bg-emerald-400' : 'bg-slate-600' %>"></span>
+                  <span class="text-[10px] text-slate-400 text-center leading-tight">Secret Key</span>
+                  <span class="text-[10px] font-bold <%= cfg.secret_key ? 'text-emerald-400' : 'text-slate-600' %>"><%= cfg.secret_key ? 'Saved' : 'Not set' %></span>
+                </div>
+                <div class="flex flex-col items-center gap-1.5 rounded-lg bg-slate-900/70 border border-slate-700 py-2.5 px-2">
+                  <span class="w-2 h-2 rounded-full <%= cfg.public_key ? 'bg-emerald-400' : 'bg-slate-600' %>"></span>
+                  <span class="text-[10px] text-slate-400 text-center leading-tight">Public Key</span>
+                  <span class="text-[10px] font-bold <%= cfg.public_key ? 'text-emerald-400' : 'text-slate-600' %>"><%= cfg.public_key ? 'Saved' : 'Not set' %></span>
+                </div>
+                <div class="flex flex-col items-center gap-1.5 rounded-lg bg-slate-900/70 border border-slate-700 py-2.5 px-2">
+                  <span class="w-2 h-2 rounded-full <%= cfg.webhook_token ? 'bg-emerald-400' : 'bg-slate-600' %>"></span>
+                  <span class="text-[10px] text-slate-400 text-center leading-tight">Webhook Token</span>
+                  <span class="text-[10px] font-bold <%= cfg.webhook_token ? 'text-emerald-400' : 'text-slate-600' %>"><%= cfg.webhook_token ? 'Saved' : 'Not set' %></span>
+                </div>
+              </div>
+            </div><!-- /left credentials card -->
+
+            <!-- RIGHT: Payment methods card -->
+            <div class="bg-slate-800/60 rounded-xl border border-slate-700/80 p-5">
+              <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-700">
+                <h3 class="text-[11px] font-bold uppercase tracking-widest text-slate-400">Payment Methods</h3>
+                <button type="button"
+                  id="sync-btn-<%= mod.slug %>"
+                  onclick="syncChannelsUI('<%= mod.id %>', '<%= mod.slug %>')"
+                  data-enabled="<%= JSON.stringify(Array.isArray(cfg.enabled_actions) ? cfg.enabled_actions : null) %>"
+                  data-statuses="<%= JSON.stringify(cfg.channel_statuses || null) %>"
+                  class="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 border border-slate-600 transition-colors font-medium">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                  Sync from Xendit
+                </button>
+              </div>
+
+              <p class="text-xs text-slate-400 mb-3 leading-relaxed">Enable the channels to offer at checkout. Use <strong class="text-slate-300">Sync</strong> to check live activation status from your Xendit account.</p>
+
+              <div class="flex items-start gap-2 bg-amber-900/10 border border-amber-800/30 rounded-lg px-3 py-2.5 mb-4">
+                <span class="text-amber-500 text-sm leading-none mt-0.5 flex-shrink-0">&#9888;</span>
+                <p class="text-xs text-amber-500/90 leading-relaxed">Xendit's API cannot distinguish <em>In Progress</em> from <em>Not Activated</em> channels — both show as <strong class="text-amber-300">Not Activated</strong> after sync. Check your Xendit dashboard for the exact status.</p>
+              </div>
+
+              <input type="hidden"
+                id="enabled-json-<%= mod.slug %>"
+                name="enabled_actions_json"
+                value="<%= JSON.stringify(Array.isArray(cfg.enabled_actions) ? cfg.enabled_actions : []) %>">
+              <div id="channel-list-<%= mod.slug %>"
+                   onchange="onChannelChange('<%= mod.slug %>')">
+                <!-- Populated by initChannelList() on page load -->
+              </div>
+              <p id="channel-count-<%= mod.slug %>" class="text-xs text-slate-500 mt-3 pt-2.5 border-t border-slate-700"></p>
+            </div><!-- /right payment methods card -->
+
+          </div><!-- /grid -->
+          <% } else { %>
+            <p class="text-slate-500 text-sm">No configuration schema defined for this module.</p>
+          <% } %>
+          <div class="flex items-center gap-3 pt-5">
+            <button type="submit" class="px-5 py-2.5 rounded-lg bg-brand-500 hover:bg-brand-400 text-slate-900 font-bold text-sm transition-colors">Save Configuration</button>
+            <button type="button" onclick="toggleConfig('<%= mod.slug %>')" class="px-5 py-2.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm border border-slate-600 transition-colors">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  <% }) %>
+  </div>
+
+  <div class="mt-8 border border-dashed border-slate-700 rounded-xl p-6 text-center">
+    <div class="text-slate-500 text-sm">
+      <svg class="w-8 h-8 mx-auto mb-2 opacity-30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+      More payment gateways can be added here.<br>
+      <span class="text-xs text-slate-600">Drop a new <code>src/modules/&lt;slug&gt;.js</code> adapter file and add a row to the <code>payment_modules</code> table.</span>
+    </div>
+  </div>
+</div><!-- /tab-modules -->
+
+<script>
+// PHASE1-PAYMENTSETTINGS-2026-06-01 — Test connection helper.
+function testModuleKey(btn) {
+  const slug = btn.dataset.testSlug, modId = btn.dataset.testId;
+  const out = document.getElementById('test-result-' + slug);
+  btn.disabled = true; btn.textContent = 'Testing…';
+  if (out) { out.textContent = ''; out.className = 'text-[11px] font-bold whitespace-nowrap'; }
+  fetch('/admin/payment-modules/' + slug + '/test')
+    .then(r => r.json())
+    .then(d => {
+      if (out) {
+        if (d.ok) { out.textContent = '✓ OK'; out.className = 'text-[11px] font-bold whitespace-nowrap text-emerald-400'; }
+        else { out.textContent = '✕ ' + (d.message || 'Failed').slice(0, 40); out.className = 'text-[11px] font-bold whitespace-nowrap text-rose-400'; }
+      }
+    })
+    .catch(() => {
+      if (out) { out.textContent = '✕ Network error'; out.className = 'text-[11px] font-bold whitespace-nowrap text-rose-400'; }
+    })
+    .finally(() => { btn.disabled = false; btn.textContent = 'Test'; });
+}
+
+var MODULE_ACTIONS = <%- JSON.stringify(allModuleActions) %>;
+var ALL_MODULE_ACTIONS_RAW = <%- JSON.stringify(allActionsRaw || {}) %>;
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+function showTab(name) {
+  document.querySelectorAll('.tab-panel').forEach(function(el) { el.classList.add('hidden'); });
+  document.querySelectorAll('.tab-btn').forEach(function(btn) {
+    btn.classList.remove('border-brand-400','text-brand-400');
+    btn.classList.add('text-slate-400','border-transparent');
+  });
+  document.getElementById('tab-' + name).classList.remove('hidden');
+  var active = document.getElementById('tab-btn-' + name);
+  active.classList.add('border-brand-400','text-brand-400');
+  active.classList.remove('text-slate-400','border-transparent');
+  history.replaceState(null, '', '#' + name);
+}
+
+// Init tab from hash or default
+(function() {
+  var hash = location.hash.replace('#','') || 'options';
+  showTab(['options','modules'].includes(hash) ? hash : 'options');
+})();
+
+// ── Options: module→action card picker ───────────────────────────────────────
+var ACTION_ICONS = {
+  qr_code:     '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>',
+  gcash:       '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>',
+  paymaya:     '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>',
+  credit_card: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>',
+  va:          '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="22" x2="21" y2="22"/><line x1="6" y1="18" x2="6" y2="11"/><line x1="10" y1="18" x2="10" y2="11"/><line x1="14" y1="18" x2="14" y2="11"/><line x1="18" y1="18" x2="18" y2="11"/><polygon points="12 2 20 7 4 7"/></svg>',
+};
+
+function syncActions(formId, selectedVal) {
+  var idSel   = document.getElementById(formId + '-module-id');
+  var cards   = document.getElementById(formId + '-action-cards');
+  var hidden  = document.getElementById(formId + '-module-action-val');
+  if (!idSel || !cards || !hidden) return;
+
+  var modId   = parseInt(idSel.value) || null;
+  var actions = (modId && MODULE_ACTIONS[modId]) ? MODULE_ACTIONS[modId] : null;
+
+  if (!actions || !Object.keys(actions).length) {
+    cards.innerHTML = '<p class="text-xs text-slate-500 italic">Select a gateway module above to see available actions.</p>';
+    hidden.value = '';
+    return;
+  }
+
+  var cur = selectedVal !== undefined ? selectedVal : hidden.value;
+  cards.innerHTML = '';
+
+  // "None" option
+  var noneDiv = document.createElement('div');
+  noneDiv.className = 'action-card cursor-pointer rounded-lg border px-3 py-2 flex items-center gap-3 transition-colors ' +
+    (!cur ? 'border-brand-500 bg-brand-500/10' : 'border-slate-700 hover:border-slate-500 bg-slate-900');
+  noneDiv.dataset.val = '';
+  noneDiv.innerHTML =
+    '<div class="w-3.5 h-3.5 rounded-full border-2 flex-shrink-0 mt-px ' + (!cur ? 'border-brand-400 bg-brand-400' : 'border-slate-600') + '"></div>' +
+    '<div><div class="text-sm font-medium text-slate-300">None</div><div class="text-xs text-slate-500">Display only — no payment processing</div></div>';
+  noneDiv.addEventListener('click', function() { selectAction(formId, ''); });
+  cards.appendChild(noneDiv);
+
+  Object.keys(actions).forEach(function(key) {
+    var act = actions[key];
+    var isSelected = key === cur;
+    var icon = ACTION_ICONS[key] || ACTION_ICONS.credit_card;
+    var div = document.createElement('div');
+    div.className = 'action-card cursor-pointer rounded-lg border px-3 py-2.5 flex items-start gap-3 transition-colors ' +
+      (isSelected ? 'border-brand-500 bg-brand-500/10' : 'border-slate-700 hover:border-slate-500 bg-slate-900');
+    div.dataset.val = key;
+    div.innerHTML =
+      '<div class="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center flex-shrink-0 text-brand-400 mt-0.5">' + icon + '</div>' +
+      '<div class="flex-1 min-w-0">' +
+        '<div class="flex items-center gap-2">' +
+          '<span class="text-sm font-medium">' + (act.label || key) + '</span>' +
+        '</div>' +
+        '<p class="text-xs text-slate-400 mt-0.5">' + (act.description || '') + '</p>' +
+      '</div>' +
+      '<div class="w-4 h-4 rounded-full border-2 flex-shrink-0 mt-1.5 ' +
+        (isSelected ? 'border-brand-400 bg-brand-400' : 'border-slate-600') + '"></div>';
+    div.addEventListener('click', function() { selectAction(formId, key); });
+    cards.appendChild(div);
+  });
+}
+
+function selectAction(formId, key) {
+  var cards  = document.getElementById(formId + '-action-cards');
+  var hidden = document.getElementById(formId + '-module-action-val');
+  if (!cards || !hidden) return;
+  hidden.value = key;
+  cards.querySelectorAll('.action-card').forEach(function(c) {
+    var active = c.dataset.val === key;
+    c.classList.toggle('border-brand-500', active);
+    c.classList.toggle('bg-brand-500/10', active);
+    c.classList.toggle('border-slate-700', !active);
+    var radio = c.querySelector('.rounded-full');
+    if (radio) {
+      radio.classList.toggle('border-brand-400', active);
+      radio.classList.toggle('bg-brand-400', active);
+      radio.classList.toggle('border-slate-600', !active);
+    }
+  });
+}
+
+function openEdit(o) {
+  document.getElementById('edit-id').value       = o.id;
+  document.getElementById('edit-name').value     = o.name;
+  document.getElementById('edit-icon-key').value = o.icon_key;
+  document.getElementById('edit-icon-url').value = o.icon_url || '';
+  document.getElementById('edit-badge').value    = o.badge;
+  document.getElementById('edit-sort').value     = o.sort_order;
+  document.getElementById('edit-form').action    = '/admin/payment-options/' + o.id + '/edit';
+  var modSel = document.getElementById('edit-module-id');
+  if (modSel) {
+    modSel.value = o.module_id || '';
+    syncActions('edit', o.module_action || '');
+  }
+  var ov = document.getElementById('edit-overlay');
+  ov.classList.remove('hidden'); ov.classList.add('flex');
+}
+function closeEdit() {
+  var ov = document.getElementById('edit-overlay');
+  ov.classList.add('hidden'); ov.classList.remove('flex');
+}
+document.getElementById('edit-overlay').addEventListener('click', function(e) {
+  if (e.target === this) closeEdit();
+});
+syncActions('add', '');
+
+// ── Channel list renderer ─────────────────────────────────────────────────────
+var CHAN_CAT = {
+  active:        { label:'Active',          colorLabel:'text-emerald-400', dot:'bg-emerald-400', bg:'bg-emerald-900/20', border:'border-emerald-700/40', badge:'bg-emerald-900 text-emerald-300', disabled:false },
+  inactive:      { label:'Not Activated',   colorLabel:'text-slate-400',   dot:'bg-slate-500',   bg:'bg-slate-800/60',   border:'border-slate-700',      badge:'bg-slate-700 text-slate-400',    disabled:true  },
+  not_supported: { label:'Not Supported',   colorLabel:'text-rose-400',    dot:'bg-rose-500',    bg:'bg-rose-900/10',    border:'border-rose-900/25',    badge:'bg-rose-900 text-rose-400',      disabled:true  },
+};
+// NOTE: Xendit API returns the same CHANNEL_NOT_ACTIVATED (403) for both
+// "In Progress" (under review) and "Not Activated" channels — they are
+// indistinguishable via the API. Both appear under "Not Activated" here.
+
+function buildChannelList(modId, slug, statuses, currentEnabled) {
+  var actions = ALL_MODULE_ACTIONS_RAW[modId] || {};
+  var keys = Object.keys(actions);
+  if (!keys.length) return '<p class="text-xs text-slate-500 italic">No actions defined.</p>';
+
+  // Group by status
+  var groups = { active:[], inactive:[], not_supported:[] };
+  keys.forEach(function(k) {
+    var s = (statuses && statuses[k]) ? statuses[k] : 'active';
+    if (!groups[s]) s = 'inactive';
+    groups[s].push(k);
+  });
+
+  var html = '';
+  ['active','inactive','not_supported'].forEach(function(status) {
+    var group = groups[status];
+    if (!group || !group.length) return;
+    var cat = CHAN_CAT[status];
+    // Section header with coloured dot + label
+    html += '<div class="mb-2">';
+    html += '<div class="flex items-center gap-1.5 mb-1">';
+    html += '<span class="inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ' + cat.dot + '"></span>';
+    html += '<span class="text-[10px] font-semibold uppercase tracking-wider ' + cat.colorLabel + '">' + cat.label + '</span>';
+    html += '</div>';
+    // 2-column wrapped grid of compact checkboxes
+    html += '<div class="grid grid-cols-1 gap-1.5">';
+    group.forEach(function(k) {
+      var act     = actions[k];
+      var isChecked = !cat.disabled && (currentEnabled === null || currentEnabled.indexOf(k) !== -1);
+      var disAttr = cat.disabled ? ' disabled' : '';
+      var chkAttr = isChecked   ? ' checked'  : '';
+      var opClass = cat.disabled ? ' opacity-50' : '';
+      var curClass = cat.disabled ? ' cursor-not-allowed' : ' cursor-pointer';
+      var inputOp  = cat.disabled ? ' opacity-40 cursor-not-allowed' : ' cursor-pointer';
+      var tip = (act.description || '').replace(/"/g, '&quot;');
+      html += '<label title="' + tip + '" class="flex items-center gap-1.5 px-2 py-1.5 rounded border' +
+              ' transition-colors select-none' + curClass + opClass +
+              ' ' + cat.bg + ' ' + cat.border + ' hover:brightness-110">';
+      html += '<input type="checkbox" name="action_' + k + '" value="1"' + chkAttr + disAttr +
+              ' class="w-3.5 h-3.5 rounded accent-sky-500 flex-shrink-0' + inputOp + '">';
+      html += '<span class="text-xs font-medium leading-tight">' + (act.label || k) + '</span>';
+      html += '</label>';
+    });
+    html += '</div></div>';
+  });
+  return html;
+}
+
+function updateChannelCount(slug, statuses, allActions) {
+  var el = document.getElementById('channel-count-' + slug);
+  if (!el) return;
+  var keys = Object.keys(allActions || {});
+  if (!statuses) {
+    el.textContent = keys.length + ' methods available';
+    return;
+  }
+  var active = keys.filter(function(k){ return statuses[k] === 'active'; }).length;
+  el.textContent = active + ' of ' + keys.length + ' active on your Xendit account';
+}
+
+// Keep the hidden enabled_actions_json field in sync with checked checkboxes
+function updateEnabledJson(slug) {
+  var container = document.getElementById('channel-list-' + slug);
+  var hidden    = document.getElementById('enabled-json-' + slug);
+  if (!container || !hidden) return;
+  var checked = [];
+  container.querySelectorAll('input[type="checkbox"]').forEach(function(cb) {
+    if (cb.checked && !cb.disabled && cb.name && cb.name.startsWith('action_')) {
+      checked.push(cb.name.slice(7));
+    }
+  });
+  hidden.value = JSON.stringify(checked);
+}
+
+function onChannelChange(slug) { updateEnabledJson(slug); }
+
+function initChannelList(modId, slug) {
+  var btn = document.getElementById('sync-btn-' + slug);
+  if (!btn) return;
+  var currentEnabled = null;
+  try { currentEnabled = JSON.parse(btn.dataset.enabled || 'null'); } catch(e) {}
+  var statuses = null;
+  try { statuses = JSON.parse(btn.dataset.statuses || 'null'); } catch(e) {}
+  var container = document.getElementById('channel-list-' + slug);
+  if (container) container.innerHTML = buildChannelList(modId, slug, statuses, currentEnabled);
+  updateEnabledJson(slug);
+  updateChannelCount(slug, statuses, ALL_MODULE_ACTIONS_RAW[modId]);
+}
+
+async function syncChannelsUI(modId, slug) {
+  var btn    = document.getElementById('sync-btn-' + slug);
+  var container = document.getElementById('channel-list-' + slug);
+  if (!btn || !container) return;
+
+  var currentEnabled = null;
+  try { currentEnabled = JSON.parse(btn.dataset.enabled || 'null'); } catch(e) {}
+
+  // Spinner
+  var origHTML = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<svg class="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> Syncing…';
+  container.innerHTML = '<div class="flex items-center gap-2 text-xs text-slate-400 py-4"><svg class="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> Checking Xendit channels…</div>';
+
+  try {
+    var csrf = (document.querySelector('input[name="_csrf"]') || {}).value || '';
+    var r = await fetch('/admin/payment-modules/' + slug + '/sync-channels', {
+      headers: { 'X-CSRF-Token': csrf, 'Accept': 'application/json' }
+    });
+    var data = await r.json();
+    if (data.ok && data.channels) {
+      btn.dataset.statuses = JSON.stringify(data.channels);
+      // Also refresh data-enabled to match what was just rendered
+      btn.dataset.enabled  = JSON.stringify(currentEnabled);
+      container.innerHTML = buildChannelList(modId, slug, data.channels, currentEnabled);
+      updateEnabledJson(slug);
+      updateChannelCount(slug, data.channels, ALL_MODULE_ACTIONS_RAW[modId]);
+    } else {
+      container.innerHTML = '<div class="text-xs text-rose-400 py-2">' + (data.message || 'Sync failed.') + '</div>';
+    }
+  } catch(e) {
+    container.innerHTML = '<div class="text-xs text-rose-400 py-2">Request failed: ' + e.message + '</div>';
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = origHTML;
+  }
+}
+
+// Initialise all channel lists on load
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('[id^="sync-btn-"]').forEach(function(btn) {
+    var slug  = btn.id.replace('sync-btn-','');
+    // Find the matching modId from ALL_MODULE_ACTIONS_RAW
+    // The EJS rendered data-module-id on each card - read it from btn's closest ancestor
+    var card = btn.closest('[data-mod-id]');
+    var modId = card ? card.dataset.modId : Object.keys(ALL_MODULE_ACTIONS_RAW)[0];
+    if (modId) initChannelList(modId, slug);
+  });
+});
+
+// ── Modules: config toggle, copy, test ───────────────────────────────────────
+function toggleConfig(slug) {
+  document.getElementById('config-' + slug).classList.toggle('hidden');
+}
+function copyUrl(slug) {
+  var el = document.getElementById('cb-url-' + slug);
+  var url = el.textContent.trim();
+  navigator.clipboard.writeText(url).catch(function() {
+    var ta = document.createElement('textarea');
+    ta.value = url; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); ta.remove();
+  });
+  var btn = el.nextElementSibling;
+  var orig = btn.textContent;
+  btn.textContent = 'Copied!';
+  setTimeout(function() { btn.textContent = orig; }, 2000);
+}
+async function testModule(slug) {
+  var btn    = document.getElementById('test-btn-' + slug);
+  var banner = document.getElementById('test-result-' + slug);
+  var iconEl = document.getElementById('test-icon-' + slug);
+  var msgEl  = document.getElementById('test-msg-' + slug);
+  var origHTML = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<svg class="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> Testing…';
+  banner.classList.remove('hidden','bg-emerald-900/40','bg-rose-900/40');
+  iconEl.innerHTML = ''; msgEl.textContent = 'Connecting…'; msgEl.className = 'flex-1 text-slate-400';
+  try {
+    var csrf = document.querySelector('input[name="_csrf"]')?.value || '';
+    var r = await fetch('/admin/payment-modules/' + slug + '/test', {
+      headers: { 'X-CSRF-Token': csrf, 'Accept': 'application/json' }
+    });
+    var data = await r.json();
+    if (data.ok) {
+      banner.classList.add('bg-emerald-900/40');
+      iconEl.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+      msgEl.textContent = data.message || 'Connection successful.';
+      msgEl.className = 'flex-1 text-emerald-300';
+    } else {
+      banner.classList.add('bg-rose-900/40');
+      iconEl.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+      msgEl.textContent = data.message || 'Test failed.';
+      msgEl.className = 'flex-1 text-rose-300';
+    }
+  } catch(e) {
+    banner.classList.add('bg-rose-900/40');
+    iconEl.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+    msgEl.textContent = 'Request failed: ' + e.message;
+    msgEl.className = 'flex-1 text-rose-300';
+  } finally {
+    btn.disabled = false; btn.innerHTML = origHTML;
+  }
+}
+function dismissTest(slug) {
+  document.getElementById('test-result-' + slug).classList.add('hidden');
+}
+</script>

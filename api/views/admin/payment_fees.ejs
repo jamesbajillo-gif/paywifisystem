@@ -1,0 +1,89 @@
+<% const f = flashes || []; %>
+<% f.forEach(function(fl){ %>
+<div class="mb-4 px-4 py-3 rounded-lg text-sm font-medium <%= fl.kind==='ok' ? 'bg-emerald-900/40 text-emerald-300 border border-emerald-700' : 'bg-rose-900/40 text-rose-300 border border-rose-700' %>">
+  <%= fl.kind==='ok' ? '✓' : '✕' %> <%= fl.msg %>
+</div>
+<% }) %>
+
+<div class="mb-6">
+  <h1 class="text-2xl font-bold text-slate-100">Payment Fees</h1>
+  <p class="text-sm text-slate-400 mt-1">Per-channel processing fees and how they are applied to plan prices. <span class="text-amber-300">Defaults are estimates — verify against your live Xendit pricing.</span></p>
+</div>
+
+<!-- Global fee mode -->
+<div class="bg-slate-800 border border-slate-700 rounded-xl p-5 mb-6">
+  <h2 class="text-sm font-semibold text-slate-200 mb-4">⚙ Fee Mode</h2>
+  <form method="POST" action="/admin/payment-fees/config">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <label class="block text-xs text-slate-400 mb-1">Who pays the processing fee?</label>
+        <select name="fee_pass" class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-slate-100 text-sm focus:border-sky-500 focus:outline-none">
+          <option value="0" <%= !feeCfg.pass ? 'selected' : '' %>>Merchant absorbs (customer pays plan price only)</option>
+          <option value="1" <%= feeCfg.pass ? 'selected' : '' %>>Customer pays fee (added to total at checkout)</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs text-slate-400 mb-1">Show fee note to customer?</label>
+        <select name="fee_display" class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-slate-100 text-sm focus:border-sky-500 focus:outline-none">
+          <option value="1" <%= feeCfg.display ? 'selected' : '' %>>Show (transparent breakdown / "fee absorbed" note)</option>
+          <option value="0" <%= !feeCfg.display ? 'selected' : '' %>>Hide</option>
+        </select>
+      </div>
+    </div>
+    <button class="mt-4 px-4 py-2 rounded-lg bg-sky-700 hover:bg-sky-600 text-white text-sm font-semibold">Save Fee Mode</button>
+  </form>
+</div>
+
+<!-- Per-channel fees -->
+<div class="bg-slate-800 border border-slate-700 rounded-xl p-5">
+  <h2 class="text-sm font-semibold text-slate-200 mb-4">Per-channel Fees</h2>
+  <form method="POST" action="/admin/payment-fees/channels">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+    <table class="w-full text-sm">
+      <thead><tr class="text-left text-slate-400 border-b border-slate-700">
+        <th class="py-2">Channel</th><th class="py-2">Percent (%)</th><th class="py-2">Fixed (₱)</th><th class="py-2">Example on ₱100</th>
+      </tr></thead>
+      <tbody>
+      <% feeList.forEach(function(r){ var ex=(100*(r.fee_percent||0)/100 + (r.fee_fixed||0)); %>
+        <tr class="border-b border-slate-800">
+          <td class="py-2 text-slate-200 font-mono"><%= r.channel_action %></td>
+          <td class="py-2"><input type="number" step="0.01" min="0" max="100" name="pct_<%= r.channel_action %>" value="<%= r.fee_percent %>" class="w-24 px-2 py-1 rounded bg-slate-900 border border-slate-600 text-slate-100" /></td>
+          <td class="py-2"><input type="number" step="0.01" min="0" name="fix_<%= r.channel_action %>" value="<%= r.fee_fixed %>" class="w-24 px-2 py-1 rounded bg-slate-900 border border-slate-600 text-slate-100" /></td>
+          <td class="py-2 text-slate-400">₱<%= ex.toFixed(2) %></td>
+        </tr>
+      <% }) %>
+      </tbody>
+    </table>
+    <button class="mt-4 px-4 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-sm font-semibold">Save Channel Fees</button>
+  </form>
+</div>
+
+<!-- Channel profitability report -->
+<div class="bg-slate-800 border border-slate-700 rounded-xl p-5 mt-6">
+  <div class="flex items-center justify-between mb-4">
+    <h2 class="text-sm font-semibold text-slate-200">Channel Profitability <span class="text-slate-400 font-normal">(paid transactions)</span></h2>
+    <a href="/admin/payment-fees/report.csv" class="px-3 py-1.5 rounded bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold">Download CSV</a>
+  </div>
+  <% if (!report || !report.length) { %>
+    <p class="text-sm text-slate-400">No paid transactions yet.</p>
+  <% } else { %>
+  <table class="w-full text-sm">
+    <thead><tr class="text-left text-slate-400 border-b border-slate-700">
+      <th class="py-2">Channel</th><th class="py-2">Txns</th><th class="py-2">Gross</th><th class="py-2">Fees</th><th class="py-2">Net</th><th class="py-2">Settled</th>
+    </tr></thead>
+    <tbody>
+    <% report.forEach(function(r){ %>
+      <tr class="border-b border-slate-800">
+        <td class="py-2 text-slate-200"><%= r.channel %></td>
+        <td class="py-2 text-slate-400"><%= r.cnt %></td>
+        <td class="py-2 text-slate-300">₱<%= Number(r.gross).toFixed(2) %></td>
+        <td class="py-2 text-amber-300">₱<%= Number(r.fees).toFixed(2) %></td>
+        <td class="py-2 text-emerald-300">₱<%= Number(r.net).toFixed(2) %></td>
+        <td class="py-2 text-slate-400">₱<%= Number(r.settled).toFixed(2) %></td>
+      </tr>
+    <% }) %>
+    </tbody>
+  </table>
+  <% } %>
+</div>

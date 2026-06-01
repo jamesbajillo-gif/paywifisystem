@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+  <title>Under Maintenance — PAYWIFI</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#f9fafb;min-height:100vh;display:flex;flex-direction:column}
+    #loader{position:fixed;inset:0;background:#f9fafb;display:flex;align-items:center;justify-content:center;z-index:100}
+    .spinner{width:32px;height:32px;border:3px solid #e5e7eb;border-top-color:#0ea5e9;border-radius:50%;animation:spin .8s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    #app{display:none;flex-direction:column;min-height:100vh}
+    /* Header */
+    .hdr{padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+    .hdr-l{display:flex;align-items:center;gap:10px}
+    .hdr-logo{width:32px;height:32px;border-radius:8px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    .hdr-name{color:#fff;font-weight:900;font-size:16px;line-height:1}
+    .hdr-sub{color:rgba(255,255,255,.6);font-size:11px;line-height:1;margin-top:2px}
+    .hdr-badge{padding:4px 10px;border-radius:9999px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.9);font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;white-space:nowrap;flex-shrink:0}
+    /* Body */
+    .body{flex:1;max-width:640px;margin:0 auto;width:100%;padding:16px 12px;display:flex;flex-direction:column;gap:16px}
+    /* Cards */
+    .card{background:#fff;border-radius:16px;border:1px solid #f3f4f6;box-shadow:0 1px 3px rgba(0,0,0,.06);overflow:hidden}
+    /* Signal icon */
+    .sig-wrap{position:relative;width:64px;height:64px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+    .ring{position:absolute;border-radius:50%;border:2px solid;opacity:0;animation:ping 2.2s cubic-bezier(0,0,.2,1) infinite}
+    .ring-1{width:40px;height:40px;animation-delay:0s}
+    .ring-2{width:56px;height:56px;animation-delay:.55s}
+    @keyframes ping{0%{opacity:.4;transform:scale(1)}100%{opacity:0;transform:scale(2.2)}}
+    .sig-core{position:relative;z-index:1;width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 6px rgba(0,0,0,.1)}
+    /* Notice */
+    .notice-top{padding:16px;display:flex;align-items:flex-start;gap:12px}
+    .notice-body{flex:1;min-width:0}
+    .nbadge{display:flex;align-items:center;gap:5px;margin-bottom:4px}
+    .nbadge-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em}
+    .ntitle{font-size:18px;font-weight:900;color:#111827;line-height:1.3}
+    .nmsg{font-size:12px;color:#6b7280;line-height:1.6;margin-top:4px}
+    /* ETA */
+    .eta-box{margin:0 16px 12px;display:flex;align-items:center;gap:8px;border-radius:8px;padding:8px 12px;border:1px solid}
+    .eta-txt{font-size:12px;font-weight:600}
+    /* Timer */
+    .tw{margin:0 16px 16px;border-radius:12px;border:1px solid;overflow:hidden}
+    .tgrid{display:grid;grid-template-columns:1fr 1fr}
+    .tcol{padding:10px 12px}
+    .tcol+.tcol{border-left:1px solid #e5e7eb}
+    .tsub{display:flex;align-items:center;gap:5px;margin-bottom:4px}
+    .tlbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#9ca3af}
+    .tval{font-size:11px;font-weight:700;color:#1f2937;line-height:1.4}
+    .tval.dim{color:#9ca3af}
+    .elapsed{display:flex;align-items:flex-end;gap:2px}
+    .enum{font-size:22px;font-weight:900;line-height:1}
+    .eunit{font-size:9px;font-weight:700;color:#9ca3af;margin-bottom:2px}
+    .esep{font-size:14px;font-weight:900;color:#d1d5db;margin-bottom:3px}
+    /* Section label */
+    .sec{display:flex;align-items:center;gap:8px}
+    .sec-line{flex:1;height:1px;border-radius:1px}
+    .sec-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;padding:0 4px}
+    /* About */
+    .about{background:#fff;border-radius:12px;border:1px solid #f3f4f6;box-shadow:0 1px 2px rgba(0,0,0,.04);padding:12px 16px;margin-top:8px}
+    .about-ttl{font-size:12px;font-weight:900;color:#111827;margin-bottom:6px}
+    .about-dsc{font-size:11px;color:#6b7280;line-height:1.7}
+    /* Features */
+    .feat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+    .feat{background:#fff;border-radius:12px;border:1px solid #f3f4f6;box-shadow:0 1px 2px rgba(0,0,0,.04);padding:10px 12px;display:flex;align-items:flex-start;gap:10px}
+    .fic{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px;margin-top:2px}
+    .fttl{font-size:11px;font-weight:700;color:#1f2937;line-height:1.3}
+    .fdsc{font-size:10px;color:#6b7280;margin-top:2px;line-height:1.5}
+    /* Contact */
+    .cgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
+    .cpill{background:#fff;border-radius:12px;border:1px solid #f3f4f6;box-shadow:0 1px 2px rgba(0,0,0,.04);padding:10px 8px;display:flex;flex-direction:column;align-items:center;gap:6px;text-decoration:none;text-align:center;transition:background .15s}
+    .cpill:hover{background:#f9fafb}
+    .cico{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px}
+    .cname{font-size:12px;font-weight:700;color:#1f2937}
+    .csub{font-size:10px;color:#9ca3af;line-height:1.3}
+    .cext{font-size:11px;color:#d1d5db}
+    /* Footer */
+    footer{padding:12px 16px;text-align:center;border-top:1px solid #f3f4f6;background:#fff}
+    .foot-row{display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap}
+    .foot-name{font-size:11px;font-weight:900;color:#4b5563}
+    .foot-dot{font-size:11px;color:#d1d5db}
+    .foot-txt{font-size:11px;color:#9ca3af}
+    .foot-copy{font-size:10px;color:#d1d5db;margin-top:2px}
+  </style>
+</head>
+<body>
+<div id="loader"><div class="spinner" id="spi"></div></div>
+<div id="app">
+  <div class="hdr" id="hdr">
+    <div class="hdr-l">
+      <div class="hdr-logo">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 12.55a11 11 0 0 1 14.08 0"/>
+          <path d="M1.42 9a16 16 0 0 1 21.16 0"/>
+          <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+          <line x1="12" y1="20" x2="12.01" y2="20"/>
+        </svg>
+      </div>
+      <div>
+        <div class="hdr-name" id="hdr-name">PAYWIFI</div>
+        <div class="hdr-sub" id="hdr-sub" style="display:none"></div>
+      </div>
+    </div>
+    <div class="hdr-badge">All-in-One Hotspot</div>
+  </div>
+
+  <div class="body">
+    <!-- Maintenance notice card -->
+    <div class="card">
+      <div class="notice-top">
+        <div class="sig-wrap">
+          <div class="ring ring-1" id="r1"></div>
+          <div class="ring ring-2" id="r2"></div>
+          <div class="sig-core" id="sc">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="1" y1="1" x2="23" y2="23"/>
+              <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"/>
+              <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"/>
+              <path d="M10.71 5.05A16 16 0 0 1 22.56 9"/>
+              <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"/>
+              <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+              <line x1="12" y1="20" x2="12.01" y2="20"/>
+            </svg>
+          </div>
+        </div>
+        <div class="notice-body">
+          <div class="nbadge">
+            <svg id="wico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+            </svg>
+            <span class="nbadge-lbl" id="blbl">Scheduled Maintenance</span>
+          </div>
+          <h1 class="ntitle" id="nttl">We'll be right back!</h1>
+          <p class="nmsg" id="nmsg">Our hotspot portal is currently undergoing maintenance. We apologize for any inconvenience.</p>
+        </div>
+      </div>
+      <!-- ETA note -->
+      <div class="eta-box" id="eta" style="display:none">
+        <svg id="eta-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+        </svg>
+        <span class="eta-txt" id="eta-txt"></span>
+      </div>
+      <!-- Timer -->
+      <div class="tw" id="tw">
+        <div class="tgrid">
+          <div class="tcol" id="tc1">
+            <div class="tsub">
+              <svg id="ti1" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+              </svg>
+              <span class="tlbl">Started</span>
+            </div>
+            <div class="tval dim" id="tv-started">Not recorded</div>
+          </div>
+          <div class="tcol">
+            <div class="tsub">
+              <svg id="ti2" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+              </svg>
+              <span class="tlbl">Elapsed</span>
+            </div>
+            <div class="elapsed">
+              <span class="enum" id="ehh">--</span><span class="eunit">h</span>
+              <span class="esep">:</span>
+              <span class="enum" id="emm">--</span><span class="eunit">m</span>
+              <span class="esep">:</span>
+              <span class="enum" id="ess">--</span><span class="eunit">s</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- About -->
+    <div>
+      <div class="sec">
+        <div class="sec-line" id="sl1"></div>
+        <span class="sec-lbl" id="sl-about">About PAYWIFI</span>
+        <div class="sec-line" id="sl2"></div>
+      </div>
+      <div class="about">
+        <div class="about-ttl">PAYWIFI — The All-in-One Hotspot Monetization Platform</div>
+        <div class="about-dsc">A complete end-to-end solution for hotspot operators, internet cafes, hotels, and any venue offering paid WiFi Access. Handles voucher generation, payment collection, automated SMS delivery — fully automated and cashless, running 24/7.</div>
+      </div>
+    </div>
+
+    <!-- Features -->
+    <div>
+      <div class="sec">
+        <div class="sec-line" id="sl3"></div>
+        <span class="sec-lbl" id="sl-feat">Features</span>
+        <div class="sec-line" id="sl4"></div>
+      </div>
+      <div class="feat-grid">
+        <div class="feat"><div class="fic" id="fi1">🎟️</div><div><div class="fttl">Voucher Management</div><div class="fdsc">System-generated codes with configurable length, format, and batch sizes — all managed from one place.</div></div></div>
+        <div class="feat"><div class="fic" id="fi2">💳</div><div><div class="fttl">Payment Module</div><div class="fdsc">Accept GCash, Maya, QR Ph, cards, and cash — online or over-the-counter.</div></div></div>
+        <div class="feat"><div class="fic" id="fi3">📱</div><div><div class="fttl">SMS Module</div><div class="fdsc">Automated voucher code delivery via SMS after every confirmed purchase.</div></div></div>
+        <div class="feat"><div class="fic" id="fi4">🛡️</div><div><div class="fttl">Secure Admin Portal</div><div class="fdsc">Role-protected dashboard with isolated credentials vault — never exposed publicly.</div></div></div>
+        <div class="feat"><div class="fic" id="fi5">⚡</div><div><div class="fttl">Instant Delivery</div><div class="fdsc">Vouchers generated and sent in real time the moment payment is confirmed.</div></div></div>
+        <div class="feat"><div class="fic" id="fi6">📊</div><div><div class="fttl">Sales & Usage Logs</div><div class="fdsc">Track sold, used, and expired vouchers across all sources with CSV export.</div></div></div>
+        <div class="feat"><div class="fic" id="fi7">🌐</div><div><div class="fttl">Branded Portal</div><div class="fdsc">Fully customizable — store name, colors, payment methods, plans, and slides.</div></div></div>
+        <div class="feat"><div class="fic" id="fi8">🎯</div><div><div class="fttl">Centralized Management</div><div class="fdsc">One dashboard to manage plans, sessions, payments, and devices — fully browser-based, no client software needed.</div></div></div>
+      </div>
+    </div>
+
+    <!-- Contact -->
+    <div>
+      <div class="sec">
+        <div class="sec-line" id="sl5"></div>
+        <span class="sec-lbl" id="sl-contact">Get in Touch</span>
+        <div class="sec-line" id="sl6"></div>
+      </div>
+      <div class="cgrid">
+        <a href="#" id="c-website" target="_blank" rel="noreferrer" class="cpill" style="display:none">
+          <div class="cico" id="ci1">🌐</div>
+          <div><div class="cname">Website</div><div class="csub" id="c-website-sub"></div></div>
+          <div class="cext">↗</div>
+        </a>
+        <a href="#" id="c-email" class="cpill" style="display:none">
+          <div class="cico" id="ci2">✉️</div>
+          <div><div class="cname">Email</div><div class="csub" id="c-email-sub"></div></div>
+          <div class="cext">→</div>
+        </a>
+        <a href="#" id="c-messenger" target="_blank" rel="noreferrer" class="cpill" style="display:none">
+          <div class="cico" id="ci3">💬</div>
+          <div><div class="cname">Messenger</div><div class="csub" id="c-messenger-sub"></div></div>
+          <div class="cext">↗</div>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <div class="foot-row">
+      <svg id="f-ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M5 12.55a11 11 0 0 1 14.08 0"/>
+        <path d="M1.42 9a16 16 0 0 1 21.16 0"/>
+        <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+        <line x1="12" y1="20" x2="12.01" y2="20"/>
+      </svg>
+      <span class="foot-name" id="f-name">PAYWIFI</span>
+      <span class="foot-dot">·</span>
+      <span class="foot-txt">All-in-One Hotspot System</span>
+      <span class="foot-dot">·</span>
+      <span class="foot-txt" id="f-domain"></span>
+    </div>
+    <div class="foot-copy" id="f-copy"></div>
+  </footer>
+</div>
+
+<script>
+(function(){
+  var C='#0ea5e9',startMs=0,tmr=null;
+  function bg(id,v){var e=document.getElementById(id);if(e)e.style.background=v;}
+  function clr(id,v){var e=document.getElementById(id);if(e)e.style.color=v;}
+  function bc(id,v){var e=document.getElementById(id);if(e)e.style.borderColor=v;}
+
+  function applyColor(c){
+    C=c;
+    document.getElementById('hdr').style.background='linear-gradient(135deg,'+c+','+c+'cc)';
+    bg('sc','linear-gradient(135deg,'+c+','+c+'cc)');
+    ['r1','r2'].forEach(function(i){bc(i,c);});
+    clr('wico',c);clr('blbl',c);
+    clr('eta-ico',c);clr('eta-txt',c);
+    bg('eta',c+'0d');bc('eta',c+'30');
+    clr('ti1',c);clr('ti2',c);
+    bc('tw',c+'28');
+    bg('tc1',c+'08');
+    ['ehh','emm','ess'].forEach(function(i){clr(i,c);});
+    ['sl1','sl2','sl3','sl4','sl5','sl6'].forEach(function(i){bg(i,c+'28');});
+    ['sl-about','sl-feat','sl-contact'].forEach(function(i){clr(i,c);});
+    for(var i=1;i<=8;i++)bg('fi'+i,c+'18');
+    for(var i=1;i<=3;i++)bg('ci'+i,c+'15');
+    clr('f-ico',c);
+    document.getElementById('spi').style.borderTopColor=c;
+  }
+
+  function startTimer(iso){
+    if(!iso)return;
+    startMs=new Date(iso).getTime();
+    if(isNaN(startMs)||startMs<=0)return;
+    var sv=new Date(startMs).toLocaleString('en-PH',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true});
+    var el=document.getElementById('tv-started');
+    el.textContent=sv;el.className='tval';
+    function tick(){
+      var s=Math.max(0,Math.floor((Date.now()-startMs)/1000));
+      document.getElementById('ehh').textContent=String(Math.floor(s/3600)).padStart(2,'0');
+      document.getElementById('emm').textContent=String(Math.floor((s%3600)/60)).padStart(2,'0');
+      document.getElementById('ess').textContent=String(s%60).padStart(2,'0');
+    }
+    tick();tmr=setInterval(tick,1000);
+  }
+
+  function apply(cfg){
+    var br=cfg.branding||{},m=cfg.maintenance||{};
+    var name=br.portal_name||'PAYWIFI';
+    document.getElementById('hdr-name').textContent=name;
+    document.getElementById('f-name').textContent=name;
+    document.getElementById('f-copy').textContent='\u00a9 '+new Date().getFullYear()+' '+name+'. All rights reserved.';
+    if(m.title)document.getElementById('nttl').textContent=m.title;
+    if(m.message)document.getElementById('nmsg').textContent=m.message;
+    if(m.note){
+      document.getElementById('eta-txt').textContent=m.note;
+      document.getElementById('eta').style.display='flex';
+    }
+    applyColor(br.brand_color||'#0ea5e9');
+    if(m.enabledAt)startTimer(m.enabledAt);
+    // Wire domain-based contact
+    var dom=br.domain||'';
+    if(dom){
+      var domDisplay=dom.replace(/^https?:\/\//,'').replace(/\/$/,'');
+      var wa=document.getElementById('c-website');
+      wa.href=dom;wa.style.display='';
+      document.getElementById('c-website-sub').textContent=domDisplay;
+      var fd=document.getElementById('f-domain');
+      if(fd)fd.textContent=domDisplay;
+    }
+    // Wire email contact
+    var em=m.contact_email||'';
+    if(em){
+      var ea=document.getElementById('c-email');
+      ea.href='mailto:'+em;ea.style.display='';
+      document.getElementById('c-email-sub').textContent=em;
+    }
+    // Wire messenger contact
+    var ms=m.contact_messenger||'';
+    if(ms){
+      var ma=document.getElementById('c-messenger');
+      ma.href=ms;ma.style.display='';
+      var msDisplay=ms.replace(/^https?:\/\//,'').replace(/\/$/,'');
+      document.getElementById('c-messenger-sub').textContent=msDisplay;
+    }
+  }
+
+  function show(){
+    document.getElementById('loader').style.display='none';
+    document.getElementById('app').style.display='flex';
+  }
+
+  fetch('/api/portal/config')
+    .then(function(r){return r.json();})
+    .then(function(d){if(d&&d.ok)apply(d);show();})
+    .catch(function(){show();});
+})();
+</script>
+</body>
+</html>

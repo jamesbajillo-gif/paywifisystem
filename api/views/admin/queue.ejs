@@ -1,0 +1,91 @@
+
+<div class="max-w-6xl mx-auto py-8 px-4">
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-bold text-gray-800">Voucher Queue</h1>
+    <a href="/admin/queue" class="text-sm text-blue-600 hover:underline">&#8635; Refresh</a>
+  </div>
+
+  <% if (!rows || rows.length === 0) { %>
+    <div class="bg-white rounded-lg shadow p-8 text-center text-gray-400">
+      No active sessions or queued vouchers.
+    </div>
+  <% } else { %>
+    <% rows.forEach(function(row) { %>
+      <div class="bg-white rounded-lg shadow mb-6 overflow-hidden">
+        <!-- MAC / Session header -->
+        <div class="bg-gray-700 text-white px-5 py-3 flex flex-wrap gap-4 items-center">
+          <span class="font-mono text-sm"><%= row.mac_address %></span>
+          <span class="text-gray-300 text-sm">IP: <%= row.ip_address %></span>
+          <% if (row.queue && row.queue.length > 0) { %>
+            <span class="ml-auto bg-blue-500 text-white text-xs px-2 py-1 rounded-full">
+              <%= row.queue.length %> queued
+            </span>
+          <% } %>
+        </div>
+
+        <div class="p-5">
+          <!-- Active voucher row -->
+          <% if (row.session_id) { %>
+          <div class="flex items-center gap-4 mb-3 pb-3 border-b border-gray-100">
+            <span class="inline-block bg-green-100 text-green-800 text-xs font-bold px-2 py-1 rounded">ACTIVE</span>
+            <span class="font-mono font-bold text-gray-800"><%= row.voucher_code %></span>
+            <span class="text-sm text-gray-500">
+              <% const rem = row.remaining;
+                 const h = Math.floor(rem/3600);
+                 const m = Math.floor((rem%3600)/60);
+                 const s = rem%60; %>
+              Expires in:
+              <strong class="text-gray-800">
+                <%= h > 0 ? h + 'h ' : '' %><%= m %>m <%= s %>s
+              </strong>
+            </span>
+            <span class="text-sm text-gray-400"><%= row.bandwidth_kbps ? (row.bandwidth_kbps/1024).toFixed(1)+' Mbps' : '' %></span>
+          </div>
+          <% } %>
+
+          <!-- Queued vouchers -->
+          <% if (row.queue && row.queue.length > 0) { %>
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="text-left text-gray-400 text-xs uppercase tracking-wide">
+                  <th class="pb-2 pr-4">Position</th>
+                  <th class="pb-2 pr-4">Voucher</th>
+                  <th class="pb-2 pr-4">Duration</th>
+                  <th class="pb-2 pr-4">Speed</th>
+                  <th class="pb-2 pr-4">Queued</th>
+                  <th class="pb-2">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% row.queue.forEach(function(q) { %>
+                <tr class="border-t border-gray-50">
+                  <td class="py-2 pr-4 text-gray-500">#<%= q.queue_position + 1 %></td>
+                  <td class="py-2 pr-4 font-mono font-semibold text-gray-800"><%= q.voucher_code %></td>
+                  <td class="py-2 pr-4 text-gray-600"><%= q.duration_minutes >= 60 ? Math.floor(q.duration_minutes/60)+'h '+(q.duration_minutes%60>0?(q.duration_minutes%60)+'m':'') : q.duration_minutes+'m' %></td>
+                  <td class="py-2 pr-4 text-gray-600"><%= q.bandwidth_kbps ? (q.bandwidth_kbps/1024).toFixed(1)+' Mbps' : '-' %></td>
+                  <td class="py-2 pr-4 text-gray-400 text-xs">
+                    <%= new Date(q.queued_at * 1000).toLocaleString() %>
+                  </td>
+                  <td class="py-2">
+                    <% if (q.status === 'waiting') { %>
+                    <form method="POST" action="/admin/queue/remove" onsubmit="return confirm('Remove this voucher from the queue? The voucher will be reset to unused.')">
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                      <input type="hidden" name="id" value="<%= q.id %>">
+                      <button type="submit" class="text-xs text-red-500 hover:text-red-700 font-medium">Remove</button>
+                    </form>
+                    <% } else { %>
+                      <span class="text-xs text-gray-300"><%= q.status %></span>
+                    <% } %>
+                  </td>
+                </tr>
+                <% }); %>
+              </tbody>
+            </table>
+          <% } else if (row.session_id) { %>
+            <p class="text-sm text-gray-400 mt-1">No vouchers queued</p>
+          <% } %>
+        </div>
+      </div>
+    <% }); %>
+  <% } %>
+</div>

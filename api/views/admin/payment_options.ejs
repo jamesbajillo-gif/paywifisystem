@@ -1,0 +1,353 @@
+<div class="flex items-center mb-4 gap-3">
+  <h1 class="text-2xl font-bold">Payment Options</h1>
+  <span class="text-xs text-slate-500 bg-slate-800 px-2 py-0.5 rounded">
+    Shown on the portal's "Payment Options" section
+  </span>
+  <a href="/admin/payment-modules" class="ml-auto text-xs text-brand-400 hover:underline">Manage modules →</a>
+</div>
+
+<%
+var ICON_KEYS   = ['cash','card','qr','mobile','computer','bank','wallet'];
+var ICON_LABELS = { cash:'Cash / Bills', card:'Credit/Debit Card', qr:'QR Code',
+  mobile:'Mobile / E-Wallet', computer:'Online / Web Pay', bank:'Bank Transfer', wallet:'Wallet' };
+var ICON_SVG = {
+  cash:     '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>',
+  card:     '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>',
+  qr:       '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>',
+  mobile:   '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>',
+  computer: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>',
+  bank:     '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="22" x2="21" y2="22"/><line x1="6" y1="18" x2="6" y2="11"/><line x1="10" y1="18" x2="10" y2="11"/><line x1="14" y1="18" x2="14" y2="11"/><line x1="18" y1="18" x2="18" y2="11"/><polygon points="12 2 20 7 4 7"/></svg>',
+  wallet:   '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12V22H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h16v4"/><path d="M20 12a2 2 0 0 0-2 2v2a2 2 0 0 0 2 2h4v-6z"/><circle cx="18" cy="14" r="1"/></svg>'
+};
+
+// Build module → actions map for JS (from server-rendered data)
+var moduleActionsMap = {};
+modules.forEach(function(m) {
+  if (m.hasAdapter && m.actions) {
+    moduleActionsMap[m.id] = m.actions;
+  }
+});
+
+// Find module name by id
+function modName(id) {
+  if (!id) return null;
+  var m = modules.find(function(x){ return x.id === id; });
+  return m ? m.name : null;
+}
+%>
+
+<div class="grid md:grid-cols-2 gap-6">
+
+  <!-- Left: current options list -->
+  <div class="bg-slate-800 rounded-lg p-4">
+    <h2 class="font-semibold mb-1">Current options</h2>
+    <p class="text-xs text-slate-500 mb-4">Toggle visibility, reorder, or edit each option. Hidden options are not shown to guests.</p>
+
+    <div class="space-y-2">
+      <% options.forEach(function(o){ %>
+        <div class="bg-slate-900 rounded-lg p-3 border border-slate-700">
+          <div class="flex items-center gap-3">
+            <!-- Icon preview -->
+            <div class="w-9 h-9 rounded-lg bg-slate-700 flex items-center justify-center flex-shrink-0 text-slate-300">
+              <% if (o.icon_url) { %>
+                <img src="<%= o.icon_url %>" width="22" height="22" style="object-fit:contain;border-radius:4px">
+              <% } else { %>
+                <%- ICON_SVG[o.icon_key] || ICON_SVG.card %>
+              <% } %>
+            </div>
+            <!-- Info -->
+            <div class="flex-1 min-w-0">
+              <div class="font-semibold text-sm truncate"><%= o.name %></div>
+              <div class="flex items-center gap-2 mt-0.5 flex-wrap">
+                <span class="text-xs px-1.5 py-0.5 rounded-full <%= o.badge.toLowerCase()==='available' ? 'bg-emerald-800 text-emerald-200' : o.badge.toLowerCase()==='not available' ? 'bg-red-900 text-red-300' : 'bg-slate-700 text-slate-400' %>">
+                  <%= o.badge %>
+                </span>
+                <% if (o.module_id) {
+                  var mn = modName(o.module_id); %>
+                  <span class="text-xs text-sky-400 flex items-center gap-1">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/></svg>
+                    <%= mn || 'Module #'+o.module_id %>
+                    <% if (o.module_action) { %><span class="text-slate-500">· <%= o.module_action %></span><% } %>
+                  </span>
+                <% } %>
+              </div>
+            </div>
+            <!-- Status badge -->
+            <span class="text-xs px-2 py-0.5 rounded-full flex-shrink-0 <%= o.is_active ? 'bg-emerald-900 text-emerald-300' : 'bg-slate-700 text-slate-500' %>">
+              <%= o.is_active ? 'Visible' : 'Hidden' %>
+            </span>
+            <!-- Actions -->
+            <div class="flex gap-1 flex-shrink-0">
+              <button onclick="openEdit(<%= JSON.stringify(o) %>)"
+                class="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-xs text-slate-300">Edit</button>
+              <form method="POST" action="/admin/payment-options/<%= o.id %>/toggle" class="inline">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <button class="px-2 py-1 rounded text-xs <%= o.is_active ? 'bg-amber-900 text-amber-300 hover:bg-amber-800' : 'bg-emerald-900 text-emerald-300 hover:bg-emerald-800' %>">
+                  <%= o.is_active ? 'Hide' : 'Show' %>
+                </button>
+              </form>
+              <form method="POST" action="/admin/payment-options/<%= o.id %>/delete" class="inline"
+                    onsubmit="return confirm('Delete \'<%= o.name %>\'?')">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <button class="px-2 py-1 rounded bg-rose-900 text-rose-300 hover:bg-rose-800 text-xs">&times;</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      <% }) %>
+      <% if (!options.length) { %>
+        <p class="text-slate-500 text-sm py-4 text-center">No payment options yet. Add one →</p>
+      <% } %>
+    </div>
+  </div>
+
+  <!-- Right: add new option -->
+  <div class="bg-slate-800 rounded-lg p-4">
+    <h2 class="font-semibold mb-3">Add option</h2>
+    <form method="POST" action="/admin/payment-options" class="space-y-3 text-sm">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+      <div>
+        <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Name</label>
+        <input name="name" required placeholder="e.g. GCash, QR Ph, Cash"
+               class="w-full px-3 py-2 rounded bg-slate-900 border border-slate-700 focus:border-brand-500 outline-none">
+      </div>
+
+      <div>
+        <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Icon preset</label>
+        <select name="icon_key" class="w-full px-3 py-2 rounded bg-slate-900 border border-slate-700">
+          <% ICON_KEYS.forEach(function(k){ %>
+            <option value="<%= k %>"><%= ICON_LABELS[k] %></option>
+          <% }) %>
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">
+          Custom image <span class="normal-case text-slate-500 font-normal">(full URL or /images/file — overrides preset icon)</span>
+        </label>
+        <input name="icon_url" type="text" placeholder="https://example.com/logo.png  or  /images/logo.png"
+               class="w-full px-3 py-2 rounded bg-slate-900 border border-slate-700 focus:border-brand-500 outline-none">
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Status</label>
+          <select name="badge" class="w-full px-3 py-2 rounded bg-slate-900 border border-slate-700 focus:border-brand-500 outline-none">
+            <option value="Available">Available</option>
+            <option value="Not Available">Not Available</option>
+            <option value="Offline">Offline</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Sort order</label>
+          <input name="sort_order" type="number" value="<%= (options.length + 1) * 10 %>" min="0"
+                 class="w-full px-3 py-2 rounded bg-slate-900 border border-slate-700 focus:border-brand-500 outline-none">
+        </div>
+        <div>
+          <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Min amount (₱) <span class="normal-case text-slate-500 font-normal">blank = any</span></label>
+          <input name="min_amount" type="number" step="0.01" min="0" placeholder="(any)"
+                 class="w-full px-3 py-2 rounded bg-slate-900 border border-slate-700 focus:border-brand-500 outline-none">
+        </div>
+        <div>
+          <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Max amount (₱) <span class="normal-case text-slate-500 font-normal">blank = any</span></label>
+          <input name="max_amount" type="number" step="0.01" min="0" placeholder="(any)"
+                 class="w-full px-3 py-2 rounded bg-slate-900 border border-slate-700 focus:border-brand-500 outline-none">
+        </div>
+      </div>
+
+      <!-- Payment module assignment -->
+      <% if (modules && modules.length) { %>
+      <div class="border-t border-slate-700 pt-3 space-y-3">
+        <p class="text-xs font-semibold text-slate-300 uppercase tracking-wide">Payment module (optional)</p>
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Gateway module</label>
+          <select name="module_id" id="add-module-id" onchange="syncActions('add')"
+            class="w-full px-3 py-2 rounded bg-slate-900 border border-slate-700">
+            <option value="">— None (display only) —</option>
+            <% modules.forEach(function(m){ %>
+              <option value="<%= m.id %>" data-slug="<%= m.slug %>"><%= m.name %><% if (!m.is_active) { %> (inactive)<% } %></option>
+            <% }) %>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Action / payment method</label>
+          <select name="module_action" id="add-module-action"
+            class="w-full px-3 py-2 rounded bg-slate-900 border border-slate-700">
+            <option value="">— Select module first —</option>
+          </select>
+          <p class="text-xs text-slate-500 mt-1">Which feature of the module handles this payment option.</p>
+        </div>
+      </div>
+      <% } %>
+
+
+      <div>
+        <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">How to Pay Instructions <span class="normal-case font-normal text-slate-500">(one step per line)</span></label>
+        <textarea name="instructions" rows="4" placeholder="e.g.&#10;Open any QR Ph-enabled banking app&#10;Scan the QR code and send exactly the amount&#10;Come back here and tap Confirm Payment"
+                  class="w-full px-3 py-2 rounded bg-slate-900 border border-slate-700 focus:border-brand-500 outline-none text-sm resize-y"></textarea>
+      </div>
+      <button class="w-full py-2 rounded bg-brand-500 hover:bg-brand-400 text-slate-900 font-semibold">Add option</button>
+    </form>
+  </div>
+</div>
+
+<!-- Edit modal -->
+<div id="edit-overlay" class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center p-4">
+  <div class="bg-slate-800 rounded-xl w-full max-w-md p-5 space-y-3 text-sm overflow-y-auto max-h-screen">
+    <div class="flex items-center justify-between mb-1">
+      <h2 class="font-bold text-lg">Edit option</h2>
+      <button onclick="closeEdit()" class="text-slate-400 hover:text-slate-100 text-xl leading-none">&times;</button>
+    </div>
+
+    <form method="POST" id="edit-form" action="/admin/payment-options/0/edit" class="space-y-3">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="_id" id="edit-id">
+
+      <div>
+        <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Name</label>
+        <input id="edit-name" name="name" required
+               class="w-full px-3 py-2 rounded bg-slate-900 border border-slate-700 focus:border-brand-500 outline-none">
+      </div>
+
+      <div>
+        <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Icon preset</label>
+        <select id="edit-icon-key" name="icon_key" class="w-full px-3 py-2 rounded bg-slate-900 border border-slate-700">
+          <% ICON_KEYS.forEach(function(k){ %>
+            <option value="<%= k %>"><%= ICON_LABELS[k] %></option>
+          <% }) %>
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">
+          Custom image <span class="normal-case text-slate-500 font-normal">(full URL or /images/file — overrides preset)</span>
+        </label>
+        <input id="edit-icon-url" name="icon_url" type="text" placeholder="https://example.com/logo.png  or  /images/logo.png"
+               class="w-full px-3 py-2 rounded bg-slate-900 border border-slate-700 focus:border-brand-500 outline-none">
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Status</label>
+          <select id="edit-badge" name="badge" class="w-full px-3 py-2 rounded bg-slate-900 border border-slate-700 focus:border-brand-500 outline-none">
+            <option value="Available">Available</option>
+            <option value="Not Available">Not Available</option>
+            <option value="Offline">Offline</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Sort order</label>
+          <input id="edit-sort" name="sort_order" type="number" min="0"
+                 class="w-full px-3 py-2 rounded bg-slate-900 border border-slate-700 focus:border-brand-500 outline-none">
+        </div>
+        <div>
+          <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Min amount (₱) <span class="normal-case text-slate-500 font-normal">blank = any</span></label>
+          <input id="edit-min" name="min_amount" type="number" step="0.01" min="0" placeholder="(any)"
+                 class="w-full px-3 py-2 rounded bg-slate-900 border border-slate-700 focus:border-brand-500 outline-none">
+        </div>
+        <div>
+          <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Max amount (₱) <span class="normal-case text-slate-500 font-normal">blank = any</span></label>
+          <input id="edit-max" name="max_amount" type="number" step="0.01" min="0" placeholder="(any)"
+                 class="w-full px-3 py-2 rounded bg-slate-900 border border-slate-700 focus:border-brand-500 outline-none">
+        </div>
+      </div>
+
+      <!-- Module assignment in edit modal -->
+      <% if (modules && modules.length) { %>
+      <div class="border-t border-slate-700 pt-3 space-y-3">
+        <p class="text-xs font-semibold text-slate-300 uppercase tracking-wide">Payment module</p>
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Gateway module</label>
+          <select name="module_id" id="edit-module-id" onchange="syncActions('edit')"
+            class="w-full px-3 py-2 rounded bg-slate-900 border border-slate-700">
+            <option value="">— None (display only) —</option>
+            <% modules.forEach(function(m){ %>
+              <option value="<%= m.id %>" data-slug="<%= m.slug %>"><%= m.name %><% if (!m.is_active) { %> (inactive)<% } %></option>
+            <% }) %>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Action / payment method</label>
+          <select name="module_action" id="edit-module-action"
+            class="w-full px-3 py-2 rounded bg-slate-900 border border-slate-700">
+            <option value="">— None —</option>
+          </select>
+        </div>
+      </div>
+      <% } %>
+
+      <div>
+        <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">How to Pay Instructions <span class="normal-case font-normal text-slate-500">(one step per line)</span></label>
+        <textarea id="edit-instructions" name="instructions" rows="4"
+                  placeholder="e.g.&#10;Open any QR Ph-enabled banking app&#10;Scan the QR code and send exactly the amount&#10;Come back here and tap Confirm Payment"
+                  class="w-full px-3 py-2 rounded bg-slate-900 border border-slate-700 focus:border-brand-500 outline-none text-sm resize-y"></textarea>
+      </div>
+      <div class="flex gap-2 pt-1">
+        <button type="submit" class="flex-1 py-2 rounded bg-brand-500 hover:bg-brand-400 text-slate-900 font-semibold">Save</button>
+        <button type="button" onclick="closeEdit()" class="px-4 py-2 rounded bg-slate-700 hover:bg-slate-600">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+// Module → actions data from server
+var MODULE_ACTIONS = <%- JSON.stringify(allModuleActions) %>;
+
+function syncActions(formId) {
+  var idSel  = document.getElementById(formId + '-module-id');
+  var actSel = document.getElementById(formId + '-module-action');
+  if (!idSel || !actSel) return;
+  var modId = parseInt(idSel.value) || null;
+  var actions = modId && MODULE_ACTIONS[modId] ? MODULE_ACTIONS[modId] : {};
+  var cur = actSel.value;
+  actSel.innerHTML = '<option value="">— None —</option>';
+  Object.keys(actions).forEach(function(k) {
+    var opt = document.createElement('option');
+    opt.value = k;
+    opt.textContent = actions[k].label || k;
+    if (k === cur) opt.selected = true;
+    actSel.appendChild(opt);
+  });
+}
+
+function openEdit(o) {
+  document.getElementById('edit-id').value         = o.id;
+  document.getElementById('edit-name').value       = o.name;
+  document.getElementById('edit-icon-key').value   = o.icon_key;
+  document.getElementById('edit-icon-url').value   = o.icon_url || '';
+  document.getElementById('edit-badge').value      = o.badge;
+  document.getElementById('edit-sort').value       = o.sort_order;
+  document.getElementById('edit-min').value        = (o.min_amount==null?'':o.min_amount);
+  document.getElementById('edit-max').value        = (o.max_amount==null?'':o.max_amount);
+  document.getElementById('edit-form').action      = '/admin/payment-options/' + o.id + '/edit';
+
+  var modSel = document.getElementById('edit-module-id');
+  if (modSel) {
+    modSel.value = o.module_id || '';
+    syncActions('edit');
+    var actSel = document.getElementById('edit-module-action');
+    if (actSel && o.module_action) actSel.value = o.module_action;
+  }
+
+  var iEl = document.getElementById('edit-instructions');
+  if (iEl) iEl.value = o.instructions || '';
+  var ov = document.getElementById('edit-overlay');
+  ov.classList.remove('hidden');
+  ov.classList.add('flex');
+}
+
+function closeEdit() {
+  var ov = document.getElementById('edit-overlay');
+  ov.classList.add('hidden');
+  ov.classList.remove('flex');
+}
+
+document.getElementById('edit-overlay').addEventListener('click', function(e) {
+  if (e.target === this) closeEdit();
+});
+
+// Init action dropdowns
+syncActions('add');
+</script>

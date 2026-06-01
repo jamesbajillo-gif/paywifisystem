@@ -1,0 +1,95 @@
+<!-- PHASE1-VOUCHERTABLE-2026-06-01 — row-card layout ported from
+     paywifi-theme-basic/src/components/admin/VoucherTable.tsx -->
+
+<div class="flex items-center mb-6">
+  <h1 class="text-2xl font-bold">Vouchers</h1>
+  <a href="/admin/vouchers/new" class="ml-auto px-4 py-2 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-900 font-semibold text-sm inline-flex items-center gap-2">
+    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+    Generate batch
+  </a>
+</div>
+
+<!-- Status filter — pill-tab style -->
+<form method="GET" action="/admin/vouchers" class="mb-4 flex gap-1 text-sm flex-wrap" id="voucher-filter-form">
+  <%
+    const tabs = [
+      { v:'',         label:'All' },
+      { v:'unused',   label:'Issued' },
+      { v:'active',   label:'Active' },
+      { v:'expired',  label:'Expired' },
+      { v:'revoked',  label:'Revoked' },
+    ];
+  %>
+  <% tabs.forEach(function(t){
+       const active = (filter || '') === t.v;
+       const cls = active ? 'bg-slate-700 text-slate-100 border-slate-500' : 'bg-slate-900 text-slate-400 border-slate-700 hover:border-slate-500';
+  %>
+    <button type="submit" name="status" value="<%= t.v %>"
+      class="px-3 py-1.5 rounded-full border text-xs font-semibold transition-colors <%= cls %>"><%= t.label %></button>
+  <% }) %>
+</form>
+
+<!-- Voucher row-card list -->
+<section class="bg-slate-800 border border-slate-700 rounded-2xl p-4 min-w-0">
+  <div class="flex items-center justify-between gap-3 mb-2">
+    <div class="flex items-center gap-2 min-w-0">
+      <svg class="h-5 w-5 text-brand-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M3 12a9 9 0 1 0 9-9"/><path d="M3 4v5h5"/><path d="M12 7v5l4 2"/>
+      </svg>
+      <h2 class="text-base font-bold text-slate-100 truncate">Recent vouchers</h2>
+    </div>
+    <p class="text-xs text-slate-500 tabular-nums shrink-0">
+      <%= vouchers.length === 0 ? '—' : (vouchers.length + ' total') %>
+    </p>
+  </div>
+
+  <% if (!vouchers.length) { %>
+    <p class="mt-4 text-sm text-slate-500 text-center py-10">
+      No vouchers match this filter. <a href="/admin/vouchers/new" class="text-brand-400 hover:underline">Generate a batch →</a>
+    </p>
+  <% } else { %>
+    <ul class="flex flex-col divide-y divide-slate-700/60 -mx-4">
+      <% vouchers.forEach(function(v){
+        const statusMeta = {
+          unused:  { label: 'Issued',  cls: 'bg-slate-700/60 text-slate-300',
+                     icon: '<path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="9"/>' },
+          active:  { label: 'Active',  cls: 'bg-emerald-900/40 text-emerald-300',
+                     icon: '<path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1"/>' },
+          expired: { label: 'Expired', cls: 'bg-slate-700/40 text-slate-500',
+                     icon: '<path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/>' },
+          revoked: { label: 'Revoked', cls: 'bg-rose-900/40 text-rose-300',
+                     icon: '<circle cx="12" cy="12" r="9"/><path d="M4.93 4.93l14.14 14.14"/>' },
+        }[v.status] || { label: v.status, cls: 'bg-slate-700/40 text-slate-400', icon: '' };
+      %>
+        <li class="px-4 py-2.5 flex items-center gap-3 min-w-0 hover:bg-slate-700/20 transition-colors">
+          <div class="flex-1 min-w-0">
+            <p class="font-mono font-bold text-sm tracking-wider text-slate-100 <%= v.status==='revoked' ? 'line-through opacity-50' : '' %>"><%= v.code %></p>
+            <p class="text-xs text-slate-400 mt-0.5 truncate">
+              <%= v.batch_name ? (v.batch_name + ' · ') : '' %><%= fmtDuration(v.duration_minutes) %> · <%= fmtSpeed(v.bandwidth_kbps) %> · <%= v.max_devices %> device<%= v.max_devices===1 ? '' : 's' %>
+              · <span class="text-slate-500"><%= new Date(v.created_at*1000).toLocaleDateString(undefined, { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }) %></span>
+              <% if (v.expires_at) { %>
+                · expires <%= new Date(v.expires_at*1000).toLocaleDateString(undefined, { month:'short', day:'numeric' }) %>
+              <% } %>
+            </p>
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-lg <%= statusMeta.cls %>">
+              <svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><%- statusMeta.icon %></svg>
+              <%= statusMeta.label %>
+            </span>
+            <% if (v.status !== 'revoked') { %>
+              <form method="POST" action="/admin/vouchers/<%= v.id %>/revoke" class="inline"
+                    onsubmit="return confirm('Revoke voucher <%= v.code %>?')">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                <button title="Revoke voucher" type="submit"
+                  class="h-7 w-7 flex items-center justify-center rounded-lg border border-rose-500/30 text-rose-400/70 hover:text-rose-300 hover:bg-rose-500/10 transition-colors">
+                  <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                </button>
+              </form>
+            <% } %>
+          </div>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
+</section>

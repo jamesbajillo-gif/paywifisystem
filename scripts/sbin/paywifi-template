@@ -1,0 +1,226 @@
+#!/usr/bin/env bash
+# paywifi-template — manage captive-portal templates
+#
+# A template is a directory under /opt/paywifi/portal-templates/ containing
+# everything nginx needs to serve a portal (index.html, app.js, app.css,
+# probes/, images, fonts, etc.). The currently active template is whichever
+# one /opt/paywifi/portal points at via symlink.
+#
+# Commands:
+#   list                       show all templates, mark the active one
+#   active                     print the active template name
+#   switch <name>              atomically activate <name>
+#   save <name> [--from <dir>] snapshot a directory (default: live portal)
+#   clone <src> <dest>         duplicate a template
+#   delete <name>              remove a template (refuses if active)
+#   export <name> [out.tgz]    write a tarball of a template
+#   install <name> <src>       install a template from a directory or .tgz
+#   path <name>                print the filesystem path of a template
+#   help                       this message
+
+set -euo pipefail
+
+TEMPLATES_DIR="/opt/paywifi/portal-templates"
+ACTIVE_LINK="/opt/paywifi/portal"
+PAYWIFI_USER="paywifi"
+PAYWIFI_GROUP="paywifi"
+
+# ---------- helpers ----------
+ok()   { printf '\033[1;32m%s\033[0m\n' "$*"; }
+warn() { printf '\033[1;33m%s\033[0m\n' "$*" >&2; }
+die()  { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
+
+require_root() {
+  [ "$(id -u)" -eq 0 ] || die "this command must be run as root (use sudo)"
+}
+
+ensure_layout() {
+  [ -d "$TEMPLATES_DIR" ] || die "$TEMPLATES_DIR missing — run paywifi-template-setup.sh first"
+  [ -L "$ACTIVE_LINK"   ] || die "$ACTIVE_LINK is not a symlink — run paywifi-template-setup.sh first"
+}
+
+valid_name() {
+  # Templates are directory names. Restrict to a safe charset so users can't
+  # craft names that escape the templates dir or break tar/cp invocations.
+  local n="$1"
+  [[ "$n" =~ ^[A-Za-z0-9._-]+$ ]] || die "invalid template name: '$n' (use A-Z a-z 0-9 . _ -)"
+  [ "$n" != "." ] && [ "$n" != ".." ] || die "invalid template name"
+}
+
+template_exists() {
+  [ -d "$TEMPLATES_DIR/$1" ]
+}
+
+active_name() {
+  basename "$(readlink -f "$ACTIVE_LINK")"
+}
+
+# ---------- commands ----------
+cmd_list() {
+  ensure_layout
+  local active; active="$(active_name)"
+  local entry name marker
+  printf '%-24s  %-8s  %s\n' "TEMPLATE" "ACTIVE" "PATH"
+  printf '%-24s  %-8s  %s\n' "------------------------" "--------" "----"
+  shopt -s nullglob
+  for entry in "$TEMPLATES_DIR"/*/; do
+    name="$(basename "$entry")"
+    if [ "$name" = "$active" ]; then marker="  *"; else marker=""; fi
+    printf '%-24s  %-8s  %s\n' "$name" "$marker" "$entry"
+  done
+}
+
+cmd_active() {
+  ensure_layout
+  active_name
+}
+
+cmd_switch() {
+  ensure_layout
+  require_root
+  local name="${1:-}"
+  [ -n "$name" ] || die "usage: paywifi-template switch <name>"
+  valid_name "$name"
+  template_exists "$name" || die "no such template: $name"
+  local current; current="$(active_name)"
+  if [ "$current" = "$name" ]; then
+    ok "$name is already active"
+    return 0
+  fi
+  # ln -sfn atomically replaces the symlink in one rename(2) — no window
+  # where nginx sees a missing path.
+  ln -sfn "$TEMPLATES_DIR/$name" "$ACTIVE_LINK"
+  chown -h "$PAYWIFI_USER:$PAYWIFI_GROUP" "$ACTIVE_LINK"
+  ok "active template: $current -> $name"
+  warn "tip: hard-refresh any open captive-portal pages on clients (Ctrl-Shift-R)"
+}
+
+cmd_save() {
+  ensure_layout
+  require_root
+  local name="" src=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --from) src="${2:-}"; shift 2;;
+      -h|--help) echo "usage: paywifi-template save <name> [--from <dir>]"; return 0;;
+      -*) die "unknown flag: $1";;
+      *) if [ -z "$name" ]; then name="$1"; else die "unexpected arg: $1"; fi; shift;;
+    esac
+  done
+  [ -n "$name" ] || die "usage: paywifi-template save <name> [--from <dir>]"
+  valid_name "$name"
+  if [ -z "$src" ]; then
+    src="$(readlink -f "$ACTIVE_LINK")"
+  fi
+  [ -d "$src" ] || die "source directory not found: $src"
+  local dest="$TEMPLATES_DIR/$name"
+  [ ! -e "$dest" ] || die "template '$name' already exists at $dest"
+  cp -a "$src" "$dest"
+  chown -R "$PAYWIFI_USER:$PAYWIFI_GROUP" "$dest"
+  ok "saved template '$name' from $src"
+}
+
+cmd_clone() {
+  ensure_layout
+  require_root
+  local src="${1:-}" dest="${2:-}"
+  [ -n "$src" ] && [ -n "$dest" ] || die "usage: paywifi-template clone <src> <dest>"
+  valid_name "$src"; valid_name "$dest"
+  template_exists "$src" || die "no such template: $src"
+  [ ! -e "$TEMPLATES_DIR/$dest" ] || die "destination '$dest' already exists"
+  cp -a "$TEMPLATES_DIR/$src" "$TEMPLATES_DIR/$dest"
+  chown -R "$PAYWIFI_USER:$PAYWIFI_GROUP" "$TEMPLATES_DIR/$dest"
+  ok "cloned $src -> $dest"
+}
+
+cmd_delete() {
+  ensure_layout
+  require_root
+  local name="${1:-}"
+  [ -n "$name" ] || die "usage: paywifi-template delete <name>"
+  valid_name "$name"
+  template_exists "$name" || die "no such template: $name"
+  local active; active="$(active_name)"
+  [ "$name" != "$active" ] || die "refusing to delete the active template ('$name'). Switch first."
+  rm -rf "${TEMPLATES_DIR:?}/$name"
+  ok "deleted template: $name"
+}
+
+cmd_export() {
+  ensure_layout
+  local name="${1:-}" out="${2:-}"
+  [ -n "$name" ] || die "usage: paywifi-template export <name> [out.tgz]"
+  valid_name "$name"
+  template_exists "$name" || die "no such template: $name"
+  if [ -z "$out" ]; then
+    out="./paywifi-template-${name}-$(date +%Y%m%d-%H%M%S).tgz"
+  fi
+  tar -C "$TEMPLATES_DIR" -czf "$out" "$name"
+  ok "exported $name -> $out ($(du -h "$out" | awk '{print $1}'))"
+}
+
+cmd_install() {
+  ensure_layout
+  require_root
+  local name="${1:-}" src="${2:-}"
+  [ -n "$name" ] && [ -n "$src" ] || die "usage: paywifi-template install <name> <src-dir-or-tarball>"
+  valid_name "$name"
+  [ ! -e "$TEMPLATES_DIR/$name" ] || die "template '$name' already exists"
+  local dest="$TEMPLATES_DIR/$name"
+  if [ -d "$src" ]; then
+    cp -a "$src" "$dest"
+  elif [ -f "$src" ]; then
+    case "$src" in
+      *.tgz|*.tar.gz)
+        local tmp; tmp="$(mktemp -d)"
+        tar -xzf "$src" -C "$tmp"
+        # Accept tarball that has the template as the single top-level dir,
+        # OR a tarball that is the template content at the top level.
+        local entries; entries=("$tmp"/*)
+        if [ ${#entries[@]} -eq 1 ] && [ -d "${entries[0]}" ]; then
+          mv "${entries[0]}" "$dest"
+        else
+          mkdir -p "$dest"
+          mv "$tmp"/* "$dest"/
+        fi
+        rm -rf "$tmp"
+        ;;
+      *) die "unsupported source: $src (expected directory or .tgz)";;
+    esac
+  else
+    die "source not found: $src"
+  fi
+  chown -R "$PAYWIFI_USER:$PAYWIFI_GROUP" "$dest"
+  find "$dest" -type d -exec chmod 755 {} +
+  find "$dest" -type f -exec chmod 644 {} +
+  ok "installed template: $name"
+}
+
+cmd_path() {
+  ensure_layout
+  local name="${1:-}"
+  [ -n "$name" ] || die "usage: paywifi-template path <name>"
+  valid_name "$name"
+  template_exists "$name" || die "no such template: $name"
+  echo "$TEMPLATES_DIR/$name"
+}
+
+cmd_help() {
+  sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'
+}
+
+# ---------- dispatch ----------
+sub="${1:-help}"; shift || true
+case "$sub" in
+  list)    cmd_list "$@";;
+  active)  cmd_active "$@";;
+  switch)  cmd_switch "$@";;
+  save)    cmd_save "$@";;
+  clone)   cmd_clone "$@";;
+  delete|rm) cmd_delete "$@";;
+  export)  cmd_export "$@";;
+  install) cmd_install "$@";;
+  path)    cmd_path "$@";;
+  help|-h|--help) cmd_help;;
+  *) die "unknown command: $sub (try: paywifi-template help)";;
+esac

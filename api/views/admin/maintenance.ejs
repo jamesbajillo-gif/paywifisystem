@@ -1,0 +1,178 @@
+<%
+  var _mE  = settings.find(function(s){return s.key==='maintenance_enabled';});
+  var _mM  = settings.find(function(s){return s.key==='maintenance_mode';});
+  var _mT  = settings.find(function(s){return s.key==='maintenance_title';});
+  var _mMs = settings.find(function(s){return s.key==='maintenance_message';});
+  var _mN  = settings.find(function(s){return s.key==='maintenance_note';});
+  var _mAt = settings.find(function(s){return s.key==='maintenance_enabled_at';});
+  var mEnabled   = _mE  && _mE.value  === '1';
+  var mMode      = _mM  ? (_mM.value  || 'all') : 'all';
+  var mTitle     = _mT  ? (_mT.value  || '')    : '';
+  var mMessage   = _mMs ? (_mMs.value || '')     : '';
+  var mNote      = _mN  ? (_mN.value  || '')     : '';
+  var mEnabledAt = _mAt ? (_mAt.value || '')     : '';
+  var _mCe = settings.find(function(s){return s.key==='maintenance_contact_email';});
+  var _mCm = settings.find(function(s){return s.key==='maintenance_contact_messenger';});
+  var mContactEmail     = _mCe ? (_mCe.value || '') : '';
+  var mContactMessenger = _mCm ? (_mCm.value || '') : '';
+%>
+
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-2xl font-bold">Maintenance Mode</h1>
+  <span class="text-sm px-3 py-1 rounded-full font-bold <%- mEnabled ? 'bg-rose-900/60 text-rose-300' : 'bg-emerald-900/60 text-emerald-300' %>">
+    <%- mEnabled ? '&#x25CF; ACTIVE' : '&#x25CB; DISABLED' %>
+  </span>
+</div>
+
+<% if (mEnabled) { %>
+<div class="mb-6 rounded-lg bg-rose-950 border border-rose-700/50 px-4 py-3 flex items-start gap-3">
+  <span class="text-lg mt-0.5">&#x1F534;</span>
+  <div class="text-sm text-rose-200">
+    <strong>Maintenance mode is on.</strong> The captive portal is redirecting visitors to the maintenance page.
+    <% if (mEnabledAt) { %>
+      <span class="text-rose-400 ml-2">Active since: <%- new Date(mEnabledAt).toLocaleString('en-PH',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit',hour12:true}) %></span>
+    <% } %>
+  </div>
+</div>
+<% } %>
+
+<div class="grid md:grid-cols-2 gap-6">
+  <div class="bg-slate-800 rounded-lg p-5">
+    <h2 class="font-semibold mb-1 text-slate-100">Configuration</h2>
+    <p class="text-xs text-slate-400 mb-4">Set the scope and content shown on the maintenance page, then press <strong>Enable</strong> or <strong>Disable</strong>.</p>
+
+    <form method="POST" action="/admin/maintenance/toggle" class="space-y-4 text-sm">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+      <div>
+        <label class="block text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wide">Scope</label>
+        <div class="flex gap-6">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="radio" name="mode" value="all" <%- mMode !== 'public_only' ? 'checked' : '' %> class="accent-rose-500">
+            <span class="text-slate-200">All visitors</span>
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="radio" name="mode" value="public_only" <%- mMode === 'public_only' ? 'checked' : '' %> class="accent-rose-500">
+            <span class="text-slate-200">Public only <span class="text-xs text-slate-500">(LAN passes through)</span></span>
+          </label>
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs text-slate-400 mb-1">Title</label>
+        <input name="title" type="text" value="<%- mTitle %>" placeholder="We'll be right back!" maxlength="200"
+               class="w-full px-3 py-2 rounded bg-slate-900 border border-slate-700 focus:border-rose-500 outline-none text-sm">
+      </div>
+
+      <div>
+        <label class="block text-xs text-slate-400 mb-1">Message</label>
+        <textarea name="message" rows="3" maxlength="1000" placeholder="Our hotspot portal is undergoing scheduled maintenance..."
+                  class="w-full px-3 py-2 rounded bg-slate-900 border border-slate-700 focus:border-rose-500 outline-none text-sm resize-y"><%- mMessage %></textarea>
+      </div>
+
+      <div>
+        <label class="block text-xs text-slate-400 mb-1">ETA / Note <span class="text-slate-600">(optional)</span></label>
+        <input name="note" type="text" value="<%- mNote %>" placeholder="Back in approximately 30 minutes" maxlength="300"
+               class="w-full px-3 py-2 rounded bg-slate-900 border border-slate-700 focus:border-rose-500 outline-none text-sm">
+      </div>
+
+      <div class="border-t border-slate-700 pt-4 mt-1">
+        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Contact info <span class="font-normal text-slate-500 normal-case">(shown on maintenance page)</span></p>
+        <div class="space-y-3">
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Email <span class="text-slate-600">(optional)</span></label>
+            <input name="contact_email" type="text" value="<%- mContactEmail %>" placeholder="support@example.com" maxlength="200"
+                   class="w-full px-3 py-2 rounded bg-slate-900 border border-slate-700 focus:border-rose-500 outline-none text-sm">
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Messenger URL <span class="text-slate-600">(optional — Facebook m.me link)</span></label>
+            <input name="contact_messenger" type="text" value="<%- mContactMessenger %>" placeholder="https://m.me/yourpage" maxlength="300"
+                   class="w-full px-3 py-2 rounded bg-slate-900 border border-slate-700 focus:border-rose-500 outline-none text-sm">
+            <p class="text-xs text-slate-600 mt-0.5">Website URL comes from the Domain Name in Settings.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- MAINT-BTN-VISIBLE-2026-06-01 — light-theme-aware buttons.
+           When maintenance is currently ACTIVE, the Disable button is
+           promoted to the primary CTA (large, success-green) so operators
+           can find it immediately. -->
+      <div class="flex flex-col gap-2 pt-1">
+        <% if (mEnabled) { %>
+          <button type="submit" name="action" value="disable"
+                  class="w-full h-14 rounded-xl text-white font-bold text-base shadow-sm transition-opacity hover:opacity-90"
+                  style="background-color: var(--success); color: var(--success-foreground)">
+            ✓ Turn OFF maintenance &mdash; resume normal service
+          </button>
+          <button type="submit" name="action" value="enable"
+                  class="w-full h-10 rounded-lg font-semibold text-sm border-2 transition-colors"
+                  style="border-color: var(--border); background-color: var(--card); color: var(--muted-foreground)">
+            Re-save settings (keep maintenance ON)
+          </button>
+        <% } else { %>
+          <button type="submit" name="action" value="enable"
+                  class="w-full h-14 rounded-xl text-white font-bold text-base shadow-sm transition-opacity hover:opacity-90"
+                  style="background-color: var(--destructive); color: var(--destructive-foreground)">
+            Enable maintenance mode
+          </button>
+          <button type="submit" name="action" value="disable"
+                  class="w-full h-10 rounded-lg font-semibold text-sm border-2 transition-colors"
+                  style="border-color: var(--border); background-color: var(--card); color: var(--muted-foreground)">
+            Save settings only (keep OFF)
+          </button>
+        <% } %>
+      </div>
+    </form>
+  </div>
+
+  <div class="space-y-4">
+    <div class="bg-slate-800 rounded-lg p-4">
+      <h3 class="font-semibold mb-3 text-slate-100">Current status</h3>
+      <dl class="space-y-2 text-sm">
+        <div class="flex justify-between">
+          <dt class="text-slate-400">State</dt>
+          <dd class="font-semibold <%- mEnabled ? 'text-rose-400' : 'text-emerald-400' %>">
+            <%- mEnabled ? 'ACTIVE' : 'Off' %>
+          </dd>
+        </div>
+        <% if (mEnabled) { %>
+        <div class="flex justify-between">
+          <dt class="text-slate-400">Mode</dt>
+          <dd class="text-slate-200"><%- mMode === 'public_only' ? 'Public only (LAN bypasses)' : 'All visitors' %></dd>
+        </div>
+        <% if (mEnabledAt) { %>
+        <div class="flex justify-between">
+          <dt class="text-slate-400">Enabled at</dt>
+          <dd class="text-slate-300 text-xs"><%- new Date(mEnabledAt).toLocaleString('en-PH',{year:'numeric',month:'short',day:'numeric',hour:'numeric',minute:'2-digit',hour12:true}) %></dd>
+        </div>
+        <% } %>
+        <% if (mTitle) { %>
+        <div class="flex justify-between">
+          <dt class="text-slate-400">Title</dt>
+          <dd class="text-slate-200 truncate max-w-[160px]"><%- mTitle %></dd>
+        </div>
+        <% } %>
+        <% } %>
+      </dl>
+    </div>
+
+    <div class="bg-slate-800 rounded-lg p-4">
+      <h3 class="font-semibold mb-2 text-slate-100">How it works</h3>
+      <ul class="text-xs text-slate-400 space-y-2">
+        <li class="flex gap-2"><span class="text-slate-500 shrink-0">&#x2192;</span> When enabled, nginx redirects portal visitors to <code class="bg-slate-700 px-1 rounded text-slate-200">/maintenance.html</code> before any portal logic runs.</li>
+        <li class="flex gap-2"><span class="text-slate-500 shrink-0">&#x2192;</span> <strong class="text-slate-300">All visitors</strong> &mdash; everyone is redirected regardless of network.</li>
+        <li class="flex gap-2"><span class="text-slate-500 shrink-0">&#x2192;</span> <strong class="text-slate-300">Public only</strong> &mdash; only non-LAN visitors are redirected. Devices on 10.10.0.x and 192.168.89.x continue to the portal normally.</li>
+        <li class="flex gap-2"><span class="text-slate-500 shrink-0">&#x2192;</span> No API restart needed &mdash; nginx reads a flag file immediately on toggle.</li>
+      </ul>
+    </div>
+
+    <div class="bg-slate-800 rounded-lg p-4">
+      <h3 class="font-semibold mb-2 text-slate-100">Preview</h3>
+      <a href="/maintenance.html" target="_blank"
+         class="flex items-center gap-2 text-sm text-brand-400 hover:underline">
+        &#x2197; Open maintenance page in new tab
+      </a>
+      <p class="text-xs text-slate-500 mt-1">Always served at this URL — safe to preview any time.</p>
+    </div>
+  </div>
+</div>

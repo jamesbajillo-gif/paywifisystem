@@ -1,0 +1,178 @@
+#!/usr/bin/env bash
+# paywifi-auth — manage the captive portal allowlist (native nft sets)
+# Usage:
+#   paywifi-auth add    <ip> [timeout-seconds]
+#   paywifi-auth del    <ip>
+#   paywifi-auth list
+#   paywifi-auth flush
+#   paywifi-auth walled-add    <ip>
+#   paywifi-auth walled-del    <ip>
+#   paywifi-auth walled-list
+#   paywifi-auth walled-reload          # re-populate nft from persisted file
+
+set -o pipefail
+TABLE_FILTER="inet filter"
+TABLE_CAPTIVE="inet captive"
+TABLE_NAT="ip nat"
+SET_AUTH="paywifi_auth"
+SET_AUTH_MAC="paywifi_auth_mac"
+SET_WALLED="paywifi_walled"
+WALLED_FILE="/etc/paywifi/walled-garden.conf"   # FW-02: persistence file
+DB_FILE="/var/lib/paywifi/paywifi.db"                # FW-01: DB persistence
+
+resolve_mac() {
+  local ip="$1" m
+  m=$(awk -v ip="$ip" '$3==ip{print $2; exit}' /var/lib/misc/paywifi-dnsmasq.leases 2>/dev/null)
+  [[ -z "$m" ]] && m=$(ip neigh show "$ip" 2>/dev/null | awk '/lladdr/{print $5; exit}')
+  echo "$m"
+}
+
+add_to_set() {
+  local table="$1" set="$2" ip="$3" tmo="$4"
+  if [[ -n "$tmo" ]]; then
+    nft add element $table $set "{ $ip timeout ${tmo}s }" 2>/dev/null || \
+    nft add element $table $set "{ $ip }"
+  else
+    nft add element $table $set "{ $ip }"
+  fi
+}
+
+# FW-02: persist an IP to WALLED_FILE (idempotent)
+walled_persist_add() {
+  mkdir -p "$(dirname "$WALLED_FILE")"
+  touch "$WALLED_FILE"
+  grep -qxF "$1" "$WALLED_FILE" 2>/dev/null || echo "$1" >> "$WALLED_FILE"
+}
+
+# FW-02: remove an IP from WALLED_FILE
+walled_persist_del() {
+  [[ -f "$WALLED_FILE" ]] || return 0
+  local tmp; tmp=$(mktemp)
+  grep -vxF "$1" "$WALLED_FILE" > "$tmp" && mv "$tmp" "$WALLED_FILE" || rm -f "$tmp"
+}
+
+# FW-01: mirror walled-garden entries into the firewall_whitelist DB table
+walled_db_add() {
+  command -v sqlite3 >/dev/null 2>&1 || return 0
+  [[ "$1" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || return 0
+  sqlite3 "$DB_FILE" "INSERT OR IGNORE INTO firewall_whitelist (ip,source,created_at) VALUES ('$1','cli',strftime('%s','now'));" 2>/dev/null || true
+}
+walled_db_del() {
+  command -v sqlite3 >/dev/null 2>&1 || return 0
+  [[ "$1" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || return 0
+  sqlite3 "$DB_FILE" "DELETE FROM firewall_whitelist WHERE ip='$1';" 2>/dev/null || true
+}
+
+case "${1:-}" in
+  add)
+    [[ -n "$2" ]] || { echo "usage: paywifi-auth add <ip> [timeout-seconds]" >&2; exit 1; }
+    add_to_set "$TABLE_FILTER"  "$SET_AUTH" "$2" "${3:-}"
+    add_to_set "$TABLE_CAPTIVE" "$SET_AUTH" "$2" "${3:-}"
+    add_to_set "$TABLE_NAT"     "$SET_AUTH" "$2" "${3:-}"
+    # Flush stale DNAT'd conntrack so the device's captive-probe flows stop being
+    # redirected to the portal — lets the OS detect that internet is restored.
+    command -v conntrack >/dev/null 2>&1 && conntrack -D -s "$2" >/dev/null 2>&1 || true
+    # AdoPiSoft-style PRIMARY: authorize by MAC (survives IP changes); IP set above is fallback.
+    _mac=$(resolve_mac "$2")
+    if [[ -n "$_mac" ]]; then
+      add_to_set "$TABLE_FILTER"  "$SET_AUTH_MAC" "$_mac" "${3:-}"
+      add_to_set "$TABLE_CAPTIVE" "$SET_AUTH_MAC" "$_mac" "${3:-}"
+      add_to_set "$TABLE_NAT"     "$SET_AUTH_MAC" "$_mac" "${3:-}"
+    fi
+    echo "added: $2${3:+ (timeout ${3}s)}${_mac:+ mac=$_mac}"
+    ;;
+  del)
+    [[ -n "$2" ]] || { echo "usage: paywifi-auth del <ip>" >&2; exit 1; }
+    nft delete element "$TABLE_FILTER"  "$SET_AUTH" "{ $2 }" 2>/dev/null || true
+    nft delete element "$TABLE_CAPTIVE" "$SET_AUTH" "{ $2 }" 2>/dev/null || true
+    nft delete element "$TABLE_NAT"     "$SET_AUTH" "{ $2 }" 2>/dev/null || true
+    # Cut the device's active flows on revoke so enforcement is immediate.
+    command -v conntrack >/dev/null 2>&1 && conntrack -D -s "$2" >/dev/null 2>&1 || true
+    _mac=$(resolve_mac "$2")
+    if [[ -n "$_mac" ]]; then
+      nft delete element "$TABLE_FILTER"  "$SET_AUTH_MAC" "{ $_mac }" 2>/dev/null || true
+      nft delete element "$TABLE_CAPTIVE" "$SET_AUTH_MAC" "{ $_mac }" 2>/dev/null || true
+      nft delete element "$TABLE_NAT"     "$SET_AUTH_MAC" "{ $_mac }" 2>/dev/null || true
+    fi
+    echo "removed: $2"
+    ;;
+  list)
+    echo "=== $SET_AUTH (filter table) ==="
+    nft list set "$TABLE_FILTER" "$SET_AUTH" 2>/dev/null || echo "(empty)"
+    ;;
+  flush)
+    nft flush set "$TABLE_FILTER"  "$SET_AUTH" 2>/dev/null || true
+    nft flush set "$TABLE_CAPTIVE" "$SET_AUTH" 2>/dev/null || true
+    nft flush set "$TABLE_NAT"     "$SET_AUTH" 2>/dev/null || true
+    nft flush set "$TABLE_FILTER"  "$SET_AUTH_MAC" 2>/dev/null || true
+    nft flush set "$TABLE_CAPTIVE" "$SET_AUTH_MAC" 2>/dev/null || true
+    nft flush set "$TABLE_NAT"     "$SET_AUTH_MAC" 2>/dev/null || true
+    echo "flushed."
+    ;;
+  walled-add)
+    [[ -n "$2" ]] || { echo "usage: paywifi-auth walled-add <ip>" >&2; exit 1; }
+    nft add element "$TABLE_FILTER"  "$SET_WALLED" "{ $2 }" 2>/dev/null || true
+    nft add element "$TABLE_CAPTIVE" "$SET_WALLED" "{ $2 }" 2>/dev/null || true
+    nft add element "$TABLE_NAT"     "$SET_WALLED" "{ $2 }" 2>/dev/null || true
+    walled_persist_add "$2"   # FW-02: persist (file)
+    walled_db_add "$2"        # FW-01: persist (DB firewall_whitelist)
+    echo "walled-garden: added $2"
+    ;;
+  walled-add-temp)
+    # HARDEN-2026-05-31 — ephemeral walled-garden entry (nft per-element timeout).
+    # No persistence: not written to walled-garden.conf or firewall_whitelist.
+    # Usage: paywifi-auth walled-add-temp <ip> <seconds>
+    [[ -n "$2" && -n "$3" ]] || { echo "usage: paywifi-auth walled-add-temp <ip> <seconds>" >&2; exit 1; }
+    [[ "$2" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || { echo "invalid ipv4: $2" >&2; exit 2; }
+    [[ "$3" =~ ^[0-9]+$ ]]                       || { echo "invalid seconds: $3" >&2; exit 2; }
+    nft add element "$TABLE_FILTER"  "$SET_WALLED" "{ $2 timeout ${3}s }" 2>/dev/null \
+      || nft add element "$TABLE_FILTER"  "$SET_WALLED" "{ $2 }" 2>/dev/null || true
+    nft add element "$TABLE_CAPTIVE" "$SET_WALLED" "{ $2 timeout ${3}s }" 2>/dev/null \
+      || nft add element "$TABLE_CAPTIVE" "$SET_WALLED" "{ $2 }" 2>/dev/null || true
+    nft add element "$TABLE_NAT"     "$SET_WALLED" "{ $2 timeout ${3}s }" 2>/dev/null \
+      || nft add element "$TABLE_NAT"     "$SET_WALLED" "{ $2 }" 2>/dev/null || true
+    echo "walled-garden: temp $2 timeout ${3}s"
+    ;;
+  walled-del)
+    [[ -n "$2" ]] || { echo "usage: paywifi-auth walled-del <ip>" >&2; exit 1; }
+    nft delete element "$TABLE_FILTER"  "$SET_WALLED" "{ $2 }" 2>/dev/null || true
+    nft delete element "$TABLE_CAPTIVE" "$SET_WALLED" "{ $2 }" 2>/dev/null || true
+    nft delete element "$TABLE_NAT"     "$SET_WALLED" "{ $2 }" 2>/dev/null || true
+    walled_persist_del "$2"   # FW-02: remove from persist file
+    walled_db_del "$2"        # FW-01: remove from DB firewall_whitelist
+    echo "walled-garden: removed $2"
+    ;;
+  walled-list)
+    echo "=== $SET_WALLED ==="
+    nft list set "$TABLE_FILTER" "$SET_WALLED" 2>/dev/null || echo "(empty)"
+    ;;
+  walled-reload)
+    # FW-02: re-populate nft walled garden from persisted file (called by nftables ExecStartPost)
+    [[ -f "$WALLED_FILE" ]] || { echo "walled-reload: no file at $WALLED_FILE, nothing to load"; exit 0; }
+    count=0
+    while IFS= read -r ip || [[ -n "$ip" ]]; do
+      [[ -z "$ip" || "$ip" == \#* ]] && continue
+      nft add element "$TABLE_FILTER"  "$SET_WALLED" "{ $ip }" 2>/dev/null || true
+      nft add element "$TABLE_CAPTIVE" "$SET_WALLED" "{ $ip }" 2>/dev/null || true
+      nft add element "$TABLE_NAT"     "$SET_WALLED" "{ $ip }" 2>/dev/null || true
+      (( count++ ))
+    done < "$WALLED_FILE"
+    echo "walled-reload: loaded $count entries from $WALLED_FILE"
+    ;;
+  *)
+    cat <<USAGE
+paywifi-auth — manage captive portal allowlist & walled garden
+
+Usage:
+  paywifi-auth add <ip> [timeout-seconds]   # authorize an IP
+  paywifi-auth del <ip>                     # remove an IP from allowlist
+  paywifi-auth list                         # show authorized IPs
+  paywifi-auth flush                        # clear all authorized IPs
+  paywifi-auth walled-add        <ip>            # add to walled garden (persists)
+  paywifi-auth walled-add-temp   <ip> <seconds>  # JIT entry, auto-expires (no persist)
+  paywifi-auth walled-del        <ip>            # remove from walled garden (persists)
+  paywifi-auth walled-list                  # show walled garden
+  paywifi-auth walled-reload                # reload walled garden from persisted file
+USAGE
+    ;;
+esac

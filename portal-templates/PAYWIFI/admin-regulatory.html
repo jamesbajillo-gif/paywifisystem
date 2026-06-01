@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Regulatory Checklist — PAYWIFI (Admin)</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Segoe UI',Arial,sans-serif;background:#0f172a;color:#e2e8f0;padding:2rem 1rem}
+    .container{max-width:760px;margin:0 auto}
+    h1{font-size:1.4rem;font-weight:700;color:#fff;margin-bottom:.25rem}
+    h2{font-size:.9rem;font-weight:700;color:#f97316;margin:1.5rem 0 .5rem;text-transform:uppercase;letter-spacing:.05em}
+    p,li{font-size:.84rem;line-height:1.65;color:#cbd5e1}
+    .item{display:flex;gap:.75rem;align-items:flex-start;padding:.6rem .75rem;background:#1e293b;border:1px solid #334155;border-radius:.4rem;margin:.35rem 0}
+    .item input[type=checkbox]{margin-top:.15rem;accent-color:#f97316;width:15px;height:15px;flex-shrink:0}
+    .item-body{flex:1}
+    .item-body strong{display:block;font-size:.84rem;color:#f1f5f9;margin-bottom:.1rem}
+    .item-body span{font-size:.75rem;color:#94a3b8}
+    .item-body a{color:#60a5fa;text-decoration:none}
+    .item-body a:hover{text-decoration:underline}
+    .badge{display:inline-block;font-size:.65rem;font-weight:700;padding:.1rem .35rem;border-radius:.25rem;margin-left:.4rem;vertical-align:middle}
+    .req{background:#7f1d1d;color:#fca5a5;border:1px solid #dc2626}
+    .rec{background:#1c3b0e;color:#86efac;border:1px solid #22c55e}
+    .inf{background:#1e3a5f;color:#93c5fd;border:1px solid #3b82f6}
+    hr{border:none;border-top:1px solid #1e293b;margin:1.5rem 0}
+    .note{font-size:.75rem;color:#64748b;margin-top:1.5rem;padding-top:1rem;border-top:1px solid #1e293b}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Regulatory &amp; Administrative Checklist</h1>
+    <p style="font-size:.78rem;color:#64748b;margin-top:.3rem;margin-bottom:1.5rem">PAYWIFI / the Operator — Phase 6 tasks. Check off each item as completed.</p>
+
+    <h2>National Privacy Commission — RA 10173</h2>
+
+    <div class="item">
+      <input type="checkbox" id="c1"/>
+      <div class="item-body">
+        <strong>Register as Personal Information Controller (PIC) <span class="badge req">REQUIRED</span></strong>
+        <span>Organizations processing personal data of 1,000+ data subjects must register with the NPC. As guest count grows this threshold will be crossed. Registration is free.<br/>
+        &rarr; <a href="https://www.privacy.gov.ph" target="_blank">privacy.gov.ph</a> — use the online registration portal.<br/>
+        &rarr; Designate a Data Protection Officer (DPO) — currently: james.bajillo@gmail.com</span>
+      </div>
+    </div>
+
+    <div class="item">
+      <input type="checkbox" id="c2"/>
+      <div class="item-body">
+        <strong>Designate a Data Protection Officer (DPO) <span class="badge req">REQUIRED</span></strong>
+        <span>The DPO must be registered with the NPC. The DPO is responsible for ensuring RA 10173 compliance, handling data subject requests, and liaising with the NPC during incidents.<br/>
+        &rarr; Complete DPO registration at <a href="https://www.privacy.gov.ph" target="_blank">privacy.gov.ph</a> after PIC registration.</span>
+      </div>
+    </div>
+
+    <div class="item">
+      <input type="checkbox" id="c3"/>
+      <div class="item-body">
+        <strong>Conduct a Privacy Impact Assessment (PIA) <span class="badge rec">RECOMMENDED</span></strong>
+        <span>A PIA documents what data is collected, why, how it's protected, and what risks exist. NPC recommends PIAs for all systems processing personal data.<br/>
+        &rarr; The audit report (PAYWIFI_Audit_Report_May2026.docx) can serve as the basis for your PIA.</span>
+      </div>
+    </div>
+
+    <h2>National Telecommunications Commission (NTC)</h2>
+
+    <div class="item">
+      <input type="checkbox" id="c4"/>
+      <div class="item-body">
+        <strong>Verify Permit to Operate requirement <span class="badge req">VERIFY</span></strong>
+        <span>Commercial public WiFi hotspot operators may require an NTC Permit to Operate as a Value-Added Service (VAS) provider. Single-venue operations may be exempt; multi-location commercial deployments typically require a permit.<br/>
+        &rarr; Contact NTC: <a href="https://www.ntc.gov.ph" target="_blank">ntc.gov.ph</a> or call (02) 926-7722 to confirm your specific requirement.</span>
+      </div>
+    </div>
+
+    <h2>DTI / SEC Business Registration</h2>
+
+    <div class="item">
+      <input type="checkbox" id="c5"/>
+      <div class="item-body">
+        <strong>Confirm DTI or SEC registration is current <span class="badge req">REQUIRED</span></strong>
+        <span>Operating a commercial WiFi service requires a valid DTI registration (sole proprietor) or SEC registration (corporation/partnership). Renew annually.<br/>
+        &rarr; <a href="https://www.dti.gov.ph" target="_blank">dti.gov.ph</a> (sole proprietor) | <a href="https://www.sec.gov.ph" target="_blank">sec.gov.ph</a> (corporation)</span>
+      </div>
+    </div>
+
+    <h2>Bureau of Internal Revenue (BIR)</h2>
+
+    <div class="item">
+      <input type="checkbox" id="c6"/>
+      <div class="item-body">
+        <strong>Confirm BIR Certificate of Registration is current <span class="badge req">REQUIRED</span></strong>
+        <span>BIR COR must be posted at your place of business. Voucher sales constitute taxable income. Verify whether VAT (12%) or percentage tax (3%) applies based on annual revenue threshold.<br/>
+        &rarr; <a href="https://www.bir.gov.ph" target="_blank">bir.gov.ph</a></span>
+      </div>
+    </div>
+
+    <div class="item">
+      <input type="checkbox" id="c7"/>
+      <div class="item-body">
+        <strong>Issue official receipts for all paid voucher transactions <span class="badge req">REQUIRED</span></strong>
+        <span>BIR-registered official receipts (OR) or BIR-accredited e-receipts must be issued for every paid transaction. Currently, PAYWIFI does not auto-generate ORs.<br/>
+        &rarr; Configure the system to email a receipt (or use a BIR-accredited e-receipt provider) for each completed Xendit payment.</span>
+      </div>
+    </div>
+
+    <h2>Operational Security Reminders</h2>
+
+    <div class="item">
+      <input type="checkbox" id="c8"/>
+      <div class="item-body">
+        <strong>Enable disk encryption on the VM (LUKS) <span class="badge rec">RECOMMENDED</span></strong>
+        <span>Requires a planned maintenance window with VM downtime. Encrypt the Proxmox/VMware VM disk to protect DB and secrets at rest against physical media theft.<br/>
+        &rarr; Reference: PAYWIFI Audit Report S-08. Coordinate with your hypervisor admin.</span>
+      </div>
+    </div>
+
+    <div class="item">
+      <input type="checkbox" id="c9"/>
+      <div class="item-body">
+        <strong>Configure off-host backup destination (NAS or S3) <span class="badge req">REQUIRED</span></strong>
+        <span>The backup script is deployed at <code>/usr/local/sbin/paywifi-backup.sh</code> and runs nightly. Uncomment and configure either Option A (rsync to NAS) or Option B (rclone to S3/R2/Backblaze).<br/>
+        &rarr; SSH to server, edit <code>/usr/local/sbin/paywifi-backup.sh</code> and fill in your NAS/S3 credentials.</span>
+      </div>
+    </div>
+
+    <div class="item">
+      <input type="checkbox" id="c10"/>
+      <div class="item-body">
+        <strong>Store admin credentials in a password manager <span class="badge req">REQUIRED</span></strong>
+        <span>Document the JWT signing secret location, admin password, and SSH key in a password manager (Bitwarden, 1Password, etc.). The JWT secret is in <code>/etc/paywifi/config.json</code>.</span>
+      </div>
+    </div>
+
+    <p class="note">&#9432; This checklist auto-saves checkbox state in your browser only. It is not synced to the server. Print or screenshot when complete. Generated: May 2026.</p>
+  </div>
+  <script>
+    // Persist checkbox state in localStorage
+    document.querySelectorAll('input[type=checkbox]').forEach(function(cb){
+      var key = 'paywifi_reg_' + cb.id;
+      cb.checked = localStorage.getItem(key) === '1';
+      cb.addEventListener('change', function(){ localStorage.setItem(key, cb.checked ? '1' : '0'); });
+    });
+  </script>
+</body>
+</html>

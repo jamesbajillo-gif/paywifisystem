@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>PAYWIFI — Connect to WiFi</title>
+  <!-- IN-WIZARD-CTA-2026-05-30 + GCASH-MIRROR-CASH-2026-05-30 + LOCAL-QR-2026-05-30 + DESIGN-B-2026-05-30 + QR-FIRST-CLASS-2026-05-30 + QR-SCANNABLE-2026-05-30 -->
+  <meta name="theme-color" content="#ffffff" />
+  <meta name="description" content="PAYWIFI captive WiFi portal — connect with a voucher or buy a plan." />
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
+  <script src="/tailwind.js"></script>
+  <script src="/tw-config.js"></script>
+  <script src="/qr.js"></script>
+  <link rel="stylesheet" href="/app.css" />
+  <link rel="icon" href="data:," />
+</head>
+<body>
+  <!-- icon defs injected by app.js from /icons.svg -->
+  <div id="icon-defs"></div>
+  <!-- =================== HOME =================== -->
+  <div id="view-home" class="view min-h-dvh w-full flex flex-col bg-background">
+    <header class="sticky top-0 z-20 bg-background/95 backdrop-blur border-b border-border safe-top safe-x pb-4">
+      <div class="mx-auto w-full max-w-md text-center pt-2">
+        <p class="text-xs font-bold uppercase tracking-[0.2em] text-primary mb-1 brand-name">PAYWIFI</p>
+        <h1 class="text-3xl font-bold tracking-tight leading-tight">Connect to WiFi</h1>
+        <p class="mt-1 text-base text-muted-foreground brand-tagline">Enter your voucher code</p>
+        <form id="voucher-form" class="mt-4 flex flex-col gap-3">
+          <div class="relative">
+            <input id="voucher-input"
+              class="h-20 text-center font-mono bg-input border-2 border-border focus:border-primary focus:outline-none rounded-2xl text-fluid-input w-full min-w-0 pr-14 px-3 py-2 placeholder:text-muted-foreground/60 transition-colors"
+              type="text" inputmode="latin" autocomplete="off" autocapitalize="characters" spellcheck="false"
+              placeholder="XXXX-XXXX-XXXX" aria-label="Voucher code" maxlength="14" autofocus />
+            <button type="button" id="paste-btn" aria-label="Paste voucher code from clipboard"
+              class="absolute right-2 top-1/2 -translate-y-1/2 h-12 w-12 rounded-xl bg-card border-2 border-border hover:border-primary flex items-center justify-center transition-colors text-foreground">
+              <svg class="h-5 w-5" aria-hidden="true"><use href="#icon-clipboard-paste"/></svg>
+            </button>
+          </div>
+          <!-- CX-POLISH-2026-05-31 — input helper subtext -->
+          <p class="text-xs text-muted-foreground px-1 -mt-2">
+            8 characters total. Got one from SMS? Paste it here.
+          </p>
+          <button type="submit"
+            class="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground hover:opacity-90 px-5 py-2 h-16 text-lg font-bold rounded-2xl w-full transition-opacity">
+            Connect
+          </button>
+        </form>
+      </div>
+    </header>
+    <section aria-label="More options" class="flex-1 overflow-y-auto safe-x pt-4 pb-4">
+      <div class="mx-auto w-full max-w-md flex flex-col gap-3">
+        <button type="button" id="ads-widget" aria-label="Your ads here — submit to inquire"
+          class="w-full text-left rounded-2xl border-2 border-dashed border-border bg-card/60 hover:border-primary hover:bg-card active:scale-[0.99] transition-all p-5 flex items-center gap-4 min-w-0">
+          <div class="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+            <svg class="h-6 w-6 text-primary" aria-hidden="true"><use href="#icon-megaphone"/></svg>
+          </div>
+          <div class="min-w-0 flex-1">
+            <p class="text-lg font-bold truncate">Your Ads Here</p>
+            <p class="text-sm text-muted-foreground mt-0.5 truncate">Submit to inquire</p>
+          </div>
+        </button>
+      </div>
+    </section>
+    <footer class="sticky bottom-0 z-20 bg-background/95 backdrop-blur border-t border-border safe-bottom safe-x pt-3">
+      <div class="mx-auto w-full max-w-md rounded-2xl border-2 border-border bg-card p-4 flex items-center justify-between gap-3 min-w-0">
+        <div class="min-w-0 flex-1">
+          <p class="text-lg font-bold truncate">No voucher?</p>
+          <p class="text-sm text-muted-foreground mt-0.5 truncate" id="no-voucher-sub">Plans from ₱5</p>
+        </div>
+        <button type="button" id="no-voucher-btn"
+          class="shrink-0 inline-flex items-center justify-center bg-secondary text-secondary-foreground hover:opacity-90 h-12 px-5 rounded-xl font-bold text-base border-2 border-border whitespace-nowrap transition-opacity">
+          Buy one
+        </button>
+      </div>
+    </footer>
+  </div>
+  <!-- =================== PLANS =================== -->
+  <div id="view-plans" class="view min-h-dvh w-full flex flex-col bg-background hidden">
+    <div class="safe-top safe-x pt-3 flex items-center justify-end shrink-0">
+      <button type="button" id="plans-close" aria-label="Close and return to portal"
+        class="h-9 w-9 flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
+        <svg class="h-5 w-5" aria-hidden="true"><use href="#icon-x"/></svg>
+      </button>
+    </div>
+    <main class="flex-1 flex flex-col safe-x pt-4 pb-2 min-h-0">
+      <div class="shrink-0">
+        <h1 class="text-3xl font-bold tracking-tight leading-tight">Choose a plan</h1>
+      </div>
+      <div class="flex-1 flex flex-col mt-5 min-h-0">
+        <div id="plans-list" class="flex flex-col gap-3 flex-1"></div>
+        <a href="#" id="plans-back" class="block shrink-0 mt-3">
+          <button type="button"
+            class="inline-flex items-center justify-center gap-2 bg-secondary text-secondary-foreground hover:opacity-90 px-5 py-2 w-full h-14 text-base font-semibold rounded-xl border-2 border-border transition-opacity">
+            Back
+          </button>
+        </a>
+      </div>
+    </main>
+    <div class="safe-bottom"></div>
+  </div>
+  <!-- =================== CHECKOUT =================== -->
+  <div id="view-checkout" class="view min-h-dvh w-full flex flex-col bg-background hidden">
+    <header class="sticky top-0 z-20 bg-background/95 backdrop-blur border-b border-border safe-top safe-x pb-4">
+      <div class="mx-auto w-full max-w-md pt-3">
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <p class="text-xs font-bold uppercase tracking-[0.2em] text-primary mb-0.5 brand-name">PAYWIFI</p>
+            <h1 class="text-3xl font-bold tracking-tight leading-tight">Confirm &amp; pay</h1>
+            <p class="mt-1 text-base text-muted-foreground">Review your order and choose how to pay</p>
+          </div>
+          <button type="button" id="checkout-close" aria-label="Back to plans"
+            class="mt-1 h-9 w-9 flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-accent transition-colors shrink-0">
+            <svg class="h-5 w-5" aria-hidden="true"><use href="#icon-x"/></svg>
+          </button>
+        </div>
+      </div>
+    </header>
+    <main class="flex-1 flex flex-col safe-x pt-4 pb-2 min-h-0 overflow-y-auto">
+      <div class="mx-auto w-full max-w-md flex flex-col gap-3 flex-1">
+        <div class="rounded-2xl border-2 border-primary bg-primary/5 p-4 flex flex-col gap-3 shrink-0 min-w-0">
+          <div class="flex items-center gap-3 min-w-0">
+            <div class="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+              <svg class="h-5 w-5 text-primary" aria-hidden="true"><use href="#icon-zap"/></svg>
+            </div>
+            <div class="min-w-0 flex-1">
+              <p id="checkout-plan-name" class="text-xl font-bold truncate">Plan</p>
+              <p id="checkout-plan-meta" class="text-xs text-muted-foreground mt-0.5 truncate">—</p>
+            </div>
+          </div>
+          <div class="border-t border-primary/15 pt-3 flex flex-col gap-1.5 text-sm tabular-nums">
+            <div class="flex justify-between gap-3">
+              <span class="text-muted-foreground">Plan</span>
+              <span id="checkout-plan-price-line" class="font-semibold">₱0</span>
+            </div>
+            <div class="flex justify-between gap-3 pt-1.5 mt-0.5 border-t border-primary/15">
+              <span class="font-bold">Total to pay</span>
+              <span id="checkout-plan-price-total" class="text-xl font-bold">₱0</span>
+            </div>
+          </div>
+        </div>
+        <form id="checkout-form" class="flex flex-col flex-1 gap-3 min-w-0">
+          <p class="text-sm font-semibold text-muted-foreground px-0.5">Pay with</p>
+          <div id="methods-list" class="grid grid-cols-2 gap-3 min-w-0"></div>
+          <div id="store-wrap" class="flex flex-col gap-2 hidden">
+            <label for="store-select" class="text-sm font-semibold text-muted-foreground px-0.5">Pay at which store?</label>
+            <div class="relative">
+              <svg class="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" aria-hidden="true"><use href="#icon-store"/></svg>
+              <select id="store-select" aria-required="true"
+                class="h-14 w-full text-lg bg-input border-2 border-border rounded-xl pl-12 pr-12 appearance-none font-semibold focus:border-primary focus:outline-none">
+                <option value="">Select a store…</option>
+              </select>
+              <svg class="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" aria-hidden="true"><use href="#icon-chevron-down"/></svg>
+            </div>
+          </div>
+          <div class="flex flex-col gap-2">
+            <p class="text-sm font-semibold text-muted-foreground px-0.5">
+              Mobile number <span class="font-normal text-muted-foreground/70">(optional — for SMS receipt)</span>
+            </p>
+            <input id="checkout-phone"
+              class="h-14 w-full text-lg bg-input border-2 border-border focus:border-primary focus:outline-none rounded-xl px-4 py-2 transition-colors"
+              placeholder="09xxxxxxxxx" inputmode="tel" autocomplete="tel" />
+          </div>
+        </form>
+      </div>
+    </main>
+    <footer class="sticky bottom-0 z-20 bg-background/95 backdrop-blur border-t border-border safe-bottom safe-x pt-3 pb-4">
+      <div class="mx-auto w-full max-w-md flex flex-col gap-2">
+        <div id="checkout-alert" class="flex items-center gap-2 rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive hidden">
+          <svg class="h-3.5 w-3.5 shrink-0" aria-hidden="true"><use href="#icon-circle-alert"/></svg>
+          <span id="checkout-alert-text"></span>
+        </div>
+        <button type="submit" form="checkout-form" id="checkout-submit"
+          class="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground hover:opacity-90 px-8 w-full h-16 text-lg font-bold rounded-2xl disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+          disabled>Pay now</button>
+        <button type="button" id="checkout-back"
+          class="inline-flex items-center justify-center gap-2 bg-secondary text-secondary-foreground hover:opacity-90 px-5 py-2 w-full h-14 text-base font-semibold rounded-2xl border-2 border-border transition-opacity">
+          Change plan
+        </button>
+      </div>
+    </footer>
+  </div>
+  <!-- =================== VALIDATE =================== -->
+  <div id="view-validate" class="view min-h-dvh w-full flex flex-col bg-background hidden">
+    <div class="safe-top safe-x pt-3 flex items-center justify-end shrink-0">
+      <button type="button" id="validate-close" aria-label="Close"
+        class="h-9 w-9 flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
+        <svg class="h-5 w-5" aria-hidden="true"><use href="#icon-x"/></svg>
+      </button>
+    </div>
+    <main class="flex-1 flex flex-col safe-x pt-4 pb-2 min-h-0">
+      <div class="mx-auto w-full max-w-md flex-1 flex flex-col items-center justify-center text-center gap-4">
+        <div id="validate-icon" class="h-20 w-20 rounded-full bg-accent flex items-center justify-center"><div class="spinner"></div></div>
+        <h2 id="validate-headline" class="text-status">Checking your code…</h2>
+        <p id="validate-sub" class="text-base text-muted-foreground">This usually takes a second.</p>
+      </div>
+      <div id="validate-actions" class="shrink-0 flex flex-col gap-2 hidden">
+        <button type="button" id="validate-retry"
+          class="inline-flex items-center justify-center bg-primary text-primary-foreground hover:opacity-90 w-full h-14 text-base font-semibold rounded-xl transition-opacity">Try again</button>
+        <button type="button" id="validate-plans"
+          class="inline-flex items-center justify-center bg-secondary text-secondary-foreground hover:opacity-90 w-full h-14 text-base font-semibold rounded-xl border-2 border-border transition-opacity">Buy a plan instead</button>
+      </div>
+    </main>
+    <div class="safe-bottom"></div>
+  </div>
+  <!-- =================== RESULT ===================
+       Outer view container holds three sub-views: success / pending / failed.
+       app.js showResult(kind, data) hides all then reveals one.
+       -->
+  <div id="view-result" class="view min-h-dvh w-full flex flex-col bg-background hidden">
+
+    <!-- ---------- SUCCESS sub-view ---------- -->
+    <div id="result-success" class="hidden flex-col flex-1 min-h-0">
+      <main class="flex-1 flex flex-col safe-x pt-6 pb-2 min-h-0">
+        <div class="mx-auto w-full max-w-md flex-1 flex flex-col items-center text-center gap-4">
+          <div class="h-20 w-20 rounded-full flex items-center justify-center" style="background: color-mix(in oklch, var(--success) 15%, var(--card))">
+            <svg class="h-10 w-10" style="color:var(--success)" aria-hidden="true"><use href="#icon-check-circle"/></svg>
+          </div>
+          <h2 class="text-status">You're online!</h2>
+          <p class="text-base text-muted-foreground">Enjoy your session. Tap below to start browsing.</p>
+          <!-- CX-POLISH-2026-05-31 — duration/session info -->
+          <p id="success-duration" class="hidden text-sm text-muted-foreground -mt-2">—</p>
+
+          <div id="success-code-wrap" class="rounded-2xl border-2 border-border bg-card p-4 w-full">
+            <p class="text-xs text-muted-foreground">Voucher code</p>
+            <p id="success-code" class="text-fluid-voucher font-mono mt-2">—</p>
+            <div class="mt-3 flex gap-2 justify-center">
+              <button type="button" id="success-copy"
+                class="inline-flex items-center justify-center gap-2 bg-secondary text-secondary-foreground hover:opacity-90 px-4 h-10 text-sm font-semibold rounded-lg border-2 border-border transition-opacity">
+                <svg class="h-4 w-4" aria-hidden="true"><use href="#icon-copy"/></svg> Copy
+              </button>
+              <button type="button" id="success-share"
+                class="inline-flex items-center justify-center gap-2 bg-secondary text-secondary-foreground hover:opacity-90 px-4 h-10 text-sm font-semibold rounded-lg border-2 border-border transition-opacity">
+                <svg class="h-4 w-4" aria-hidden="true"><use href="#icon-share-2"/></svg> Share
+              </button>
+            </div>
+          </div>
+        </div>
+      </main>
+      <footer class="sticky bottom-0 z-20 bg-background/95 backdrop-blur border-t border-border safe-bottom safe-x pt-3 pb-4">
+        <div class="mx-auto w-full max-w-md flex flex-col gap-2">
+          <a id="success-cta" href="https://www.google.com" target="_blank" rel="noopener"
+            class="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground hover:opacity-90 w-full h-16 text-lg font-bold rounded-2xl transition-opacity">Start browsing</a>
+        </div>
+      </footer>
+    </div>
+
+    <!-- ---------- PENDING sub-view (cash counter) ---------- -->
+    <div id="result-pending" class="hidden flex-col flex-1 min-h-0">
+      <header class="sticky top-0 z-20 bg-background/95 backdrop-blur border-b border-border safe-top safe-x pb-4">
+        <div class="mx-auto w-full max-w-md pt-3">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <p class="text-xs font-bold uppercase tracking-[0.2em] text-primary mb-0.5 brand-name">PAYWIFI</p>
+              <h1 id="pending-headline" class="text-3xl font-bold tracking-tight leading-tight">Pay at the counter</h1>
+            </div>
+            <button type="button" id="pending-close" aria-label="Back to portal"
+              class="mt-1 h-9 w-9 flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-accent transition-colors shrink-0">
+              <svg class="h-5 w-5" aria-hidden="true"><use href="#icon-x"/></svg>
+            </button>
+          </div>
+        </div>
+      </header>
+      <main class="flex-1 flex flex-col safe-x pt-4 pb-2 min-h-0 overflow-y-auto">
+        <div class="mx-auto w-full max-w-md flex flex-col gap-3 flex-1">
+
+          <!-- PENDING-DETAILS-2026-05-31 — top instruction banner. Copy adapts
+               to the chosen method via populatePending. -->
+          <div id="pending-instruction"
+            class="hidden w-full rounded-2xl border-2 border-primary/40 bg-primary/10 px-4 py-3 flex items-start gap-3">
+            <div class="h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center shrink-0 mt-0.5">
+              <svg class="h-4 w-4" aria-hidden="true"><use href="#icon-arrow-right"/></svg>
+            </div>
+            <div class="min-w-0 flex-1">
+              <p id="pending-instruction-title" class="text-sm font-bold text-foreground leading-tight">Tap "Continue" to open GCash</p>
+              <p id="pending-instruction-sub"   class="mt-0.5 text-xs text-muted-foreground leading-snug">After paying in the GCash app, this page will auto-detect and issue your voucher.</p>
+            </div>
+          </div>
+
+          <div class="w-full rounded-2xl border-2 border-primary bg-primary/5 p-4 text-center">
+            <p class="text-xs font-bold uppercase tracking-widest text-primary mb-1">Amount due</p>
+            <p id="pending-amount" class="text-5xl font-black text-primary tracking-tight">₱0</p>
+            <p id="pending-amount-sub" class="mt-1 text-sm text-muted-foreground">Pay this exact amount in cash at the counter</p>
+            <!-- CX-POLISH-2026-05-31 — live countdown driven by data.expires_in -->
+            <p id="pending-countdown" class="hidden mt-2 inline-flex items-center gap-1 text-xs font-mono text-muted-foreground tabular-nums">
+              <svg class="h-3 w-3" aria-hidden="true"><use href="#icon-clock"/></svg>
+              <span id="pending-countdown-text">Expires in --:--</span>
+            </p>
+          </div>
+
+          <!-- DESIGN-B-2026-05-30: primary wallet CTA promoted directly under amount card.
+               Same-tab navigation (no target=_blank) so the ?return=xendit redirect lands
+               back here without spawning a new tab. Hidden for cash flow. -->
+          <a id="pending-checkout-btn" href="#" rel="noopener"
+            class="hidden inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground hover:opacity-90 w-full h-16 text-lg font-bold rounded-2xl transition-opacity"
+            aria-label="Pay with your wallet">
+            <span id="pending-checkout-label">Pay with wallet</span>
+            <svg class="h-5 w-5" aria-hidden="true"><use href="#icon-arrow-right"/></svg>
+          </a>
+
+          <!-- CASH-STORE-REDESIGN-2026-06-01 — How-to-pay instructions
+               (cash flow only). Populated by populatePending() with the
+               selected store's name. -->
+          <div id="pending-howto" class="hidden w-full rounded-2xl border-2 border-border bg-card p-4 min-w-0">
+            <p class="text-xs uppercase tracking-wider text-muted-foreground font-semibold">How to pay</p>
+            <ol id="pending-howto-list" class="mt-2 flex flex-col gap-2 text-sm leading-snug list-none">
+              <li class="flex items-start gap-2">
+                <span class="h-6 w-6 rounded-full bg-primary/10 text-primary font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">1</span>
+                <span id="pending-howto-step1">Go to the store.</span>
+              </li>
+              <li class="flex items-start gap-2">
+                <span class="h-6 w-6 rounded-full bg-primary/10 text-primary font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">2</span>
+                <span id="pending-howto-step2">Pay the cashier in cash.</span>
+              </li>
+              <li class="flex items-start gap-2">
+                <span class="h-6 w-6 rounded-full bg-primary/10 text-primary font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">3</span>
+                <span id="pending-howto-step3">Show this reference number.</span>
+              </li>
+              <li class="flex items-start gap-2">
+                <span class="h-6 w-6 rounded-full bg-primary/10 text-primary font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">4</span>
+                <span id="pending-howto-step4">Your voucher appears here automatically.</span>
+              </li>
+            </ol>
+          </div>
+
+          <!-- QR card — cash flow only (used as "Payment reference" display).
+               Digital flows show pending-plan-card above instead. -->
+          <div id="pending-qr-card" class="w-full rounded-2xl border-2 border-primary/30 bg-primary/5 p-4 min-w-0 overflow-hidden text-center">
+            <p id="pending-qr-label" class="text-xs uppercase tracking-wider text-primary font-semibold">Or scan with your wallet app</p>
+            <div class="mt-2 flex justify-center">
+              <div class="rounded-xl bg-white p-2 border-2 border-border">
+                <div id="pending-qr"
+                  role="img" aria-label="Payment QR"
+                  style="width:224px;height:224px;line-height:0;display:flex;align-items:center;justify-content:center;background:repeating-conic-gradient(#0001 0 25%, transparent 0 50%) 50% / 16px 16px;"></div>
+              </div>
+            </div>
+            <p id="pending-ref" class="mt-2 font-mono font-bold text-lg break-all tracking-wider">—</p>
+            <p id="pending-qr-note" class="mt-1 text-xs text-muted-foreground">Open GCash, tap Scan QR, point at this code</p>
+            <!-- DROP-PHONE-WIDGET-2026-05-31 — inline phone row replaces the
+                 removed standalone phone widget. Cash-only; digital flow
+                 uses the same ids inside the Payment Details card. -->
+            <div id="pending-qr-phone" class="hidden mt-3 pt-3 border-t border-border/50 flex items-center justify-between gap-2">
+              <div class="min-w-0 flex-1 text-left">
+                <p class="text-[10px] uppercase tracking-wider text-muted-foreground">SMS receipt</p>
+                <p id="pending-detail-phone-cash" class="text-sm font-bold text-foreground truncate">—</p>
+              </div>
+              <button type="button" id="pending-detail-edit-phone-cash" aria-label="Edit phone number"
+                class="h-8 w-8 rounded-lg flex items-center justify-center border border-border bg-background hover:border-primary transition-colors shrink-0">
+                <svg class="h-3.5 w-3.5" aria-hidden="true"><use href="#icon-pencil"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- CASH-REORDER-V2-2026-06-01 — store + payment-details moved to bottom -->
+          <div id="pending-store" class="w-full rounded-2xl border-2 border-border bg-card p-3 flex items-center gap-3 hidden">
+            <div class="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+              <svg class="h-4 w-4 text-primary" aria-hidden="true"><use href="#icon-map-pin"/></svg>
+            </div>
+            <div class="min-w-0 flex-1">
+              <p class="text-xs font-bold uppercase tracking-wider text-muted-foreground">Pay in person at</p>
+              <p id="pending-store-name" class="text-base font-bold text-foreground">—</p>
+              <p id="pending-store-addr" class="text-sm text-muted-foreground">—</p>
+            </div>
+          </div>
+
+          <!-- PENDING-DETAILS-2026-05-31 — comprehensive Payment Details card
+               (digital flow only). Lists everything the user needs to verify:
+               plan, speed, duration, method, reference, generated-at, phone.
+               Cash flow still shows the QR/reference card below + its own
+               phone widget. -->
+          <div id="pending-plan-card" class="hidden w-full rounded-2xl border-2 border-primary/30 bg-primary/5 p-4 min-w-0">
+            <p class="text-xs uppercase tracking-wider text-primary font-semibold">Payment details</p>
+            <p id="pending-plan-name" class="mt-1 text-lg font-bold text-foreground leading-tight">—</p>
+
+            <div class="mt-3 grid grid-cols-2 gap-2">
+              <div class="rounded-xl bg-card border border-border p-2 flex items-center gap-2">
+                <div class="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                  <svg class="h-4 w-4 text-primary" aria-hidden="true"><use href="#icon-zap"/></svg>
+                </div>
+                <div class="min-w-0">
+                  <p class="text-[10px] uppercase tracking-wider text-muted-foreground">Speed</p>
+                  <p id="pending-plan-speed" class="text-sm font-bold text-foreground truncate">—</p>
+                </div>
+              </div>
+              <div class="rounded-xl bg-card border border-border p-2 flex items-center gap-2">
+                <div class="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                  <svg class="h-4 w-4 text-primary" aria-hidden="true"><use href="#icon-clock"/></svg>
+                </div>
+                <div class="min-w-0">
+                  <p class="text-[10px] uppercase tracking-wider text-muted-foreground">Duration</p>
+                  <p id="pending-plan-duration" class="text-sm font-bold text-foreground truncate">—</p>
+                </div>
+              </div>
+            </div>
+
+            <dl class="mt-4 divide-y divide-border/50 border-t border-border/50">
+              <div class="flex items-center justify-between py-2 gap-3">
+                <dt class="text-xs uppercase tracking-wider text-muted-foreground">Method</dt>
+                <dd id="pending-detail-method" class="text-sm font-bold text-foreground truncate">—</dd>
+              </div>
+              <div class="flex items-center justify-between py-2 gap-3">
+                <dt class="text-xs uppercase tracking-wider text-muted-foreground">Reference</dt>
+                <dd id="pending-plan-ref" class="text-xs font-mono font-bold text-foreground break-all text-right">—</dd>
+              </div>
+              <div class="flex items-center justify-between py-2 gap-3">
+                <dt class="text-xs uppercase tracking-wider text-muted-foreground">Generated</dt>
+                <dd id="pending-detail-generated" class="text-sm font-bold text-foreground text-right">—</dd>
+              </div>
+              <div class="flex items-center justify-between py-2 gap-3">
+                <dt class="text-xs uppercase tracking-wider text-muted-foreground">Phone</dt>
+                <dd class="flex items-center gap-2 min-w-0">
+                  <!-- CX-POLISH-2026-05-31 — inline phone edit replaces prompt() -->
+                  <span id="pending-detail-phone" class="text-sm font-bold text-foreground truncate">—</span>
+                  <button type="button" id="pending-detail-edit-phone" aria-label="Edit phone number"
+                    class="h-7 w-7 rounded-lg flex items-center justify-center border border-border bg-background hover:border-primary transition-colors shrink-0">
+                    <svg class="h-3 w-3" aria-hidden="true"><use href="#icon-pencil"/></svg>
+                  </button>
+                  <input type="tel" id="pending-detail-phone-input"
+                    class="hidden h-8 w-32 text-sm bg-input border-2 border-primary rounded-lg px-2 focus:outline-none"
+                    inputmode="tel" autocomplete="tel" placeholder="09xxxxxxxxx" maxlength="11" />
+                  <button type="button" id="pending-detail-phone-save" aria-label="Save phone"
+                    class="hidden h-7 w-7 rounded-lg flex items-center justify-center bg-primary text-primary-foreground hover:opacity-90 transition-opacity shrink-0">
+                    <svg class="h-3 w-3" aria-hidden="true"><use href="#icon-check-circle"/></svg>
+                  </button>
+                  <button type="button" id="pending-detail-phone-cancel" aria-label="Cancel edit"
+                    class="hidden h-7 w-7 rounded-lg flex items-center justify-center bg-secondary text-secondary-foreground border border-border hover:border-primary transition-colors shrink-0">
+                    <svg class="h-3 w-3" aria-hidden="true"><use href="#icon-x"/></svg>
+                  </button>
+                </dd>
+              </div>
+            </dl>
+          </div>
+
+        </div>
+      </main>
+      <footer class="sticky bottom-0 z-20 bg-background/95 backdrop-blur border-t border-border safe-bottom safe-x pt-3 pb-4">
+        <div class="mx-auto w-full max-w-md flex flex-col gap-2">
+          <p id="pending-footer-note" class="text-xs text-muted-foreground text-center leading-snug px-2">
+            Once you have paid at the counter, tap the button below to receive your voucher.
+          </p>
+          <button type="button" id="pending-paid"
+            class="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground hover:opacity-90 px-5 py-2 w-full h-16 text-lg font-bold rounded-2xl transition-opacity">
+            <svg class="h-5 w-5 mr-2" aria-hidden="true"><use href="#icon-arrow-right"/></svg>
+            I have paid — get my voucher
+          </button>
+          <button type="button" id="pending-cancel"
+            class="inline-flex items-center justify-center gap-2 bg-secondary hover:opacity-90 px-5 py-2 w-full h-14 text-base font-semibold rounded-2xl border-2 border-border text-muted-foreground transition-opacity">
+            Cancel this payment
+          </button>
+        </div>
+      </footer>
+    </div>
+
+    <!-- ---------- FAILED sub-view (digital) ---------- -->
+    <div id="result-failed" class="hidden flex-col flex-1 min-h-0">
+      <header class="sticky top-0 z-20 bg-background/95 backdrop-blur border-b border-border safe-top safe-x pb-4">
+        <div class="mx-auto w-full max-w-md pt-3">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <p class="text-xs font-bold uppercase tracking-[0.2em] text-primary mb-0.5 brand-name">PAYWIFI</p>
+              <h1 class="text-3xl font-bold tracking-tight leading-tight">Payment didn't go through</h1>
+            </div>
+            <button type="button" id="failed-close" aria-label="Back to portal"
+              class="mt-1 h-9 w-9 flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-accent transition-colors shrink-0">
+              <svg class="h-5 w-5" aria-hidden="true"><use href="#icon-x"/></svg>
+            </button>
+          </div>
+        </div>
+      </header>
+      <main class="flex-1 flex flex-col safe-x pt-4 pb-2 min-h-0 overflow-y-auto">
+        <div class="mx-auto w-full max-w-md flex flex-col gap-3 flex-1">
+          <div class="flex-1 flex flex-col items-center justify-center text-center px-2">
+            <div class="h-24 w-24 rounded-full flex items-center justify-center"
+                 style="background: color-mix(in oklch, oklch(0.78 0.18 80) 12%, var(--card))">
+              <svg class="h-14 w-14" style="color: oklch(0.72 0.18 80)" aria-hidden="true"><use href="#icon-circle-x"/></svg>
+            </div>
+            <p class="mt-5 text-xl font-bold">Payment didn't go through</p>
+            <p class="mt-1 text-sm text-muted-foreground">
+              via <span id="failed-method" class="font-semibold text-foreground">—</span>
+            </p>
+            <div class="mt-4 w-full rounded-2xl border-2 p-4 text-left"
+                 style="border-color: color-mix(in oklch, oklch(0.78 0.18 80) 30%, var(--border));
+                        background: color-mix(in oklch, oklch(0.78 0.18 80) 6%, var(--card))">
+              <div class="flex items-start gap-2">
+                <svg class="h-4 w-4 shrink-0 mt-0.5" style="color: oklch(0.62 0.18 70)" aria-hidden="true"><use href="#icon-circle-alert"/></svg>
+                <p id="failed-reason" class="text-sm text-muted-foreground leading-snug">Something went wrong with the payment.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+      <footer class="sticky bottom-0 z-20 bg-background/95 backdrop-blur border-t border-border safe-bottom safe-x pt-3 pb-4">
+        <div class="mx-auto w-full max-w-md flex flex-col gap-2">
+          <button type="button" id="failed-retry"
+            class="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground hover:opacity-90 px-5 py-2 w-full h-16 text-lg font-bold rounded-2xl transition-opacity">
+            <svg class="h-5 w-5 mr-2" aria-hidden="true"><use href="#icon-rotate-ccw"/></svg>Try again
+          </button>
+          <button type="button" id="failed-other-plan"
+            class="w-full text-center py-2 text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors">
+            Choose a different plan
+          </button>
+          <button type="button" id="failed-home"
+            class="w-full text-center py-1 text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors">
+            Back to portal home
+          </button>
+        </div>
+      </footer>
+    </div>
+
+    <!-- ---------- CANCELLED sub-view (CX-CANCELLED-CONFIRM-2026-05-31) ---------- -->
+    <div id="result-cancelled" class="hidden flex-col flex-1 min-h-0">
+      <header class="sticky top-0 z-20 bg-background/95 backdrop-blur border-b border-border safe-top safe-x pb-4">
+        <div class="mx-auto w-full max-w-md pt-3">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <p class="text-xs font-bold uppercase tracking-[0.2em] text-primary mb-0.5 brand-name">PAYWIFI</p>
+              <h1 class="text-3xl font-bold tracking-tight leading-tight">Payment cancelled</h1>
+            </div>
+            <button type="button" id="cancelled-close" aria-label="Back to portal"
+              class="mt-1 h-9 w-9 flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-accent transition-colors shrink-0">
+              <svg class="h-5 w-5" aria-hidden="true"><use href="#icon-x"/></svg>
+            </button>
+          </div>
+        </div>
+      </header>
+      <main class="flex-1 flex flex-col safe-x pt-4 pb-2 min-h-0 overflow-y-auto">
+        <div class="mx-auto w-full max-w-md flex flex-col gap-3 flex-1">
+          <div class="flex-1 flex flex-col items-center justify-center text-center px-2">
+            <div class="h-24 w-24 rounded-full flex items-center justify-center bg-muted">
+              <svg class="h-14 w-14 text-muted-foreground" aria-hidden="true"><use href="#icon-ban"/></svg>
+            </div>
+            <p class="mt-5 text-xl font-bold">Your payment was cancelled</p>
+            <p class="mt-2 text-sm text-muted-foreground leading-relaxed">
+              No charges were made. You can pick a new plan whenever you're ready — your WiFi access is still just a tap away.
+            </p>
+            <div id="cancelled-summary" class="mt-4 w-full rounded-2xl border-2 border-border bg-card p-4 text-left hidden">
+              <p class="text-xs uppercase tracking-wider text-muted-foreground">Cancelled payment</p>
+              <p id="cancelled-method" class="mt-1 text-base font-bold text-foreground">—</p>
+              <p id="cancelled-amount" class="mt-0.5 text-sm text-muted-foreground">—</p>
+            </div>
+          </div>
+        </div>
+      </main>
+      <footer class="sticky bottom-0 z-20 bg-background/95 backdrop-blur border-t border-border safe-bottom safe-x pt-3 pb-4">
+        <div class="mx-auto w-full max-w-md flex flex-col gap-2">
+          <button type="button" id="cancelled-home"
+            class="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground hover:opacity-90 px-5 py-2 w-full h-16 text-lg font-bold rounded-2xl transition-opacity">
+            Back to portal home
+          </button>
+          <button type="button" id="cancelled-new-plan"
+            class="w-full text-center py-2 text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors">
+            Pick a different plan
+          </button>
+        </div>
+      </footer>
+    </div>
+
+  </div><!-- /view-result -->
+  <!-- =================== CONNECTED ===================
+       Dumb-portal-only view: shown when /api/session/status reports an
+       already-active session on boot. The source app assumes a fresh
+       captive-portal visit each time so it doesn't have this state.
+       -->
+  <div id="view-connected" class="view min-h-dvh w-full flex flex-col bg-background hidden">
+    <header class="sticky top-0 z-20 bg-background/95 backdrop-blur border-b border-border safe-top safe-x pb-4">
+      <div class="mx-auto w-full max-w-md text-center pt-2">
+        <p class="text-xs font-bold uppercase tracking-[0.2em] text-primary mb-1 brand-name">PAYWIFI</p>
+        <h1 class="text-3xl font-bold tracking-tight leading-tight" style="color:var(--success)">You're online</h1>
+        <p class="mt-1 text-base text-muted-foreground">Enjoy your session.</p>
+      </div>
+    </header>
+    <main class="flex-1 safe-x pt-4 pb-4">
+      <div class="mx-auto w-full max-w-md rounded-2xl border-2 border-primary/30 bg-primary/5 p-4">
+        <!-- MULTI-FIX-2026-06-01 — show full session details on revisit -->
+        <p class="text-xs uppercase tracking-wider text-primary font-semibold">Active session</p>
+        <p id="connected-time-left" class="text-3xl font-bold text-foreground mt-1">Active</p>
+        <p id="connected-queue-sub" class="hidden mt-1 text-xs font-semibold" style="color: var(--primary)">—</p>
+        <div class="mt-3 grid grid-cols-2 gap-2">
+          <div class="rounded-xl bg-card border border-border p-2 flex items-center gap-2">
+            <div class="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+              <svg class="h-4 w-4 text-primary" aria-hidden="true"><use href="#icon-zap"/></svg>
+            </div>
+            <div class="min-w-0">
+              <p class="text-[10px] uppercase tracking-wider text-muted-foreground">Speed</p>
+              <p id="connected-speed" class="text-sm font-bold text-foreground truncate">—</p>
+            </div>
+          </div>
+          <div class="rounded-xl bg-card border border-border p-2 flex items-center gap-2">
+            <div class="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+              <svg class="h-4 w-4 text-primary" aria-hidden="true"><use href="#icon-clock"/></svg>
+            </div>
+            <div class="min-w-0">
+              <p class="text-[10px] uppercase tracking-wider text-muted-foreground">Plan</p>
+              <p id="connected-duration" class="text-sm font-bold text-foreground truncate">—</p>
+            </div>
+          </div>
+        </div>
+        <dl class="mt-4 divide-y divide-border/50 border-t border-border/50">
+          <div class="flex items-center justify-between py-2 gap-3">
+            <dt class="text-xs uppercase tracking-wider text-muted-foreground">Voucher</dt>
+            <dd id="connected-voucher" class="text-xs font-mono font-bold text-foreground break-all text-right">—</dd>
+          </div>
+          <div class="flex items-center justify-between py-2 gap-3">
+            <dt class="text-xs uppercase tracking-wider text-muted-foreground">Started</dt>
+            <dd id="connected-started" class="text-sm font-bold text-foreground text-right">—</dd>
+          </div>
+          <div class="flex items-center justify-between py-2 gap-3">
+            <dt class="text-xs uppercase tracking-wider text-muted-foreground">Data used</dt>
+            <dd id="connected-data" class="text-sm font-bold text-foreground text-right">↓ 0 B · ↑ 0 B</dd>
+          </div>
+        </dl>
+      </div>
+    </main>
+    <footer class="sticky bottom-0 z-20 bg-background/95 backdrop-blur border-t border-border safe-bottom safe-x pt-3 pb-4">
+      <div class="mx-auto w-full max-w-md flex flex-col gap-2">
+        <a href="https://www.google.com" target="_blank" rel="noopener"
+          class="inline-flex items-center justify-center bg-primary text-primary-foreground hover:opacity-90 w-full h-16 text-lg font-bold rounded-2xl transition-opacity">Start browsing</a>
+        <button type="button" id="logout-btn"
+          class="inline-flex items-center justify-center bg-secondary text-secondary-foreground hover:opacity-90 w-full h-14 text-base font-semibold rounded-xl border-2 border-border transition-opacity">Disconnect</button>
+      </div>
+    </footer>
+  </div>
+
+  <!-- CX-POLISH-2026-05-31 — in-app confirm modal (replaces native confirm()) -->
+  <div id="confirm-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 backdrop-blur-sm safe-x safe-bottom safe-top">
+    <div class="w-full max-w-sm rounded-2xl border-2 border-border bg-card p-5 shadow-xl">
+      <h3 id="confirm-title" class="text-lg font-bold text-foreground">Are you sure?</h3>
+      <p id="confirm-message" class="mt-2 text-sm text-muted-foreground leading-relaxed">—</p>
+      <div class="mt-5 flex flex-col gap-2">
+        <button type="button" id="confirm-yes"
+          class="inline-flex items-center justify-center bg-primary text-primary-foreground hover:opacity-90 px-5 h-12 text-base font-bold rounded-xl transition-opacity">
+          Yes, continue
+        </button>
+        <button type="button" id="confirm-no"
+          class="inline-flex items-center justify-center bg-secondary text-secondary-foreground hover:opacity-90 px-5 h-12 text-base font-semibold rounded-xl border-2 border-border transition-opacity">
+          Keep it
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

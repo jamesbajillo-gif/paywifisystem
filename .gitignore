@@ -1,0 +1,32 @@
+# Secrets
+/etc/paywifi/config.json
+/etc/paywifi/cloudflared.env
+/etc/paywifi/secrets
+**/*.key
+**/*.pem
+
+# Runtime data
+*.db
+*.db-wal
+*.db-shm
+
+# Logs
+*.log
+logs/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-error.log
+
+# Backups
+*.bak
+*.bak.*
+*.bak-*
+
+# Editor cruft
+.DS_Store
+*.swp
+*~
+.vscode/
+.idea/

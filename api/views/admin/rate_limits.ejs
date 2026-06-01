@@ -1,0 +1,268 @@
+<% const f = flashes || []; %>
+<% f.forEach(function(fl){ %>
+<div class="mb-4 px-4 py-3 rounded-lg text-sm font-medium <%= fl.kind==='ok' ? 'bg-emerald-900/40 text-emerald-300 border border-emerald-700' : 'bg-rose-900/40 text-rose-300 border border-rose-700' %>">
+  <%= fl.kind==='ok' ? '✓' : '✕' %> <%= fl.msg %>
+</div>
+<% }) %>
+
+<!-- Page header -->
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-2xl font-bold text-slate-100">Rate Limits</h1>
+    <p class="text-sm text-slate-400 mt-1">Configurable per-device payment throttle. Window: <strong class="text-slate-200"><%= rlCfg.win_min %> min</strong> · Max attempts: <strong class="text-slate-200"><%= rlCfg.max %></strong> · Gap: <strong class="text-slate-200"><%= rlCfg.gap %>s</strong> · Cancel cooldown: <strong class="text-slate-200"><%= rlCfg.cooldown %>s</strong></p>
+  </div>
+  <div class="flex items-center gap-3">
+    <span class="text-xs text-slate-400" id="rl-refresh-label">Auto-refresh 30s</span>
+    <% if (entries.length > 0) { %>
+    <form method="POST" action="/admin/rate-limits/clear-all" onsubmit="return confirm('Clear all restrictions? Devices can immediately make online payments again.')">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+      <button class="px-3 py-1.5 rounded bg-rose-700 hover:bg-rose-600 text-white text-xs font-semibold">Clear All</button>
+    </form>
+    <% } %>
+  </div>
+</div>
+
+<!-- PHASE1-ATTEMPTS-2026-06-01 — payment-attempt audit card,
+     ported from paywifi-theme-basic/src/components/admin/PaymentAttemptsCard.tsx -->
+<section class="bg-slate-800 border <%= (entries||[]).some(function(e){return e.locked}) ? 'border-rose-500/40' : 'border-slate-700' %> rounded-2xl p-4 mb-6 min-w-0">
+  <div class="flex items-center gap-3 mb-3">
+    <div class="h-10 w-10 rounded-2xl flex items-center justify-center shrink-0 <%= (entries||[]).some(function(e){return e.locked}) ? 'bg-rose-500/15 text-rose-400' : 'bg-sky-500/15 text-sky-400' %>">
+      <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M12 9v4"/><circle cx="12" cy="17" r="0.5"/>
+      </svg>
+    </div>
+    <div class="min-w-0">
+      <h2 class="text-lg font-bold text-slate-100 leading-tight">Payment attempts</h2>
+      <p class="text-xs text-slate-400">3-strike guard · ≥<%= rlCfg.max %> fails triggers a cooldown</p>
+    </div>
+  </div>
+
+  <!-- Failed-attempt counts -->
+  <div class="grid grid-cols-2 gap-3">
+    <div class="rounded-2xl border border-slate-700 bg-slate-900/40 p-4">
+      <div class="flex items-center gap-2 mb-2 text-slate-400">
+        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+        <p class="text-[11px] font-bold uppercase tracking-wider">Last hour</p>
+      </div>
+      <p class="text-3xl font-bold tabular-nums text-slate-100"><%= failedHr || 0 %></p>
+      <p class="text-xs text-slate-500 mt-0.5">recorded attempts</p>
+    </div>
+    <div class="rounded-2xl border border-slate-700 bg-slate-900/40 p-4">
+      <div class="flex items-center gap-2 mb-2 text-slate-400">
+        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg>
+        <p class="text-[11px] font-bold uppercase tracking-wider">24 hours</p>
+      </div>
+      <p class="text-3xl font-bold tabular-nums text-slate-100"><%= failedDay || 0 %></p>
+      <p class="text-xs text-slate-500 mt-0.5">recorded attempts</p>
+    </div>
+  </div>
+
+  <!-- Per-plan breakdown -->
+  <div class="rounded-2xl border border-slate-700 bg-slate-900/40 overflow-hidden mt-3">
+    <div class="px-4 py-3 border-b border-slate-700">
+      <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">By plan · last hour (cancelled + expired)</p>
+    </div>
+    <ul class="divide-y divide-slate-700">
+      <% (perPlan || []).forEach(function(row) { %>
+        <li class="flex items-center justify-between gap-3 px-4 py-3 min-w-0">
+          <p class="text-sm font-semibold text-slate-200 truncate"><%= row.plan_name %></p>
+          <span class="text-sm font-mono font-bold tabular-nums px-2.5 py-0.5 rounded-lg <%=
+            (row.failed_hr || 0) >= rlCfg.max ? 'bg-rose-500/15 text-rose-400' :
+            (row.failed_hr || 0) > 0          ? 'bg-amber-500/15 text-amber-400' :
+                                                'bg-slate-700/40 text-slate-500' %>">
+            <%= row.failed_hr || 0 %>
+          </span>
+        </li>
+      <% }) %>
+      <% if (!perPlan || !perPlan.length) { %>
+        <li class="px-4 py-3 text-sm text-slate-500">No active plans.</li>
+      <% } %>
+    </ul>
+  </div>
+</section>
+
+<!-- Configuration card -->
+<div class="bg-slate-800 border border-slate-700 rounded-xl p-5 mb-6">
+  <h2 class="text-sm font-semibold text-slate-200 mb-4">⚙ Configuration</h2>
+  <form method="POST" action="/admin/rate-limits/config">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+    <div class="grid grid-cols-2 gap-4 md:grid-cols-4">
+      <div>
+        <label class="block text-xs text-slate-400 mb-1">Window (minutes)</label>
+        <input type="number" name="rl_window_min" value="<%= rlCfg.win_min %>" min="1" max="1440" required
+               class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-slate-100 text-sm focus:border-sky-500 focus:outline-none" />
+        <p class="text-xs text-slate-500 mt-1">Sliding window for attempt tracking</p>
+      </div>
+      <div>
+        <label class="block text-xs text-slate-400 mb-1">Max attempts</label>
+        <input type="number" name="rl_max_attempts" value="<%= rlCfg.max %>" min="1" max="50" required
+               class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-slate-100 text-sm focus:border-sky-500 focus:outline-none" />
+        <p class="text-xs text-slate-500 mt-1">Attempts before lockout</p>
+      </div>
+      <div>
+        <label class="block text-xs text-slate-400 mb-1">Min gap (seconds)</label>
+        <input type="number" name="rl_gap_sec" value="<%= rlCfg.gap %>" min="0" max="3600" required
+               class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-slate-100 text-sm focus:border-sky-500 focus:outline-none" />
+        <p class="text-xs text-slate-500 mt-1">Min time between attempts. 0 = no gap</p>
+      </div>
+      <div>
+        <label class="block text-xs text-slate-400 mb-1">Cancel cooldown (seconds)</label>
+        <input type="number" name="rl_cancel_cooldown_sec" value="<%= rlCfg.cooldown %>" min="0" max="3600" required
+               class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-slate-100 text-sm focus:border-sky-500 focus:outline-none" />
+        <p class="text-xs text-slate-500 mt-1">Portal "Unavailable" duration after cancel</p>
+      </div>
+    </div>
+    <div class="mt-4 flex items-center gap-3">
+      <button type="submit" class="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-sm font-semibold">Save Configuration</button>
+      <span class="text-xs text-slate-500">Changes take effect immediately — no restart required.</span>
+    </div>
+  </form>
+</div>
+
+<!-- Stats bar -->
+<div class="grid grid-cols-3 gap-4 mb-6">
+  <div class="bg-slate-800 rounded-xl p-4 border border-slate-700">
+    <div class="text-2xl font-bold text-slate-100"><%= entries.length %></div>
+    <div class="text-xs text-slate-400 mt-0.5">Restricted Devices</div>
+  </div>
+  <div class="bg-slate-800 rounded-xl p-4 border border-slate-700">
+    <div class="text-2xl font-bold text-rose-400"><%= entries.filter(function(e){return e.locked}).length %></div>
+    <div class="text-xs text-slate-400 mt-0.5">🔒 Locked (<%= rlCfg.max %>+ attempts in window)</div>
+  </div>
+  <div class="bg-slate-800 rounded-xl p-4 border border-slate-700">
+    <div class="text-2xl font-bold text-amber-400"><%= entries.filter(function(e){return e.too_soon&&!e.locked}).length %></div>
+    <div class="text-xs text-slate-400 mt-0.5">⏱ Cooling Down (gap enforced)</div>
+  </div>
+</div>
+
+<% if (!entries.length) { %>
+<div class="bg-slate-800 border border-slate-700 rounded-xl p-12 text-center">
+  <div class="text-4xl mb-3">✅</div>
+  <div class="text-slate-300 font-semibold">No active restrictions</div>
+  <div class="text-slate-400 text-sm mt-1">All devices are free to create online payments.</div>
+</div>
+<% } else { %>
+<div class="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="border-b border-slate-700 text-xs text-slate-400 uppercase tracking-wide">
+        <th class="text-left px-4 py-3">Status</th>
+        <th class="text-left px-4 py-3">Device</th>
+        <th class="text-left px-4 py-3">Attempts</th>
+        <th class="text-left px-4 py-3">Unlocks In</th>
+        <th class="text-left px-4 py-3">Last Payment</th>
+        <th class="text-left px-4 py-3">Last Attempt</th>
+        <th class="px-4 py-3"></th>
+      </tr>
+    </thead>
+    <tbody>
+    <% entries.forEach(function(e) {
+         var secAgo = now - e.last_attempt;
+         var agoStr = secAgo < 60 ? secAgo+'s ago' : secAgo < 3600 ? Math.floor(secAgo/60)+'m ago' : Math.floor(secAgo/3600)+'h ago';
+         var minLeft = e.retry_after > 0 ? Math.floor(e.retry_after/60)+'m '+(e.retry_after%60)+'s' : '—';
+         var lp = e.last_payment; %>
+      <tr class="border-b border-slate-700/50 hover:bg-slate-700/30 align-top">
+        <td class="px-4 py-3">
+          <% if (e.locked) { %>
+            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-900/60 text-rose-300 border border-rose-700">🔒 Locked</span>
+          <% } else if (e.too_soon) { %>
+            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-900/60 text-amber-300 border border-amber-700">⏱ Cooling</span>
+          <% } else { %>
+            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-700 text-slate-300 border border-slate-600">• Active</span>
+          <% } %>
+        </td>
+        <td class="px-4 py-3">
+          <% if (e.client_mac) { %><div class="font-mono text-xs text-slate-200"><%= e.client_mac %></div><% } %>
+          <% if (e.client_ip)  { %><div class="font-mono text-xs text-slate-400"><%= e.client_ip %></div><% } %>
+          <% if (!e.client_mac && !e.client_ip) { %><div class="font-mono text-xs text-slate-400"><%= e.key %></div><% } %>
+        </td>
+        <td class="px-4 py-3">
+          <span class="font-semibold <%= e.locked ? 'text-rose-400' : 'text-slate-200' %>"><%= e.attempts %></span>
+          <span class="text-slate-500"> / <%= rlCfg.max %></span>
+        </td>
+        <td class="px-4 py-3 font-mono text-xs text-slate-300"><%= e.locked ? minLeft : '—' %></td>
+        <td class="px-4 py-3">
+          <% if (lp) { %>
+            <div class="text-xs text-slate-200 font-medium"><%= lp.plan_name %></div>
+            <div class="text-xs text-slate-400">₱<%= lp.amount %> · <%= lp.channel_name || 'Unknown' %></div>
+            <div class="text-xs mt-0.5">
+              <span class="px-1.5 py-0.5 rounded text-xs font-semibold <%=
+                lp.status==='paid'      ? 'bg-emerald-900/50 text-emerald-300' :
+                lp.status==='pending'   ? 'bg-amber-900/50 text-amber-300'    :
+                                          'bg-slate-700 text-slate-400' %>"><%= lp.status %></span>
+            </div>
+          <% } else { %><span class="text-slate-500 text-xs">—</span><% } %>
+        </td>
+        <td class="px-4 py-3 text-slate-400 text-xs"><%= agoStr %></td>
+        <td class="px-4 py-3 text-right">
+          <form method="POST" action="/admin/rate-limits/clear">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+            <input type="hidden" name="key"   value="<%= e.key %>" />
+            <button class="px-3 py-1 rounded bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-semibold"
+                    onclick="return confirm('Remove restriction for <%= e.client_mac || e.key %>?')">
+              Remove
+            </button>
+          </form>
+        </td>
+      </tr>
+    <% }) %>
+    </tbody>
+  </table>
+</div>
+<% } %>
+
+<!-- SMS rate limit & usage -->
+<div class="bg-slate-800 border border-slate-700 rounded-xl p-5 mb-6">
+  <h2 class="text-sm font-semibold text-slate-200 mb-1">📲 SMS Rate Limit &amp; Usage</h2>
+  <p class="text-xs text-slate-400 mb-4">Throttles SMS to guard against number-spamming &amp; Semaphore credit drain. <strong class="text-slate-200"><%= smsCfg.enabled ? 'Enabled' : 'Disabled' %></strong> &middot; <%= smsCfg.phone_max %> per number / <%= smsCfg.phone_window_min %> min &middot; <%= smsCfg.global_daily_max %>/day global.</p>
+  <div class="grid grid-cols-3 gap-4 mb-5">
+    <div class="bg-slate-900 rounded-lg p-3"><p class="text-xs text-slate-400">Last hour</p><p class="text-lg font-bold text-slate-100"><%= smsUsage.hour.total %></p><p class="text-xs text-emerald-400"><%= smsUsage.hour.ok %> delivered</p></div>
+    <div class="bg-slate-900 rounded-lg p-3"><p class="text-xs text-slate-400">Last 24h</p><p class="text-lg font-bold text-slate-100"><%= smsUsage.day.total %></p><p class="text-xs text-emerald-400"><%= smsUsage.day.ok %> delivered</p></div>
+    <div class="bg-slate-900 rounded-lg p-3"><p class="text-xs text-slate-400">Last 7 days</p><p class="text-lg font-bold text-slate-100"><%= smsUsage.week.total %></p><p class="text-xs text-emerald-400"><%= smsUsage.week.ok %> delivered</p></div>
+  </div>
+  <form method="POST" action="/admin/rate-limits/sms-config">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+    <div class="grid grid-cols-2 gap-4 md:grid-cols-4">
+      <div>
+        <label class="block text-xs text-slate-400 mb-1">Enabled</label>
+        <select name="sms_rl_enabled" class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-slate-100 text-sm focus:border-sky-500 focus:outline-none">
+          <option value="1" <%= smsCfg.enabled ? 'selected' : '' %>>On</option>
+          <option value="0" <%= !smsCfg.enabled ? 'selected' : '' %>>Off</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs text-slate-400 mb-1">Per-number window (min)</label>
+        <input type="number" name="sms_rl_phone_window_min" value="<%= smsCfg.phone_window_min %>" min="1" max="1440" class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-slate-100 text-sm focus:border-sky-500 focus:outline-none" />
+      </div>
+      <div>
+        <label class="block text-xs text-slate-400 mb-1">Max per number</label>
+        <input type="number" name="sms_rl_phone_max" value="<%= smsCfg.phone_max %>" min="1" max="100" class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-slate-100 text-sm focus:border-sky-500 focus:outline-none" />
+      </div>
+      <div>
+        <label class="block text-xs text-slate-400 mb-1">Global daily cap</label>
+        <input type="number" name="sms_rl_global_daily_max" value="<%= smsCfg.global_daily_max %>" min="1" max="100000" class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-slate-100 text-sm focus:border-sky-500 focus:outline-none" />
+      </div>
+    </div>
+    <button class="mt-4 px-4 py-2 rounded-lg bg-sky-700 hover:bg-sky-600 text-white text-sm font-semibold">Save SMS Limits</button>
+  </form>
+  <% if (smsUsage.topPhones && smsUsage.topPhones.length) { %>
+  <div class="mt-5">
+    <p class="text-xs text-slate-400 mb-2">Top numbers (24h)</p>
+    <div class="flex flex-wrap gap-2">
+      <% smsUsage.topPhones.forEach(function(p){ %>
+        <span class="px-2 py-1 rounded bg-slate-900 border border-slate-700 text-xs text-slate-300">&bull;&bull;&bull;<%= String(p.phone).slice(-4) %> &middot; <%= p.n %></span>
+      <% }) %>
+    </div>
+  </div>
+  <% } %>
+</div>
+
+<script>
+  let countdown = 30;
+  const lbl = document.getElementById('rl-refresh-label');
+  setInterval(function() {
+    countdown--;
+    if (countdown <= 0) { location.reload(); return; }
+    lbl.textContent = 'Auto-refresh ' + countdown + 's';
+  }, 1000);
+</script>

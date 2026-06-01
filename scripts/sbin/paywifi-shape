@@ -1,0 +1,133 @@
+#!/usr/bin/env bash
+# paywifi-shape — manage per-IP HTB classes for upload + download limits
+#
+# Usage:
+#   paywifi-shape add  <ip> <kbps>      # add upload+download cap for IP
+#   paywifi-shape del  <ip>             # remove caps for IP
+#   paywifi-shape list                  # show all current classes
+#   paywifi-shape stats <ip>            # show byte counters for IP
+#
+# Mapping IP -> classid: we use the last two octets of the IP as the minor.
+# For 10.10.0.100 -> classid 1:0064 (hex 0x0064 = 100). Combined with 3rd octet
+# scaled: classid = 1:(thirdOctet*256 + fourthOctet) — works fine up to /16.
+#
+# The same minor is used on LAN (upload) and IFB (download) for consistency.
+
+set -o pipefail
+
+CFG=/etc/paywifi/config.json
+LAN=$(jq -r '.network.lan_iface' "$CFG")
+IFB=ifb-paywifi
+
+ip_to_minor() {
+  local ip="$1"
+  IFS=. read -r _ _ a b <<<"$ip"
+  printf '%x' $((a*256 + b))
+}
+
+add_class() {
+  local ip="$1" kbps="$2"
+  local minor; minor=$(ip_to_minor "$ip")
+  local classid="1:${minor}"
+  local rate_kbit="${kbps}kbit"
+
+  # Idempotent: remove existing first
+  tc class del dev "$LAN" classid "$classid" 2>/dev/null || true
+  tc class del dev "$IFB" classid "$classid" 2>/dev/null || true
+
+  # Upload cap (LAN egress)
+  tc class add dev "$LAN" parent 1: classid "$classid" htb \
+      rate "$rate_kbit" ceil "$rate_kbit" burst 15k
+  tc qdisc add dev "$LAN" parent "$classid" handle "${minor}:" sfq perturb 10
+  tc filter add dev "$LAN" parent 1: protocol ip prio 1 u32 \
+      match ip src "$ip"/32 flowid "$classid"
+
+  # Download cap (IFB egress = WAN ingress mirrored)
+  tc class add dev "$IFB" parent 1: classid "$classid" htb \
+      rate "$rate_kbit" ceil "$rate_kbit" burst 15k
+  tc qdisc add dev "$IFB" parent "$classid" handle "${minor}:" sfq perturb 10
+  tc filter add dev "$IFB" parent 1: protocol ip prio 1 u32 \
+      match ip dst "$ip"/32 flowid "$classid"
+}
+
+del_class() {
+  local ip="$1"
+  local minor; minor=$(ip_to_minor "$ip")
+  local classid="1:${minor}"
+
+  # Filters must be removed first
+  tc filter del dev "$LAN" parent 1: protocol ip prio 1 u32 \
+      match ip src "$ip"/32 flowid "$classid" 2>/dev/null || true
+  tc filter del dev "$IFB" parent 1: protocol ip prio 1 u32 \
+      match ip dst "$ip"/32 flowid "$classid" 2>/dev/null || true
+
+  tc qdisc del dev "$LAN" parent "$classid" 2>/dev/null || true
+  tc qdisc del dev "$IFB" parent "$classid" 2>/dev/null || true
+  tc class del dev "$LAN" classid "$classid" 2>/dev/null || true
+  tc class del dev "$IFB" classid "$classid" 2>/dev/null || true
+}
+
+
+update_class() {
+  # STACK-13: in-place bandwidth update using tc class change — avoids del+add gap
+  local ip="$1" kbps="$2"
+  local minor; minor=$(ip_to_minor "$ip")
+  local classid="1:${minor}"
+  local rate_kbit="${kbps}kbit"
+  tc class change dev "$LAN" classid "$classid" htb rate "$rate_kbit" ceil "$rate_kbit" burst 15k 2>/dev/null || add_class "$ip" "$kbps"
+  tc class change dev "$IFB" classid "$classid" htb rate "$rate_kbit" ceil "$rate_kbit" burst 15k 2>/dev/null || true
+}
+
+stats_for() {
+  local ip="$1"
+  local minor; minor=$(ip_to_minor "$ip")
+  local classid="1:${minor}"
+  echo "--- Upload (LAN egress, classid $classid) ---"
+  tc -s class show dev "$LAN" classid "$classid" 2>/dev/null || echo "(no class)"
+  echo "--- Download (IFB egress, classid $classid) ---"
+  tc -s class show dev "$IFB" classid "$classid" 2>/dev/null || echo "(no class)"
+}
+
+list_all() {
+  echo "=== Active classes on $LAN (upload) ==="
+  tc class show dev "$LAN" | grep -v 'class htb 1:9999\|class htb 1: ' || true
+  echo
+  echo "=== Active classes on $IFB (download) ==="
+  tc class show dev "$IFB" | grep -v 'class htb 1:9999\|class htb 1: ' || true
+}
+
+case "${1:-}" in
+  add)
+    [[ -n "$2" && -n "$3" ]] || { echo "usage: paywifi-shape add <ip> <kbps>" >&2; exit 1; }
+    add_class "$2" "$3"
+    echo "shaped: $2 -> ${3} kbps (up+down)"
+    ;;
+  del)
+    [[ -n "$2" ]] || { echo "usage: paywifi-shape del <ip>" >&2; exit 1; }
+    del_class "$2"
+    echo "unshaped: $2"
+    ;;
+  update)
+    [[ -n "$2" && -n "$3" ]] || { echo "usage: paywifi-shape update <ip> <kbps>" >&2; exit 1; }
+    update_class "$2" "$3"   # STACK-13: in-place update, no del+add gap
+    echo "updated: $2 -> ${3} kbps"
+    ;;
+  stats)
+    [[ -n "$2" ]] || { echo "usage: paywifi-shape stats <ip>" >&2; exit 1; }
+    stats_for "$2"
+    ;;
+  list)
+    list_all
+    ;;
+  *)
+    cat <<USAGE
+paywifi-shape — per-IP bandwidth shaping
+
+  paywifi-shape add <ip> <kbps>      # apply upload+download cap
+  paywifi-shape del <ip>             # remove cap
+  paywifi-shape stats <ip>           # byte counters for IP
+  paywifi-shape update <ip> <kbps>   # update bandwidth in-place (no gap)
+  paywifi-shape list                 # all active per-IP classes
+USAGE
+    ;;
+esac

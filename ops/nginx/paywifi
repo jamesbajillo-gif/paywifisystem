@@ -1,0 +1,366 @@
+# PAYWIFI portal + API + admin proxy
+
+# LAN detection for maintenance mode
+geo $is_lan_client {
+    default         0;
+    127.0.0.1       1;
+    10.10.0.0/24    1;
+    192.168.89.0/24 1;
+}
+
+# ── PORT 443: admin UI (HTTPS) + captive probe interceptor ───────────────────
+server {
+    listen 443 ssl default_server;
+    listen [::]:443 ssl default_server;
+    server_name _;
+
+    ssl_certificate     /etc/ssl/certs/paywifi-selfsigned.crt;
+    ssl_certificate_key /etc/ssl/private/paywifi-selfsigned.key;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+    ssl_session_cache   off;
+    ssl_session_tickets off;
+
+    # HARDEN-2026-05-31 — Admin login: 2r/s burst=5, conn-cap 50.
+    location ^~ /admin/login {
+        allow 127.0.0.1;
+        allow 192.168.89.0/24;
+        deny  all;
+        limit_req  zone=req_admin_login burst=5 nodelay;
+        limit_conn conn_perip 50;
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+        add_header Pragma "no-cache";
+        proxy_pass         http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto https;
+        proxy_set_header   Cookie            $http_cookie;
+        proxy_read_timeout 30s;
+    }
+
+    # OPERATOR-NGINX-2026-06-01 — cashier surface over HTTPS (mgmt + LAN).
+    location /operator {
+        limit_req  zone=req_api burst=40 nodelay;
+        limit_conn conn_perip 50;
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+        proxy_pass         http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto https;
+        proxy_set_header   Cookie            $http_cookie;
+        proxy_read_timeout 30s;
+    }
+
+    # Admin UI — ACL: mgmt-only
+    location /admin {
+        allow 127.0.0.1;
+        allow 192.168.89.0/24;
+        deny  all;
+
+        # HARDEN-2026-05-31 — connection cap.
+        limit_conn conn_perip 50;
+
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+        add_header Pragma "no-cache";
+        proxy_pass         http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto https;
+        proxy_set_header   Cookie            $http_cookie;
+        proxy_read_timeout 30s;
+    }
+
+    # Static assets needed by admin UI (served over HTTPS to avoid mixed-content)
+    location = /tailwind.js {
+        root /opt/paywifi/portal;
+        add_header Cache-Control "max-age=86400, public";
+    }
+
+    location ^~ /hotspot-detect.html {
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header Host $host;
+        proxy_set_header X-CP-Type apple;
+        rewrite ^.*$ /portal/cp break;
+        proxy_pass http://127.0.0.1:3000;
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+    }
+    location ^~ /library/test/success.html {
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header Host $host;
+        proxy_set_header X-CP-Type apple;
+        rewrite ^.*$ /portal/cp break;
+        proxy_pass http://127.0.0.1:3000;
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+    }
+    location ^~ /generate_204 {
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header Host $host;
+        proxy_set_header X-CP-Type 204;
+        rewrite ^.*$ /portal/cp break;
+        proxy_pass http://127.0.0.1:3000;
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+    }
+    location ^~ /gen_204 {
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header Host $host;
+        proxy_set_header X-CP-Type 204;
+        rewrite ^.*$ /portal/cp break;
+        proxy_pass http://127.0.0.1:3000;
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+    }
+    location ^~ /ncsi.txt {
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header Host $host;
+        proxy_set_header X-CP-Type ncsi;
+        rewrite ^.*$ /portal/cp break;
+        proxy_pass http://127.0.0.1:3000;
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+    }
+    location ^~ /connecttest.txt {
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header Host $host;
+        proxy_set_header X-CP-Type msft;
+        rewrite ^.*$ /portal/cp break;
+        proxy_pass http://127.0.0.1:3000;
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+    }
+    location ^~ /success.txt {
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header Host $host;
+        proxy_set_header X-CP-Type firefox;
+        rewrite ^.*$ /portal/cp break;
+        proxy_pass http://127.0.0.1:3000;
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+    }
+    # Serve portal static images over HTTPS for the admin UI (logos, option icons)
+    location /images { root /opt/paywifi/portal; add_header Cache-Control "max-age=86400, public"; }
+    location = /favicon.ico { access_log off; log_not_found off; return 204; }
+    location /                 { return 302 http://10.10.0.1/; }
+}
+
+# ── PORT 80: captive portal + API ────────────────────────────────────────────
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name paywifi.net www.paywifi.net _;
+
+    root /opt/paywifi/portal;
+    index index.html;
+
+    access_log /var/log/paywifi/nginx-access.log;
+    error_log  /var/log/paywifi/nginx-error.log warn;
+
+    # ── REM-6 security headers (captive-portal server, all locations) ──
+    add_header X-Frame-Options "DENY" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Content-Security-Policy "frame-ancestors 'none'" always;
+    add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
+
+
+    set_real_ip_from 103.21.244.0/22;
+    set_real_ip_from 103.22.200.0/22;
+    set_real_ip_from 103.31.4.0/22;
+    set_real_ip_from 104.16.0.0/13;
+    set_real_ip_from 104.24.0.0/14;
+    set_real_ip_from 108.162.192.0/18;
+    set_real_ip_from 131.0.72.0/22;
+    set_real_ip_from 141.101.64.0/18;
+    set_real_ip_from 162.158.0.0/15;
+    set_real_ip_from 172.64.0.0/13;
+    set_real_ip_from 173.245.48.0/20;
+    set_real_ip_from 188.114.96.0/20;
+    set_real_ip_from 190.93.240.0/20;
+    set_real_ip_from 197.234.240.0/22;
+    set_real_ip_from 198.41.128.0/17;
+    real_ip_header CF-Connecting-IP;
+
+    location ^~ /hotspot-detect.html {
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header Host $host;
+        proxy_set_header X-CP-Type apple;
+        rewrite ^.*$ /portal/cp break;
+        proxy_pass http://127.0.0.1:3000;
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+    }
+    location ^~ /library/test/success.html {
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header Host $host;
+        proxy_set_header X-CP-Type apple;
+        rewrite ^.*$ /portal/cp break;
+        proxy_pass http://127.0.0.1:3000;
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+    }
+    location ^~ /generate_204 {
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header Host $host;
+        proxy_set_header X-CP-Type 204;
+        rewrite ^.*$ /portal/cp break;
+        proxy_pass http://127.0.0.1:3000;
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+    }
+    location ^~ /gen_204 {
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header Host $host;
+        proxy_set_header X-CP-Type 204;
+        rewrite ^.*$ /portal/cp break;
+        proxy_pass http://127.0.0.1:3000;
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+    }
+    location ^~ /ncsi.txt {
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header Host $host;
+        proxy_set_header X-CP-Type ncsi;
+        rewrite ^.*$ /portal/cp break;
+        proxy_pass http://127.0.0.1:3000;
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+    }
+    location ^~ /connecttest.txt {
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header Host $host;
+        proxy_set_header X-CP-Type msft;
+        rewrite ^.*$ /portal/cp break;
+        proxy_pass http://127.0.0.1:3000;
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+    }
+    location ^~ /redirect {
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header Host $host;
+        proxy_set_header X-CP-Type 204;
+        rewrite ^.*$ /portal/cp break;
+        proxy_pass http://127.0.0.1:3000;
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+    }
+    location ^~ /success.txt {
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header Host $host;
+        proxy_set_header X-CP-Type firefox;
+        rewrite ^.*$ /portal/cp break;
+        proxy_pass http://127.0.0.1:3000;
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+    }
+
+    # HARDEN-2026-05-31 — Webhook rate-limit: 10r/s burst=20.
+    location ^~ /api/webhooks/ {
+        limit_req  zone=req_webhook burst=20 nodelay;
+        limit_conn conn_perip 50;
+        client_max_body_size 256k;
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+        proxy_pass         http://127.0.0.1:3000/webhooks/;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $http_x_forwarded_proto;
+        proxy_read_timeout 30s;
+    }
+
+    # HARDEN-2026-05-31 — Payment-create rate-limit: 2r/s burst=3.
+    location ^~ /api/portal/payment/create {
+        limit_req  zone=req_pay_create burst=3 nodelay;
+        limit_conn conn_perip 50;
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+        proxy_pass         http://127.0.0.1:3000/portal/payment/create;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $http_x_forwarded_proto;
+        proxy_read_timeout 30s;
+    }
+
+    # OPERATOR-NGINX-2026-06-01 — cashier surface, LAN-accessible over plain HTTP.
+    location /operator {
+        # Rate-limit + conn-cap (reuse the api zones — same characteristics)
+        limit_req  zone=req_api burst=40 nodelay;
+        limit_conn conn_perip 50;
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+        proxy_pass         http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $http_x_forwarded_proto;
+        proxy_set_header   Cookie            $http_cookie;
+        proxy_read_timeout 30s;
+    }
+
+    location /api/ {
+        # HARDEN-2026-05-31 — Per-source request + connection caps.
+        limit_req  zone=req_api burst=40 nodelay;
+        limit_conn conn_perip 50;
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+        add_header Pragma "no-cache";
+        proxy_pass         http://127.0.0.1:3000/;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $http_x_forwarded_proto;
+        proxy_read_timeout 30s;
+    }
+
+    # Admin redirect HTTP→HTTPS — ACL: mgmt-only
+    location /admin {
+        allow 127.0.0.1;
+        allow 192.168.89.0/24;
+        deny  all;
+        return 301 https://$host$request_uri;
+    }
+
+    location = /admin-regulatory.html {
+        allow 127.0.0.1;
+        allow 192.168.89.0/24;
+        deny  all;
+        root /opt/paywifi/portal;
+    }
+    location = /breach-procedure.html {
+        allow 127.0.0.1;
+        allow 192.168.89.0/24;
+        deny  all;
+        root /opt/paywifi/portal;
+    }
+
+    location = /app.js {
+        root /opt/paywifi/portal;
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+        add_header Pragma "no-cache";
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    }
+    location = /terms.html {
+        root /opt/paywifi/portal;
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+        add_header Pragma "no-cache";
+    }
+
+    location / {
+        set $do_maint "";
+        if (-f /opt/paywifi/portal/.maint_all) { set $do_maint "1"; }
+
+        set $maint_pub "0";
+        if (-f /opt/paywifi/portal/.maint_public) { set $maint_pub "1"; }
+        set $maint_combined "${maint_pub}${is_lan_client}";
+        if ($maint_combined = "10") { set $do_maint "1"; }
+
+        if ($request_uri = "/maintenance.html") { set $do_maint ""; }
+
+        if ($do_maint = "1") { return 302 /maintenance.html; }
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+        add_header Pragma "no-cache";
+        # REM-6 security headers — applied per-location because nginx drops
+        # inherited add_header once any child block has its own.
+        add_header X-Frame-Options "DENY" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Content-Security-Policy "frame-ancestors 'none'" always;
+        add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
+        try_files $uri $uri/ /index.html;
+    }
+}

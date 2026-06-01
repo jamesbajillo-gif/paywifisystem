@@ -1,0 +1,241 @@
+<%
+  var pwRow = settings.find(function(s){ return s.key === 'portal_widgets'; });
+  var widgetsInitJson = pwRow && pwRow.value ? pwRow.value : 'null';
+%>
+
+<h1 class="text-2xl font-bold mb-2">Portal Widgets</h1>
+<p class="text-sm text-slate-400 mb-6">Toggle, reorder, and edit the info cards shown to guests on the captive portal. Changes are saved to the database and reflected immediately.</p>
+
+<div class="bg-slate-800 rounded-lg p-4 max-w-3xl">
+  <div class="flex items-center justify-between mb-1">
+    <h2 class="font-semibold">Widget list</h2>
+    <span class="text-xs text-slate-500">Drag to reorder. Toggle to show/hide.</span>
+  </div>
+
+  <div id="wl" class="space-y-1.5 mb-3 mt-3"></div>
+
+  <div id="wep" class="hidden bg-slate-900 border border-slate-700 rounded-lg p-4 mb-3">
+    <p class="text-xs text-slate-400 mb-3" id="wep-title">Editing widget</p>
+    <div id="wef"></div>
+    <div class="flex gap-2 mt-3">
+      <button id="btn-wep-apply" class="px-4 py-1.5 rounded bg-brand-500 text-slate-900 text-sm font-semibold hover:bg-brand-400">Apply</button>
+      <button id="btn-wep-cancel" class="px-4 py-1.5 rounded bg-slate-700 text-slate-200 text-sm hover:bg-slate-600">Cancel</button>
+      <button id="btn-wep-delete" class="ml-auto px-4 py-1.5 rounded bg-rose-900 text-rose-200 text-sm hover:bg-rose-800">Remove widget</button>
+    </div>
+  </div>
+
+  <div class="flex items-center gap-2 mb-3">
+    <select id="awt" class="flex-1 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-sm text-slate-300 outline-none">
+      <option value="">+ Add widget...</option>
+      <option value="text">Text card</option>
+      <option value="announcement">Announcement banner</option>
+      <option value="hours">Business hours</option>
+      <option value="contact">Contact info</option>
+      <option value="promo">Promo banner</option>
+      <option value="html">Custom HTML</option>
+    </select>
+    <button id="btn-add-widget" class="px-4 py-1.5 rounded bg-slate-700 text-slate-100 text-sm hover:bg-slate-600 font-medium">Add</button>
+  </div>
+
+  <button id="bsw" class="w-full py-2 rounded bg-brand-500 hover:bg-brand-400 text-slate-900 font-semibold text-sm">Save widget settings</button>
+  <p id="wss" class="text-xs text-center mt-2 hidden"></p>
+</div>
+
+<script>
+var CSRF = '<%= csrfToken %>';
+
+(function(){
+var DEFAULT = [
+  {id:'location',type:'text',enabled:true,order:1,title:'Where to Buy',body:'Visit the counter or ask a staff member to purchase a voucher. Vouchers are available in multiple time and speed plans to suit your needs.'},
+  {id:'reminder',type:'text',enabled:true,order:2,title:'Reminder',body:"Your session starts the moment you enter the voucher code. Time continues to count down whether you are browsing or not. Reconnecting on the same device within your plan's validity will resume your session automatically."},
+  {id:'payment_options',type:'payment_options',enabled:true,order:3,title:'Payment Options'},
+  {id:'available_plans',type:'available_plans',enabled:true,order:4,title:'Available Plans',sticky:true},
+  {id:'status_bar',type:'status_bar',enabled:true,order:5,title:'Status Bar',sticky:true},
+  {id:'announcement',type:'announcement',enabled:false,order:0,title:'Notice',body:'',level:'info'},
+  {id:'hours',type:'hours',enabled:false,order:6,title:'Business Hours',hours:{mon:'',tue:'',wed:'',thu:'',fri:'',sat:'',sun:''}},
+  {id:'contact',type:'contact',enabled:false,order:7,title:'Contact Us',phone:'',email:'',facebook:'',instagram:''},
+  {id:'promo',type:'promo',enabled:false,order:8,title:'Promotion',image_url:'',caption:''},
+  {id:'custom_html',type:'html',enabled:false,order:9,title:'Custom',html:''}
+];
+var raw = <%- widgetsInitJson %>;
+var widgets = Array.isArray(raw) ? raw : DEFAULT;
+// Inject any built-in widget types missing from a previously-saved list
+if(Array.isArray(raw)){
+  DEFAULT.forEach(function(d){
+    if(!widgets.find(function(w){return w.type===d.type;})){
+      widgets.push(JSON.parse(JSON.stringify(d)));
+    }
+  });
+}
+var editIdx = null, dragSrc = null;
+
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+var TYPE_ICONS = {text:'\u{1F4DD}',announcement:'\u{1F4E2}',hours:'\u{1F550}',contact:'\u{1F4DE}',promo:'\u{1F5BC}️',html:'</>',payment_options:'\u{1F4B3}',available_plans:'\u{1F4F6}',status_bar:'\u{1F4CA}'};
+var TYPE_LABELS = {text:'text',announcement:'announcement',hours:'hours',contact:'contact',promo:'promo',html:'html',payment_options:'payment options',available_plans:'available plans',status_bar:'status bar'};
+
+function render(){
+  var sorted = widgets.slice().sort(function(a,b){return (a.order||0)-(b.order||0);});
+  document.getElementById('wl').innerHTML = sorted.map(function(w){
+    var ri = widgets.indexOf(w);
+    var dis = w.type==='payment_options';
+    return '<div class="flex items-center gap-2 px-3 py-2 rounded bg-slate-900 border border-slate-700'+(w.enabled?'':' opacity-50')+'" draggable="true" data-idx="'+ri+'">'
+      +'<span class="text-slate-600 cursor-grab select-none text-lg" title="Drag to reorder">⠇</span>'
+      +'<span class="text-base leading-none">'+(TYPE_ICONS[w.type]||'\u{1F4E6}')+'</span>'
+      +'<span class="flex-1 text-sm font-medium text-slate-200 truncate">'+esc(w.title||w.type)+'</span>'
+      +'<span class="text-xs text-slate-500 bg-slate-800 px-2 py-0.5 rounded shrink-0">'+(TYPE_LABELS[w.type]||w.type)+'</span>'
+      +'<div class="flex gap-1 shrink-0">'
+        +'<button class="w-6 h-6 rounded bg-slate-800 text-slate-400 hover:text-white text-xs leading-none" onclick="wUp('+ri+')" title="Move up">▲</button>'
+        +'<button class="w-6 h-6 rounded bg-slate-800 text-slate-400 hover:text-white text-xs leading-none" onclick="wDown('+ri+')" title="Move down">▼</button>'
+        +'<button class="w-6 h-6 rounded bg-slate-800 text-slate-400 hover:text-white text-xs leading-none'+(dis?' opacity-30 cursor-not-allowed':'')+'" '+(dis?'':'onclick="wEdit('+ri+')" ')+'title="Edit">✏</button>'
+      +'</div>'
+      +'<label class="relative inline-flex items-center cursor-pointer shrink-0">'
+        +'<input type="checkbox" class="sr-only" '+(w.enabled?'checked':'')+' onchange="wToggle('+ri+',this.checked)">'
+        +'<div class="w-9 h-5 rounded-full '+(w.enabled?'bg-brand-500':'bg-slate-600')+' relative transition-colors">'
+          +'<div class="absolute top-0.5 '+(w.enabled?'left-4':'left-0.5')+' w-4 h-4 bg-white rounded-full transition-all"></div>'
+        +'</div>'
+      +'</label>'
+    +'</div>';
+  }).join('');
+  document.querySelectorAll('#wl [draggable]').forEach(function(el){
+    el.addEventListener('dragstart',function(e){dragSrc=parseInt(el.dataset.idx);el.style.opacity='.4';});
+    el.addEventListener('dragend',function(){el.style.opacity='';});
+    el.addEventListener('dragover',function(e){e.preventDefault();el.style.background='#1e3a5f';});
+    el.addEventListener('dragleave',function(){el.style.background='';});
+    el.addEventListener('drop',function(e){
+      e.preventDefault();el.style.background='';
+      var ti=parseInt(el.dataset.idx);
+      if(dragSrc!==null&&dragSrc!==ti){
+        var ao=widgets[dragSrc].order,bo=widgets[ti].order;
+        widgets[dragSrc].order=bo;widgets[ti].order=ao;render();
+      }
+      dragSrc=null;
+    });
+  });
+  var ep=document.getElementById('wep');
+  if(editIdx!==null&&widgets[editIdx]){
+    ep.classList.remove('hidden');
+    document.getElementById('wep-title').textContent='Editing: '+esc(widgets[editIdx].title||widgets[editIdx].type);
+    document.getElementById('wef').innerHTML=buildForm(widgets[editIdx]);
+    document.getElementById('btn-wep-delete').style.display=widgets[editIdx].id&&
+      ['location','reminder','payment_options','available_plans','status_bar'].includes(widgets[editIdx].id)?'none':'';
+  } else {
+    ep.classList.add('hidden');
+    editIdx=null;
+  }
+}
+function inp(name,val,label,placeholder){
+  return '<div class="flex items-center gap-2 mb-2">'
+    +'<label class="text-xs text-slate-400 w-24 shrink-0">'+label+'</label>'
+    +'<input name="'+name+'" value="'+esc(val||'')+'" placeholder="'+esc(placeholder||'')+'" '
+    +'class="flex-1 px-2 py-1 rounded bg-slate-800 border border-slate-700 text-sm text-slate-200 outline-none focus:border-brand-500"></div>';
+}
+function ta(name,val,label){
+  return '<div class="mb-2"><label class="block text-xs text-slate-400 mb-1">'+label+'</label>'
+    +'<textarea name="'+name+'" rows="3" class="w-full px-2 py-1 rounded bg-slate-800 border border-slate-700 text-sm text-slate-200 outline-none resize-y focus:border-brand-500">'+esc(val||'')+'</textarea></div>';
+}
+function buildForm(w){
+  var h=inp('title',w.title,'Title','Widget heading');
+  if(w.type==='text') h+=ta('body',w.body,'Body text');
+  else if(w.type==='announcement'){
+    h+='<div class="flex items-center gap-2 mb-2"><label class="text-xs text-slate-400 w-24 shrink-0">Level</label>'
+      +'<select name="level" class="flex-1 px-2 py-1 rounded bg-slate-800 border border-slate-700 text-sm text-slate-200 outline-none">'
+      +'<option value="info"'+(w.level==='info'?' selected':'')+'>Info (blue)</option>'
+      +'<option value="warning"'+(w.level==='warning'?' selected':'')+'>Warning (yellow)</option>'
+      +'<option value="danger"'+(w.level==='danger'?' selected':'')+'>Danger (red)</option>'
+      +'</select></div>';
+    h+=ta('body',w.body,'Message');
+  } else if(w.type==='hours'){
+    var days=['mon','tue','wed','thu','fri','sat','sun'],dnames=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'],hrs=w.hours||{};
+    days.forEach(function(d,i){h+=inp('hours_'+d,hrs[d],dnames[i],'e.g. 8:00 AM - 10:00 PM');});
+  } else if(w.type==='contact'){
+    h+=inp('phone',w.phone,'Phone','+63 912 345 6789');
+    h+=inp('email',w.email,'Email','hello@example.com');
+    h+=inp('facebook',w.facebook,'Facebook','https://fb.com/...');
+    h+=inp('instagram',w.instagram,'Instagram','https://instagram.com/...');
+  } else if(w.type==='promo'){
+    h+=inp('image_url',w.image_url,'Image URL','https://...');
+    h+=inp('caption',w.caption,'Caption','Optional caption');
+  } else if(w.type==='html'){
+    h+=ta('html',w.html,'HTML content (scripts are stripped on the portal)');
+  }
+  if(w.type==='available_plans'||w.type==='status_bar'){
+    h+='<div class="flex items-center gap-3 mt-1">'
+      +'<input type="checkbox" name="sticky" id="sticky-cb" class="w-4 h-4 accent-brand-500"'+(w.sticky!==false?' checked':'')+'>'
+      +'<label for="sticky-cb" class="text-sm text-slate-200 cursor-pointer">Sticky footer <span class="text-slate-500 text-xs">(fixed to bottom of page)</span></label>'
+      +'</div>';
+  }
+  return h;
+}
+function applyEdit(){
+  var w=widgets[editIdx];
+  var g=function(n){var el=document.querySelector('#wef [name="'+n+'"]');return el?el.value:'';};
+  w.title=g('title');
+  if(w.type==='available_plans'||w.type==='status_bar'){
+    var scb=document.querySelector('#wef [name="sticky"]');w.sticky=scb?scb.checked:true;
+  }
+  if(w.type==='text')w.body=g('body');
+  else if(w.type==='announcement'){w.body=g('body');w.level=g('level');}
+  else if(w.type==='hours'){
+    w.hours={};
+    ['mon','tue','wed','thu','fri','sat','sun'].forEach(function(d){w.hours[d]=g('hours_'+d);});
+  } else if(w.type==='contact'){
+    ['phone','email','facebook','instagram'].forEach(function(k){w[k]=g(k);});
+  } else if(w.type==='promo'){w.image_url=g('image_url');w.caption=g('caption');}
+  else if(w.type==='html'){w.html=g('html');}
+  editIdx=null; render();
+}
+window.wUp=function(i){
+  var sorted=widgets.slice().sort(function(a,b){return a.order-b.order;});
+  var pos=sorted.indexOf(widgets[i]);
+  if(pos>0){var tmp=widgets[i].order;widgets[i].order=sorted[pos-1].order;sorted[pos-1].order=tmp;}
+  render();
+};
+window.wDown=function(i){
+  var sorted=widgets.slice().sort(function(a,b){return a.order-b.order;});
+  var pos=sorted.indexOf(widgets[i]);
+  if(pos<sorted.length-1){var tmp=widgets[i].order;widgets[i].order=sorted[pos+1].order;sorted[pos+1].order=tmp;}
+  render();
+};
+window.wToggle=function(i,on){widgets[i].enabled=on;render();};
+window.wEdit=function(i){editIdx=editIdx===i?null:i;render();};
+document.getElementById('btn-wep-apply').addEventListener('click',applyEdit);
+document.getElementById('btn-wep-cancel').addEventListener('click',function(){editIdx=null;render();});
+document.getElementById('btn-wep-delete').addEventListener('click',function(){
+  if(editIdx!==null){widgets.splice(editIdx,1);editIdx=null;render();}
+});
+document.getElementById('btn-add-widget').addEventListener('click',function(){
+  var type=document.getElementById('awt').value;
+  if(!type)return;
+  var maxOrd=widgets.reduce(function(m,w){return Math.max(m,w.order||0);},0);
+  var uid=type+'_'+Date.now();
+  var w={id:uid,type:type,enabled:true,order:maxOrd+1,title:''};
+  if(type==='text')w.body='';
+  else if(type==='announcement'){w.body='';w.level='info';}
+  else if(type==='hours')w.hours={mon:'',tue:'',wed:'',thu:'',fri:'',sat:'',sun:''};
+  else if(type==='contact'){w.phone='';w.email='';w.facebook='';w.instagram='';}
+  else if(type==='promo'){w.image_url='';w.caption='';}
+  else if(type==='html')w.html='';
+  widgets.push(w);
+  editIdx=widgets.length-1;
+  document.getElementById('awt').value='';
+  render();
+});
+document.getElementById('bsw').addEventListener('click',async function(){
+  var btn=document.getElementById('bsw'),st=document.getElementById('wss');
+  btn.disabled=true;btn.textContent='Saving...';
+  try{
+    var r=await fetch('/admin/widgets',{method:'POST',headers:{'Content-Type':'application/json','x-csrf-token':CSRF},body:JSON.stringify(widgets)});
+    var d=await r.json();
+    st.className='text-xs text-center mt-2 '+(d.ok?'text-emerald-400':'text-rose-400');
+    st.textContent=d.ok?'✓ Saved - portal updated':'Error: '+(d.error||'unknown');
+  }catch(e){
+    st.className='text-xs text-center mt-2 text-rose-400';
+    st.textContent='Network error';
+  }
+  st.classList.remove('hidden');
+  setTimeout(function(){st.classList.add('hidden');},4000);
+  btn.disabled=false;btn.textContent='Save widget settings';
+});
+render();
+})();
+</script>

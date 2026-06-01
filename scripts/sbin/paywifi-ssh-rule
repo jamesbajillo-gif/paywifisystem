@@ -1,0 +1,31 @@
+#!/bin/bash
+# paywifi-ssh-rule — toggle SSH nftables rule
+# Usage: paywifi-ssh-rule wan-only | paywifi-ssh-rule wan-lan
+# Must be run as root (called via sudo by paywifi user)
+set -euo pipefail
+
+NFT_CONF="/etc/nftables.conf"
+MODE="${1:-}"
+
+WAN_ONLY='        iifname $WAN_IF tcp dport 22 accept                          # SSH — WAN/management side only'
+LAN_WAN='        tcp dport 22 accept                                           # SSH — WAN + LAN (admin toggle)'
+
+# Use a temp file to avoid sed creating temp files in /etc (read-only under ProtectSystem=strict)
+TMPFILE=$(mktemp /tmp/paywifi-nft.XXXXXX)
+trap 'rm -f "$TMPFILE"' EXIT
+
+if [[ "$MODE" == "wan-only" ]]; then
+    sed "s|.*tcp dport 22 accept.*# SSH.*|${WAN_ONLY}|" "$NFT_CONF" > "$TMPFILE"
+    cp "$TMPFILE" "$NFT_CONF"
+elif [[ "$MODE" == "wan-lan" ]]; then
+    sed "s|.*iifname \\\$WAN_IF tcp dport 22 accept.*# SSH.*|${LAN_WAN}|" "$NFT_CONF" > "$TMPFILE"
+    cp "$TMPFILE" "$NFT_CONF"
+else
+    echo "Usage: paywifi-ssh-rule wan-only|wan-lan" >&2
+    exit 1
+fi
+
+# Validate then apply
+nft -c -f "$NFT_CONF" 2>&1
+nft -f "$NFT_CONF"
+echo "OK: SSH rule set to ${MODE}"

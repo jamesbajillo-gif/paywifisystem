@@ -1,0 +1,94 @@
+<div class="flex items-center mb-6">
+  <h1 class="text-2xl font-bold">Sessions</h1>
+  <% if (activeOnly) { %>
+    <span class="ml-3 text-xs text-emerald-400 bg-emerald-900 px-2 py-0.5 rounded-full">
+      Live &bull; auto-refreshes every 15s
+    </span>
+  <% } %>
+</div>
+
+<form method="GET" action="/admin/sessions" class="mb-4 flex gap-2 text-sm">
+  <select name="active" class="bg-slate-800 border border-slate-700 rounded px-3 py-1.5">
+    <option value="true"  <%= activeOnly ? 'selected' : '' %>>Active only</option>
+    <option value="false" <%= !activeOnly ? 'selected' : '' %>>All (history)</option>
+  </select>
+  <button class="px-3 py-1.5 rounded bg-slate-700 hover:bg-slate-600">Filter</button>
+</form>
+
+<div class="bg-slate-800 rounded-lg overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-slate-700 text-slate-300">
+      <tr>
+        <th class="px-3 py-2 text-left">ID</th>
+        <th class="px-3 py-2 text-left">Voucher</th>
+        <th class="px-3 py-2 text-left">Phone</th>
+        <th class="px-3 py-2 text-left">Device</th>
+        <th class="px-3 py-2 text-left">MAC</th>
+        <th class="px-3 py-2 text-left">IP</th>
+        <th class="px-3 py-2 text-left">Started</th>
+        <th class="px-3 py-2 text-left">Last seen</th>
+        <% if (activeOnly) { %><th class="px-3 py-2 text-right">Remaining</th><% } %>
+        <th class="px-3 py-2 text-right">↓ In</th>
+        <th class="px-3 py-2 text-right">↑ Out</th>
+        <th class="px-3 py-2 text-left">Status</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <% sessions.forEach(function(s){ %>
+        <% var elapsed = Math.floor(Date.now()/1000) - s.started_at; %>
+        <% var remaining = s.duration_minutes * 60 - (s.minutes_used || 0) * 60; %>
+        <% var remMin = Math.max(0, Math.ceil(remaining / 60)); %>
+        <% var remPct = s.duration_minutes > 0 ? Math.min(100, Math.round((s.minutes_used||0) / s.duration_minutes * 100)) : 0; %>
+        <tr class="border-t border-slate-700">
+          <td class="px-3 py-2 text-slate-500">#<%= s.id %></td>
+          <td class="px-3 py-2 code-cell"><%= s.voucher_code %></td>
+          <td class="px-3 py-2 code-cell text-xs"><%= s.phone ? (String(s.phone).indexOf('63')===0 ? '0'+String(s.phone).slice(2) : s.phone) : '\u2014' %></td>
+          <td class="px-3 py-2 text-xs"><%= (s.device_name && s.device_name!='*') ? s.device_name : '\u2014' %><% if(s.device_os && s.device_os!='unknown'){ %> <span class="text-slate-400">(<%= s.device_os %>)</span><% } %></td>
+          <td class="px-3 py-2 code-cell text-xs"><%= s.mac_address %></td>
+          <td class="px-3 py-2 code-cell text-xs"><%= s.ip_address %></td>
+          <td class="px-3 py-2 text-slate-400 text-xs"><%= new Date(s.started_at*1000).toLocaleString() %></td>
+          <td class="px-3 py-2 text-slate-400 text-xs"><%= new Date(s.last_seen_at*1000).toLocaleString() %></td>
+          <% if (activeOnly) { %>
+            <td class="px-3 py-2 text-right">
+              <span class="font-mono text-xs <%= remMin < 10 ? 'text-rose-400' : remMin < 30 ? 'text-amber-400' : 'text-emerald-400' %>">
+                <%= fmtDuration(remMin) %>
+              </span>
+              <div class="mt-0.5 h-1 rounded bg-slate-700 overflow-hidden w-16 ml-auto">
+                <div class="h-1 rounded <%= remPct > 80 ? 'bg-rose-500' : remPct > 50 ? 'bg-amber-500' : 'bg-emerald-500' %>"
+                     style="width:<%= 100 - remPct %>%"></div>
+              </div>
+            </td>
+          <% } %>
+          <td class="px-3 py-2 text-right"><%= fmtBytes(s.bytes_in) %></td>
+          <td class="px-3 py-2 text-right"><%= fmtBytes(s.bytes_out) %></td>
+          <td class="px-3 py-2">
+            <% if (s.ended_at) { %>
+              <span class="text-xs text-slate-400"><%= s.end_reason || 'ended' %></span>
+            <% } else { %>
+              <span class="text-xs text-emerald-400">active</span>
+            <% } %>
+          </td>
+          <td class="px-3 py-2">
+            <% if (!s.ended_at) { %>
+              <form method="POST" action="/admin/sessions/<%= s.id %>/kick" class="inline">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                <button class="text-rose-400 hover:underline text-xs" onclick="return confirm('Kick session #<%= s.id %>?')">Kick</button>
+              </form>
+            <% } %>
+          </td>
+        </tr>
+      <% }) %>
+      <% if (!sessions.length) { %>
+        <tr><td colspan="<%= activeOnly ? 11 : 10 %>" class="px-3 py-8 text-center text-slate-500">No sessions.</td></tr>
+      <% } %>
+    </tbody>
+  </table>
+</div>
+
+<% if (activeOnly) { %>
+<script>
+  // Auto-refresh every 15 seconds on the active view
+  setTimeout(() => location.reload(), 15000);
+</script>
+<% } %>

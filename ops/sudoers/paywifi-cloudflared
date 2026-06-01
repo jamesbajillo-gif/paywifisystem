@@ -1,0 +1,5 @@
+# PAYWIFI-CLOUDFLARED-2026-06-01
+paywifi ALL=(root) NOPASSWD: /usr/local/sbin/paywifi-cloudflared-apply
+paywifi ALL=(root) NOPASSWD: /bin/systemctl is-active cloudflared
+paywifi ALL=(root) NOPASSWD: /bin/systemctl status cloudflared
+paywifi ALL=(root) NOPASSWD: /bin/systemctl restart cloudflared

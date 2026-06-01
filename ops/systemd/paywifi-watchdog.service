@@ -1,0 +1,7 @@
+[Unit]
+Description=PAYWIFI infrastructure watchdog (self-heal IFB/tc/nft/services)
+After=paywifi-shape.service network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/paywifi-watchdog.sh

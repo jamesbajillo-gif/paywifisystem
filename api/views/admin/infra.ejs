@@ -1,0 +1,39 @@
+<div class="max-w-5xl mx-auto">
+  <div class="flex items-center justify-between mb-4">
+    <h1 class="text-2xl font-bold">Infrastructure Health</h1>
+    <a href="/admin/infra" class="text-sm text-brand-400 hover:underline">&#8635; Refresh</a>
+  </div>
+  <p class="text-sm text-slate-400 mb-5">The watchdog validates IFB, traffic shaping, firewall sets, LAN IP, routing and core services every 60s and self-heals failures.
+    <% if (lastRun) { %>Last check: <%= new Date(lastRun*1000).toLocaleString() %>.<% } else { %>No checks recorded yet.<% } %></p>
+
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+    <% if (!summary.length) { %><div class="text-slate-500 text-sm col-span-full">No data yet — the watchdog records a heartbeat within a few minutes.</div><% } %>
+    <% summary.forEach(function(s){
+         var color = s.status==='ok' ? 'text-emerald-400 border-emerald-700' : (s.status==='healed' ? 'text-amber-300 border-amber-700' : 'text-rose-400 border-rose-700'); %>
+      <div class="bg-slate-800 border <%= color %> rounded-lg p-3">
+        <div class="text-[11px] text-slate-400 uppercase tracking-wide truncate"><%= s.layer %></div>
+        <div class="text-sm font-bold <%= color %>"><%= s.status %></div>
+        <div class="text-[11px] text-slate-500"><%= new Date(s.ts*1000).toLocaleString() %></div>
+      </div>
+    <% }); %>
+  </div>
+
+  <div class="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-900 text-slate-400 text-xs uppercase">
+        <tr><th class="text-left px-3 py-2">Time</th><th class="text-left px-3 py-2">Layer</th><th class="text-left px-3 py-2">Status</th><th class="text-left px-3 py-2">Detail</th></tr>
+      </thead>
+      <tbody>
+        <% if(!events.length){ %><tr><td colspan="4" class="px-3 py-6 text-center text-slate-500">No events recorded.</td></tr><% } %>
+        <% events.forEach(function(e){ var cc = e.status==='ok'?'text-emerald-400':(e.status==='healed'?'text-amber-300':'text-rose-400'); %>
+          <tr class="border-t border-slate-700/60">
+            <td class="px-3 py-2 text-slate-400 whitespace-nowrap"><%= new Date(e.ts*1000).toLocaleString() %></td>
+            <td class="px-3 py-2 text-slate-200"><%= e.layer %></td>
+            <td class="px-3 py-2 font-semibold <%= cc %>"><%= e.status %></td>
+            <td class="px-3 py-2 text-slate-400"><%= e.detail || '' %></td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+</div>

@@ -1,0 +1,25 @@
+[Unit]
+Description=PAYWIFI API (Node.js)
+After=network-online.target nftables.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=paywifi
+Group=paywifi
+WorkingDirectory=/opt/paywifi/api
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node src/server.js
+Restart=on-failure
+RestartSec=3
+StandardOutput=append:/var/log/paywifi/api.log
+StandardError=append:/var/log/paywifi/api.log
+
+# Hardening
+ProtectSystem=strict
+ReadWritePaths=/var/lib/paywifi /var/log/paywifi /opt/paywifi/portal /etc/nftables.conf /etc/paywifi /etc/systemd/system
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

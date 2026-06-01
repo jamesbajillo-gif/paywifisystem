@@ -1,0 +1,120 @@
+<h1 class="text-2xl font-bold mb-6">Dashboard</h1>
+
+<!-- PHASE1-STATSBAR-2026-06-01 — 4-tile KPI strip ported from paywifi-theme-basic StatsBar.tsx -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+
+  <!-- Active sessions -->
+  <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 flex items-center gap-3 min-w-0">
+    <div class="h-10 w-10 rounded-xl bg-sky-500/15 text-sky-400 flex items-center justify-center shrink-0">
+      <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
+      </svg>
+    </div>
+    <div class="min-w-0 flex-1">
+      <p class="text-[11px] uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+        Active sessions
+        <% if (stats.sessions_active > 0) { %><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span><% } %>
+      </p>
+      <p class="text-2xl font-bold tabular-nums text-slate-100 mt-0.5"><%= stats.sessions_active %></p>
+      <a href="/admin/sessions" class="text-[11px] text-sky-400 hover:underline">View all →</a>
+    </div>
+  </div>
+
+  <!-- Today's revenue -->
+  <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 flex items-center gap-3 min-w-0">
+    <div class="h-10 w-10 rounded-xl bg-emerald-500/15 text-emerald-400 flex items-center justify-center shrink-0">
+      <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/>
+      </svg>
+    </div>
+    <div class="min-w-0 flex-1">
+      <p class="text-[11px] uppercase tracking-wider text-slate-400">Today's revenue</p>
+      <p class="text-2xl font-bold tabular-nums text-slate-100 mt-0.5">₱<%= Number(stats.today_revenue || 0).toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) %></p>
+      <a href="/admin/transactions" class="text-[11px] text-sky-400 hover:underline">Transactions →</a>
+    </div>
+  </div>
+
+  <!-- Vouchers issued today -->
+  <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 flex items-center gap-3 min-w-0">
+    <div class="h-10 w-10 rounded-xl bg-violet-500/15 text-violet-400 flex items-center justify-center shrink-0">
+      <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2M13 17v2M13 11v2"/>
+      </svg>
+    </div>
+    <div class="min-w-0 flex-1">
+      <p class="text-[11px] uppercase tracking-wider text-slate-400">Vouchers today</p>
+      <p class="text-2xl font-bold tabular-nums text-slate-100 mt-0.5"><%= stats.today_vouchers %></p>
+      <a href="/admin/vouchers" class="text-[11px] text-sky-400 hover:underline">View all →</a>
+    </div>
+  </div>
+
+  <!-- Conversion % -->
+  <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 flex items-center gap-3 min-w-0">
+    <div class="h-10 w-10 rounded-xl bg-amber-500/15 text-amber-400 flex items-center justify-center shrink-0">
+      <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/>
+      </svg>
+    </div>
+    <div class="min-w-0 flex-1">
+      <p class="text-[11px] uppercase tracking-wider text-slate-400">Conversion %</p>
+      <p class="text-2xl font-bold tabular-nums text-slate-100 mt-0.5"><%= stats.conversion_percent %><span class="text-base text-slate-400">%</span></p>
+      <p class="text-[11px] text-slate-500"><%= stats.conversion_paid %> paid / <%= stats.conversion_settled %> total</p>
+    </div>
+  </div>
+</div>
+
+<!-- Secondary 'Last 24h' card — keeps the prior metrics intact -->
+<div class="grid grid-cols-3 gap-3 mb-8 text-sm">
+  <div class="bg-slate-800/60 border border-slate-700 rounded-xl px-4 py-3 flex items-center justify-between">
+    <span class="text-slate-400">Sessions (24h)</span>
+    <span class="font-semibold tabular-nums text-slate-200"><%= stats.sessions_24h %></span>
+  </div>
+  <div class="bg-slate-800/60 border border-slate-700 rounded-xl px-4 py-3 flex items-center justify-between">
+    <span class="text-slate-400">Data (24h)</span>
+    <span class="font-semibold tabular-nums text-slate-200"><%= fmtBytes(stats.bytes_24h) %></span>
+  </div>
+  <div class="bg-slate-800/60 border border-slate-700 rounded-xl px-4 py-3 flex items-center justify-between">
+    <span class="text-slate-400">Unused vouchers</span>
+    <span class="font-semibold tabular-nums text-slate-200"><%= stats.vouchers_unused %></span>
+  </div>
+</div>
+
+<div class="flex gap-3 mb-6 text-sm flex-wrap">
+  <a href="/admin/vouchers/new" class="px-4 py-2 rounded bg-brand-500 hover:bg-brand-400 text-slate-900 font-semibold">+ Generate vouchers</a>
+  <a href="/admin/sessions?active=true" class="px-4 py-2 rounded bg-slate-700 hover:bg-slate-600">View active sessions</a>
+  <a href="/admin/reports" class="px-4 py-2 rounded bg-slate-700 hover:bg-slate-600">Reports</a>
+</div>
+
+<div class="grid md:grid-cols-2 gap-6">
+  <div class="bg-slate-800 rounded-lg p-4">
+    <h2 class="font-semibold mb-3">Vouchers by status</h2>
+    <table class="w-full text-sm">
+      <tbody>
+        <% ['unused','active','expired','revoked'].forEach(function(k){ %>
+          <tr class="border-t border-slate-700">
+            <td class="py-2 text-slate-400 capitalize"><%= k %></td>
+            <td class="py-2 text-right"><%= stats.vouchers[k] || 0 %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="bg-slate-800 rounded-lg p-4">
+    <h2 class="font-semibold mb-3">Latest audit</h2>
+    <ul class="text-sm divide-y divide-slate-700">
+      <% audit.slice(0, 8).forEach(function(a){ %>
+        <li class="py-2 flex">
+          <div class="text-slate-400 text-xs w-32"><%= new Date(a.created_at*1000).toLocaleString() %></div>
+          <div class="flex-1">
+            <span class="text-brand-400"><%= a.username || '—' %></span>
+            <span class="text-slate-300">  <%= a.action %></span>
+            <% if (a.details) { %><span class="text-slate-500 text-xs">  <%= a.details %></span><% } %>
+          </div>
+        </li>
+      <% }) %>
+    </ul>
+  </div>
+</div>
+
+<script>setTimeout(()=>location.reload(),30000);</script>

@@ -1,0 +1,24 @@
+[Unit]
+Description=PAYWIFI session daemon (expiry, byte counting, MAC re-auth)
+After=paywifi-api.service paywifi-shape.service
+Requires=paywifi-shape.service
+
+[Service]
+Type=simple
+User=paywifi
+Group=paywifi
+WorkingDirectory=/opt/paywifi/api
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node src/sessiond.js
+Restart=on-failure
+RestartSec=5
+StandardOutput=append:/var/log/paywifi/sessiond.log
+StandardError=append:/var/log/paywifi/sessiond.log
+
+ProtectSystem=strict
+ReadWritePaths=/var/lib/paywifi /var/log/paywifi
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

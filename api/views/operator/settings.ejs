@@ -1,0 +1,36 @@
+<header class="mb-6">
+  <p class="text-[11px] font-bold uppercase tracking-[0.2em]" style="color:var(--primary)">PAYWIFI · Operator</p>
+  <h1 class="text-3xl font-bold tracking-tight">Settings</h1>
+  <p class="text-sm mt-1" style="color: var(--muted-foreground)">Rename your store or change your password. Your login username is permanent.</p>
+</header>
+<% if (saved) { %>
+  <div class="mb-4 rounded-xl px-4 py-3 text-sm border"
+    style="background-color: color-mix(in oklab, var(--success) 10%, var(--card)); color: var(--success); border-color: color-mix(in oklab, var(--success) 35%, transparent);">Saved.</div>
+<% } %>
+<section class="rounded-2xl border-2 p-5 mb-5" style="background: var(--card); border-color: var(--border)">
+  <h2 class="text-base font-bold mb-1">Identity</h2>
+  <p class="text-xs mb-4" style="color: var(--muted-foreground)">These fields are permanent. Contact the admin to change them.</p>
+  <dl class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <div><dt class="text-[11px] uppercase tracking-wider" style="color: var(--muted-foreground)">Username</dt><dd class="text-base font-bold font-mono mt-1"><%= operator.username %></dd></div>
+    <div><dt class="text-[11px] uppercase tracking-wider" style="color: var(--muted-foreground)">Store slug</dt><dd class="text-base font-bold font-mono mt-1"><%= operator.store_slug %></dd></div>
+  </dl>
+</section>
+<section class="rounded-2xl border-2 p-5 mb-5" style="background: var(--card); border-color: var(--border)">
+  <h2 class="text-base font-bold mb-1">Store name</h2>
+  <p class="text-xs mb-4" style="color: var(--muted-foreground)">Shows in the customer's checkout dropdown. Rename anytime — username stays the same.</p>
+  <form method="POST" action="/operator/settings/store-name" class="flex flex-col sm:flex-row gap-3">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+    <input name="store_name" value="<%= operator.store_name %>" maxlength="80" required class="flex-1" />
+    <button type="submit" class="rounded-xl px-4 h-12 text-base font-bold" style="background: var(--primary); color: var(--primary-foreground)">Save name</button>
+  </form>
+</section>
+<section class="rounded-2xl border-2 p-5" style="background: var(--card); border-color: var(--border)">
+  <h2 class="text-base font-bold mb-1">Change password</h2>
+  <p class="text-xs mb-4" style="color: var(--muted-foreground)">At least 6 characters.</p>
+  <form method="POST" action="/operator/settings/password" class="flex flex-col gap-3 max-w-md">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+    <input type="password" name="current" placeholder="Current password" required autocomplete="current-password" />
+    <input type="password" name="next" placeholder="New password (min 6 chars)" required minlength="6" autocomplete="new-password" />
+    <button type="submit" class="rounded-xl px-4 h-12 text-base font-bold" style="background: var(--primary); color: var(--primary-foreground)">Update password</button>
+  </form>
+</section>

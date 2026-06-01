@@ -1,0 +1,157 @@
+<div class="flex items-center mb-6">
+  <h1 class="text-2xl font-bold">Reports</h1>
+  <div class="ml-auto flex gap-2 text-sm">
+    <% [1,6,12,24,48,168].forEach(function(h){ %>
+      <a href="/admin/reports?hours=<%= h %>"
+         class="px-3 py-1.5 rounded <%= selectedHours == h ? 'bg-brand-500 text-slate-900 font-semibold' : 'bg-slate-700 text-slate-300 hover:bg-slate-600' %>">
+        <%= h < 24 ? h+'h' : (h < 168 ? (h/24)+'d' : '7d') %>
+      </a>
+    <% }) %>
+  </div>
+</div>
+
+<!-- Summary cards -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+  <div class="bg-slate-800 rounded-lg p-4">
+    <div class="text-xs uppercase text-slate-400 tracking-wide">Total sessions</div>
+    <div class="text-3xl font-semibold mt-1"><%= r.total_sessions %></div>
+    <div class="text-xs text-slate-500 mt-1">last <%= selectedHours < 24 ? selectedHours+'h' : (selectedHours/24)+'d' %></div>
+  </div>
+  <div class="bg-slate-800 rounded-lg p-4">
+    <div class="text-xs uppercase text-slate-400 tracking-wide">Active now</div>
+    <div class="text-3xl font-semibold mt-1 text-emerald-400"><%= r.active_sessions %></div>
+  </div>
+  <div class="bg-slate-800 rounded-lg p-4">
+    <div class="text-xs uppercase text-slate-400 tracking-wide">Data in (↓)</div>
+    <div class="text-3xl font-semibold mt-1"><%= fmtBytes(r.bytes_in) %></div>
+  </div>
+  <div class="bg-slate-800 rounded-lg p-4">
+    <div class="text-xs uppercase text-slate-400 tracking-wide">Data out (↑)</div>
+    <div class="text-3xl font-semibold mt-1"><%= fmtBytes(r.bytes_out) %></div>
+  </div>
+</div>
+
+<div class="grid md:grid-cols-2 gap-6 mb-6">
+  <!-- Voucher status breakdown -->
+  <div class="bg-slate-800 rounded-lg p-4">
+    <h2 class="font-semibold mb-3">Voucher inventory</h2>
+    <table class="w-full text-sm">
+      <tbody>
+        <% ['unused','active','expired','revoked'].forEach(function(k){ %>
+          <tr class="border-t border-slate-700">
+            <td class="py-2 text-slate-400 capitalize"><%= k %></td>
+            <td class="py-2 text-right font-mono"><%= v[k] || 0 %></td>
+            <% var pct = total > 0 ? Math.round((v[k]||0)/total*100) : 0; %>
+            <td class="py-2 pl-4 w-28">
+              <div class="h-2 rounded bg-slate-700 overflow-hidden">
+                <div class="h-2 rounded <%= k==='unused' ? 'bg-brand-500' : k==='active' ? 'bg-emerald-500' : k==='expired' ? 'bg-amber-500' : 'bg-rose-500' %>"
+                     style="width:<%= pct %>%"></div>
+              </div>
+            </td>
+            <td class="py-2 pl-2 text-xs text-slate-500 w-10"><%= pct %>%</td>
+          </tr>
+        <% }) %>
+        <tr class="border-t border-slate-600">
+          <td class="py-2 font-semibold">Total</td>
+          <td class="py-2 text-right font-mono font-semibold"><%= total %></td>
+          <td></td><td></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Top plans by usage -->
+  <div class="bg-slate-800 rounded-lg p-4">
+    <h2 class="font-semibold mb-3">Plans by vouchers redeemed</h2>
+    <% if (!planStats.length) { %>
+      <p class="text-slate-500 text-sm">No session data yet.</p>
+    <% } else { %>
+    <table class="w-full text-sm">
+      <thead class="text-slate-400 text-xs uppercase">
+        <tr>
+          <th class="text-left pb-2">Plan</th>
+          <th class="text-right pb-2">Sessions</th>
+          <th class="text-right pb-2">Data</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% planStats.forEach(function(p){ %>
+          <tr class="border-t border-slate-700">
+            <td class="py-2"><%= p.plan_name || '—' %></td>
+            <td class="py-2 text-right"><%= p.session_count %></td>
+            <td class="py-2 text-right"><%= fmtBytes(p.bytes_total) %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+    <% } %>
+  </div>
+</div>
+
+<!-- Hourly sessions chart (last 24h) -->
+<div class="bg-slate-800 rounded-lg p-4 mb-6">
+  <h2 class="font-semibold mb-4">Sessions per hour <span class="text-slate-500 text-sm font-normal">(last 24 h)</span></h2>
+  <% if (!hourly.length) { %>
+    <p class="text-slate-500 text-sm">No data yet.</p>
+  <% } else { %>
+  <div class="flex items-end gap-0.5 h-20" title="Sessions per hour">
+    <% var maxH = Math.max.apply(null, hourly.map(function(h){ return h.n; })) || 1; %>
+    <% hourly.forEach(function(h){ %>
+      <% var pct = Math.round(h.n / maxH * 100); %>
+      <div class="flex-1 flex flex-col items-center gap-1 group">
+        <span class="text-xs text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity"><%= h.n %></span>
+        <div class="w-full rounded-t bg-brand-500 opacity-80 hover:opacity-100 transition-opacity"
+             style="height:<%= Math.max(pct,2) %>%; min-height:2px"
+             title="<%= h.hour %>:00 — <%= h.n %> session(s)"></div>
+      </div>
+    <% }) %>
+  </div>
+  <div class="flex justify-between text-xs text-slate-600 mt-1">
+    <span><%= hourly[0] && hourly[0].hour %>:00</span>
+    <span>Now</span>
+  </div>
+  <% } %>
+</div>
+
+<!-- Recent sessions table -->
+<div class="bg-slate-800 rounded-lg overflow-hidden">
+  <div class="flex items-center px-4 py-3 border-b border-slate-700">
+    <h2 class="font-semibold">Recent sessions</h2>
+    <span class="ml-2 text-xs text-slate-500">(<%= recentSessions.length %> shown)</span>
+  </div>
+  <table class="w-full text-sm">
+    <thead class="bg-slate-700 text-slate-300">
+      <tr>
+        <th class="px-3 py-2 text-left">Voucher</th>
+        <th class="px-3 py-2 text-left">MAC</th>
+        <th class="px-3 py-2 text-left">IP</th>
+        <th class="px-3 py-2 text-left">Started</th>
+        <th class="px-3 py-2 text-right">↓ In</th>
+        <th class="px-3 py-2 text-right">↑ Out</th>
+        <th class="px-3 py-2 text-left">Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% recentSessions.forEach(function(s){ %>
+        <tr class="border-t border-slate-700">
+          <td class="px-3 py-2 code-cell text-xs"><%= s.voucher_code %></td>
+          <td class="px-3 py-2 code-cell text-xs text-slate-400"><%= s.mac_address %></td>
+          <td class="px-3 py-2 code-cell text-xs"><%= s.ip_address %></td>
+          <td class="px-3 py-2 text-slate-400 text-xs"><%= new Date(s.started_at*1000).toLocaleString() %></td>
+          <td class="px-3 py-2 text-right text-xs"><%= fmtBytes(s.bytes_in) %></td>
+          <td class="px-3 py-2 text-right text-xs"><%= fmtBytes(s.bytes_out) %></td>
+          <td class="px-3 py-2 text-xs">
+            <% if (s.ended_at) { %>
+              <span class="text-slate-400"><%= s.end_reason || 'ended' %></span>
+            <% } else { %>
+              <span class="text-emerald-400">active</span>
+            <% } %>
+          </td>
+        </tr>
+      <% }) %>
+      <% if (!recentSessions.length) { %>
+        <tr><td colspan="7" class="px-3 py-8 text-center text-slate-500">No sessions in this period.</td></tr>
+      <% } %>
+    </tbody>
+  </table>
+</div>

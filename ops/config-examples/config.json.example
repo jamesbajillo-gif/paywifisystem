@@ -1,0 +1,33 @@
+{
+  "app": {
+    "name": "PAYWIFI",
+    "slug": "paywifi",
+    "tagline": "Pay-as-you-go WiFi Hotspot System"
+  },
+  "network": {
+    "wan_iface": "ens18",
+    "lan_iface": "ens19",
+    "lan_subnet": "10.10.0.0/24",
+    "lan_gateway": "10.10.0.1",
+    "dhcp_start": "10.10.0.100",
+    "dhcp_end": "10.10.0.250"
+  },
+  "api": {
+    "port": 3000,
+    "jwt_secret": "<GENERATE_ME>",
+    "jwt_expiry_hours": 12,
+    "session_secret": "<GENERATE_ME>",
+    "base_url": "https://paywifi.net"
+  },
+  "database": {
+    "path": "/var/lib/paywifi/paywifi.db"
+  },
+  "logging": {
+    "dir": "/var/log/paywifi",
+    "level": "info"
+  },
+  "captive_portal": {
+    "redirect_host": "10.10.0.1",
+    "redirect_port": 80
+  }
+}

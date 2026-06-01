@@ -1,0 +1,13 @@
+# PAYWIFI: API + sessiond service user can manage nft sets and tc classes.
+paywifi ALL=(root) NOPASSWD: /usr/local/sbin/paywifi-auth
+paywifi ALL=(root) NOPASSWD: /usr/local/sbin/paywifi-shape
+paywifi ALL=(root) NOPASSWD: /usr/local/sbin/paywifi-shape-init
+Defaults!/usr/local/sbin/paywifi-auth        !requiretty, !use_pty
+Defaults!/usr/local/sbin/paywifi-shape       !requiretty
+Defaults!/usr/local/sbin/paywifi-shape-init  !requiretty
+
+paywifi ALL=(root) NOPASSWD: /usr/local/sbin/paywifi-ssh-rule
+Defaults!/usr/local/sbin/paywifi-ssh-rule  !requiretty, !use_pty
+
+paywifi ALL=(root) NOPASSWD: /usr/local/sbin/paywifi-admin-acl
+Defaults!/usr/local/sbin/paywifi-admin-acl  !requiretty, !use_pty

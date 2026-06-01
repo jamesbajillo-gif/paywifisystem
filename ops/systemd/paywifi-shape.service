@@ -1,0 +1,14 @@
+[Unit]
+Description=PAYWIFI tc/HTB base qdisc setup
+After=network-online.target
+Before=paywifi-sessiond.service paywifi-api.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/paywifi-shape-init
+ExecStop=/bin/sh -c '/usr/sbin/tc qdisc del dev $(jq -r .network.lan_iface /etc/paywifi/config.json) root 2>/dev/null; /usr/sbin/tc qdisc del dev $(jq -r .network.wan_iface /etc/paywifi/config.json) ingress 2>/dev/null; /usr/sbin/tc qdisc del dev ifb-paywifi root 2>/dev/null; true'
+
+[Install]
+WantedBy=multi-user.target

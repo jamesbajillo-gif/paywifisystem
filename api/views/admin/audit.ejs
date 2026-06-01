@@ -1,0 +1,29 @@
+<div class="flex items-center mb-6">
+  <h1 class="text-2xl font-bold">Audit log</h1>
+  <span class="ml-3 text-xs text-slate-500 bg-slate-800 px-2 py-0.5 rounded"><%= entries.length %> entries (latest 200)</span>
+</div>
+
+<div class="bg-slate-800 rounded-lg overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-slate-700 text-slate-300">
+      <tr>
+        <th class="px-3 py-2 text-left">When</th>
+        <th class="px-3 py-2 text-left">Admin</th>
+        <th class="px-3 py-2 text-left">Action</th>
+        <th class="px-3 py-2 text-left">Details</th>
+        <th class="px-3 py-2 text-left">From IP</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% entries.forEach(function(a){ %>
+        <tr class="border-t border-slate-700">
+          <td class="px-3 py-2 text-slate-400 text-xs"><%= new Date(a.created_at*1000).toLocaleString() %></td>
+          <td class="px-3 py-2"><%= a.username || '—' %></td>
+          <td class="px-3 py-2 text-brand-400"><%= a.action %></td>
+          <td class="px-3 py-2 text-slate-400 text-xs"><%= a.details || '' %></td>
+          <td class="px-3 py-2 code-cell text-xs"><%= a.ip_address || '' %></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>

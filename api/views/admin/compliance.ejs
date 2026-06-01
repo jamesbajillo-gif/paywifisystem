@@ -1,0 +1,54 @@
+<h1 class="text-2xl font-bold mb-1">Compliance & Regulatory</h1>
+<p class="text-sm text-slate-400 mb-6">Philippine law requirements and operational security checklist for PAYWIFI operators.</p>
+
+<div class="bg-slate-800 rounded-lg p-5 mb-6">
+  <p class="text-sm text-slate-300 mb-4">The full interactive regulatory checklist is available as a standalone page. It tracks NPC registration, NTC permits, BIR compliance, and operational security items.</p>
+  <a href="/admin-regulatory.html" target="_blank"
+     class="inline-flex items-center gap-2 px-5 py-2.5 rounded bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold transition-colors">
+    Open Regulatory Checklist &rarr;
+  </a>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+  <div class="bg-slate-800 rounded-lg p-4">
+    <h2 class="font-semibold text-slate-100 mb-2">System Compliance Status</h2>
+    <ul class="space-y-2 text-sm">
+      <li class="flex items-center gap-2"><span class="text-green-400">&#10003;</span><span class="text-slate-300">Privacy Policy page live at <a href="/terms.html" target="_blank" class="text-blue-400">/terms.html</a></span></li>
+      <li class="flex items-center gap-2"><span class="text-green-400">&#10003;</span><span class="text-slate-300">Privacy disclosure in payment wizard</span></li>
+      <li class="flex items-center gap-2"><span class="text-green-400">&#10003;</span><span class="text-slate-300">Data retention cron (90d sessions, 365d audit)</span></li>
+      <li class="flex items-center gap-2"><span class="text-green-400">&#10003;</span><span class="text-slate-300">Log retention: 26 weeks</span></li>
+      <li class="flex items-center gap-2"><span class="text-green-400">&#10003;</span><span class="text-slate-300">Phone numbers hashed (SHA-256) in database</span></li>
+      <li class="flex items-center gap-2"><span class="text-green-400">&#10003;</span><span class="text-slate-300">DPA contact: james.bajillo@gmail.com</span></li>
+      <li class="flex items-center gap-2"><span class="text-green-400">&#10003;</span><span class="text-slate-300">Breach notification procedure documented</span></li>
+      <li class="flex items-center gap-2"><span class="text-green-400">&#10003;</span><span class="text-slate-300">Nightly DB backup with integrity check</span></li>
+    </ul>
+  </div>
+  <div class="bg-slate-800 rounded-lg p-4">
+    <h2 class="font-semibold text-slate-100 mb-2">Pending Admin Actions</h2>
+    <ul class="space-y-2 text-sm">
+      <li class="flex items-center gap-2"><span class="text-yellow-400">&#9711;</span><span class="text-slate-300">Register with NPC as PIC at privacy.gov.ph</span></li>
+      <li class="flex items-center gap-2"><span class="text-yellow-400">&#9711;</span><span class="text-slate-300">Verify NTC Permit to Operate requirement</span></li>
+      <li class="flex items-center gap-2"><span class="text-yellow-400">&#9711;</span><span class="text-slate-300">Confirm BIR COR currency + official receipts</span></li>
+      <li class="flex items-center gap-2"><span class="text-yellow-400">&#9711;</span><span class="text-slate-300">Configure off-host backup (NAS or S3)</span></li>
+      <li class="flex items-center gap-2"><span class="text-yellow-400">&#9711;</span><span class="text-slate-300">Enable LUKS disk encryption (planned downtime)</span></li>
+    </ul>
+  </div>
+</div>
+
+<div class="bg-slate-800 rounded-lg p-4">
+  <h2 class="font-semibold text-slate-100 mb-2">Key Documents</h2>
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+    <a href="/terms.html" target="_blank" class="block p-3 bg-slate-700 rounded hover:bg-slate-600 transition-colors">
+      <div class="text-sm font-semibold text-slate-100">Privacy Policy</div>
+      <div class="text-xs text-slate-400 mt-0.5">RA 10173 — public page</div>
+    </a>
+    <a href="/breach-procedure.html" target="_blank" class="block p-3 bg-slate-700 rounded hover:bg-slate-600 transition-colors">
+      <div class="text-sm font-semibold text-slate-100">Breach Procedure</div>
+      <div class="text-xs text-slate-400 mt-0.5">NPC 72-hr rule — internal</div>
+    </a>
+    <a href="/admin-regulatory.html" target="_blank" class="block p-3 bg-slate-700 rounded hover:bg-slate-600 transition-colors">
+      <div class="text-sm font-semibold text-slate-100">Regulatory Checklist</div>
+      <div class="text-xs text-slate-400 mt-0.5">NTC, BIR, NPC tasks</div>
+    </a>
+  </div>
+</div>

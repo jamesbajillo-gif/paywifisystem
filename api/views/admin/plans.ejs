@@ -1,0 +1,87 @@
+<div class="flex items-center mb-6">
+  <h1 class="text-2xl font-bold">Plans</h1>
+</div>
+
+<div class="grid md:grid-cols-2 gap-6">
+  <div class="bg-slate-800 rounded-lg p-4">
+    <h2 class="font-semibold mb-3">Existing plans</h2>
+    <table class="w-full text-sm">
+      <thead class="text-slate-400 text-xs uppercase">
+        <tr>
+          <th class="text-left py-2">Name</th>
+          <th class="text-left">Duration</th>
+          <th class="text-left">Speed</th>
+          <th class="text-left">Dev</th>
+          <th class="text-left">Price</th>
+          <th class="text-left">Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% plans.forEach(function(p){ %>
+          <tr class="border-t border-slate-700">
+            <td class="py-2 pr-2"><%= p.name %></td>
+            <td class="pr-2"><%= fmtDuration(p.duration_minutes) %></td>
+            <td class="pr-2"><%= fmtSpeed(p.bandwidth_kbps) %></td>
+            <td class="pr-2"><%= p.max_devices %></td>
+            <td class="pr-2">₱<%= p.price %></td>
+            <td class="pr-2">
+              <span class="px-2 py-0.5 text-xs rounded-full <%= p.is_active ? 'bg-emerald-800 text-emerald-200' : 'bg-slate-700 text-slate-400' %>">
+                <%= p.is_active ? 'active' : 'hidden' %>
+              </span>
+            </td>
+            <td class="flex gap-2 py-1">
+              <form method="POST" action="/admin/plans/<%= p.id %>/toggle" class="inline">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                <button class="text-xs px-2 py-0.5 rounded <%= p.is_active ? 'bg-amber-900 text-amber-300 hover:bg-amber-800' : 'bg-emerald-900 text-emerald-300 hover:bg-emerald-800' %>">
+                  <%= p.is_active ? 'Hide' : 'Show' %>
+                </button>
+              </form>
+              <form method="POST" action="/admin/plans/<%= p.id %>/delete" class="inline">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                <button class="text-rose-400 hover:underline text-xs" onclick="return confirm('Delete plan \'<%= p.name %>\'? This cannot be undone.')">×</button>
+              </form>
+            </td>
+          </tr>
+        <% }) %>
+        <% if (!plans.length) { %>
+          <tr><td colspan="7" class="py-6 text-center text-slate-500">No plans yet.</td></tr>
+        <% } %>
+      </tbody>
+    </table>
+    <p class="text-xs text-slate-500 mt-3">Hidden plans are not shown on the portal but existing vouchers using them still work.</p>
+  </div>
+
+  <div class="bg-slate-800 rounded-lg p-4">
+    <h2 class="font-semibold mb-3">Add plan</h2>
+    <form method="POST" action="/admin/plans" class="space-y-3 text-sm">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+      <div>
+        <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Name</label>
+        <input name="name" placeholder="e.g. 2 Hours @ 8Mbps" required class="w-full px-3 py-2 rounded bg-slate-900 border border-slate-700">
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Duration (min)</label>
+          <input name="duration_minutes" type="number" min="1" placeholder="e.g. 120" required class="w-full px-3 py-2 rounded bg-slate-900 border border-slate-700">
+        </div>
+        <div>
+          <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Bandwidth (kbps)</label>
+          <input name="bandwidth_kbps" type="number" min="64" placeholder="e.g. 8192" required class="w-full px-3 py-2 rounded bg-slate-900 border border-slate-700">
+          <p class="text-xs text-slate-500 mt-1">1 Mbps = 1024 kbps</p>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Max devices</label>
+          <input name="max_devices" type="number" min="1" value="1" required class="w-full px-3 py-2 rounded bg-slate-900 border border-slate-700">
+        </div>
+        <div>
+          <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Price (₱)</label>
+          <input name="price" type="number" min="0" step="0.01" value="0" required class="w-full px-3 py-2 rounded bg-slate-900 border border-slate-700">
+        </div>
+      </div>
+      <button class="w-full py-2 rounded bg-brand-500 hover:bg-brand-400 text-slate-900 font-semibold">Add plan</button>
+    </form>
+  </div>
+</div>

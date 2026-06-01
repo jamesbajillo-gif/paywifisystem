@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Privacy Policy — PAYWIFI</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:transparent;color:#374151;min-height:100vh;padding:2rem 1rem}
+    .container{max-width:720px;margin:0 auto;animation:pwOverlayIn .3s ease}
+    h1{font-size:1.5rem;font-weight:800;color:#111827;margin-bottom:.25rem}
+    h2{font-size:1rem;font-weight:700;color:#ea6c08;margin:1.5rem 0 .5rem}
+    p,li{font-size:.875rem;line-height:1.65;color:#4b5563}
+    ul{padding-left:1.25rem;margin:.5rem 0}
+    li{margin:.25rem 0}
+    .badge{display:inline-block;font-size:.7rem;font-weight:700;background:#f3f4f6;border:1px solid #e5e7eb;padding:.15rem .4rem;border-radius:.25rem;color:#6b7280;margin-bottom:1rem}
+    .box{background:#fff;border:1px solid #e5e7eb;border-radius:.75rem;padding:1.25rem;margin-top:1.5rem;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+    a{color:#ea6c08;text-decoration:none}
+    a:hover{text-decoration:underline}
+    .back{display:inline-flex;align-items:center;gap:.4rem;font-size:.8rem;color:#6b7280;margin-bottom:1.5rem;text-decoration:none}
+    .back:hover{color:#111827}
+    hr{border:none;border-top:1px solid #e5e7eb;margin:1.5rem 0}
+
+/* === Layered captive-portal overlay (replica blurred background) === */
+html{background:#f1f3f5}
+.pw-portal-bg{position:fixed;inset:0;z-index:-2;background:#f1f3f5;overflow:hidden;filter:blur(10px);transform:scale(1.12);pointer-events:none}
+.pw-portal-bg .pb-header{position:absolute;top:0;left:0;right:0;height:64px;background:linear-gradient(to right,#f97316,#ef4444)}
+.pw-portal-bg .pb-card{position:absolute;left:50%;transform:translateX(-50%);width:min(88%,440px);background:#fff;border-radius:18px;box-shadow:0 8px 24px rgba(0,0,0,.07)}
+.pw-portal-bg .pb1{top:88px;height:118px}
+.pw-portal-bg .pb2{top:222px;height:182px}
+.pw-portal-bg .pb3{top:420px;height:150px}
+.pw-portal-scrim{position:fixed;inset:0;z-index:-1;background:rgba(248,250,252,.5);pointer-events:none}
+.pw-close{position:fixed;top:calc(env(safe-area-inset-top,0px) + .85rem);right:calc(env(safe-area-inset-right,0px) + .85rem);z-index:60;width:2.5rem;height:2.5rem;border-radius:50%;background:rgba(255,255,255,.92);border:1px solid #e5e7eb;box-shadow:0 2px 12px rgba(0,0,0,.14);font-size:1.6rem;line-height:1;color:#374151;display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);transition:background .15s,transform .15s}
+.pw-close:hover{background:#fff;color:#111827}
+.pw-close:active{transform:scale(.92)}
+@keyframes pwOverlayIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+<div class="pw-portal-bg" aria-hidden="true"><div class="pb-header"></div><div class="pb-card pb1"></div><div class="pb-card pb2"></div><div class="pb-card pb3"></div></div>
+<div class="pw-portal-scrim" aria-hidden="true"></div>
+<button type="button" class="pw-close" aria-label="Close and return to portal" onclick="pwCloseOverlay()">&times;</button>
+  <div class="container">
+    <a href="/" class="back">&#8592; Back to Portal</a>
+    <h1>Privacy Policy</h1>
+    <span class="badge">Effective: May 2026 &nbsp;|&nbsp; RA 10173 — Data Privacy Act of 2012</span>
+
+    <p>This Privacy Policy describes how <strong>PAYWIFI</strong> &mdash; a WiFi hotspot platform developed by <strong>TECHPINOY</strong> and run by the <strong>operator</strong> of this hotspot &mdash; collects, uses, stores, and protects your personal data when you use the WiFi service. By using this service, you acknowledge that you have read and understood this policy.</p>
+
+    <h2>About PAYWIFI &amp; the Service Provider</h2>
+    <p><strong>PAYWIFI</strong> (<a href="https://paywifi.net" target="_blank">paywifi.net</a>) is a captive-portal WiFi hotspot solution &mdash; covering voucher sales, time/bandwidth management, payments, and session control &mdash; <strong>developed by TECHPINOY</strong>.</p>
+    <div class="box">
+      <p><strong>TECHPINOY</strong> &mdash; I.T. Service and AI Automation<br/>
+      Services: IT support, cloud management, web development, and workflow automation.<br/>
+      Website: <a href="https://techpinoy.com" target="_blank">techpinoy.com</a> &nbsp;|&nbsp; Email: <a href="mailto:james.bajillo@gmail.com">james.bajillo@gmail.com</a> &nbsp;|&nbsp; Mobile: 09771188880</p>
+    </div>
+    <p><strong>PAYWIFI is a configurable hotspot management platform</strong> deployed according to each operator's environment and requirements. TECHPINOY acts as the <strong>platform developer, service provider, and system integrator</strong> &mdash; it is <strong>not</strong> an internet service operator, a telecommunications carrier, or a public internet provider.</p>
+    <p>The <strong>hotspot operator/client</strong> who runs this deployment is solely responsible for internet operations, business permits, regulatory compliance, user-data compliance, consumer notices, operational legality, and ISP/network operations. The operator acts as the Personal Information Controller described below.</p>
+
+    <h2>1. Personal Information Controller</h2>
+    <p>The Personal Information Controller (PIC) for this service is:</p>
+    <div class="box">
+      <p><strong>The hotspot operator</strong> (the business running this WiFi service)<br/>
+      Contact: <a href="mailto:james.bajillo@gmail.com">james.bajillo@gmail.com</a> &nbsp;|&nbsp; Mobile: 09771188880<br/>
+      For data-subject requests, privacy concerns, or complaints, please use the contact above. The operator is accountable for the personal data processed through this hotspot.</p>
+    </div>
+
+    <h2>2. Data We Collect</h2>
+    <ul>
+      <li><strong>Device identifier (MAC address)</strong> — used to maintain your session, remember your device, and prevent abuse of the free trial feature.</li>
+      <li><strong>IP address</strong> — assigned by the network and logged with each session for security and legal compliance purposes.</li>
+      <li><strong>Phone number</strong> — collected only when you use the Free WiFi trial feature, to deliver your voucher via SMS.</li>
+      <li><strong>Session data</strong> — connection start and end times, data volume (bytes in/out), and voucher used.</li>
+      <li><strong>Payment data</strong> — payment channel used (e.g. GCash, Maya), transaction reference number, and amount. Card numbers and account credentials are never stored — they are processed directly by our licensed online payment processing partner.</li>
+    </ul>
+
+    <h2>3. Purpose of Processing</h2>
+    <ul>
+      <li>To provide and manage internet access sessions purchased through our service.</li>
+      <li>To deliver free trial voucher codes via SMS upon request.</li>
+      <li>To prevent abuse, enforce session and usage limits, and maintain network integrity.</li>
+      <li>To comply with applicable Philippine laws including RA 10175 (Cybercrime Prevention Act) which may require retention of connection logs.</li>
+      <li>To process and record payments made for internet access.</li>
+    </ul>
+
+    <h2>4. Legal Basis</h2>
+    <p>Processing is based on: (a) performance of a contract — to provide the service you purchased; (b) compliance with a legal obligation — connection logging required under RA 10175; and (c) your consent — for SMS voucher delivery (freely withdrawable by not using the Free WiFi feature).</p>
+
+    <h2>5. Data Retention</h2>
+    <ul>
+      <li><strong>Session records:</strong> retained for 90 days, then automatically deleted.</li>
+      <li><strong>Free trial claims and phone numbers:</strong> retained for 90 days from the date of claim.</li>
+      <li><strong>Payment records:</strong> retained for 5 years in accordance with BIR and AMLC financial record-keeping requirements.</li>
+      <li><strong>Activity audit logs:</strong> retained for 12 months, then automatically deleted.</li>
+      <li><strong>Connection logs (RA 10175):</strong> retained for at least 6 months.</li>
+    </ul>
+
+    <h2>6. Data Sharing</h2>
+    <p>We do not sell your personal data. Data may be shared with:</p>
+    <ul>
+      <li><strong>SMS delivery provider</strong> — your mobile number is shared with a third-party SMS delivery provider solely to send your voucher codes and access notifications.</li>
+      <li><strong>Payment processing partner</strong> — payment reference data is handled by a licensed online payment processing partner to complete your transaction.</li>
+      <li><strong>Law enforcement</strong> — connection logs and session data may be disclosed in response to a valid court order or law enforcement request under RA 10175.</li>
+    </ul>
+
+    <h2>7. Your Rights Under RA 10173</h2>
+    <p>As a data subject, you have the right to:</p>
+    <ul>
+      <li><strong>Be informed</strong> — this policy fulfills that right.</li>
+      <li><strong>Access</strong> — request a copy of the personal data we hold about you.</li>
+      <li><strong>Rectification</strong> — request correction of inaccurate data.</li>
+      <li><strong>Erasure / Blocking</strong> — request deletion of your data, subject to legal retention requirements.</li>
+      <li><strong>Object</strong> — object to processing in certain circumstances.</li>
+      <li><strong>Portability</strong> — request your data in a structured, electronic format.</li>
+      <li><strong>Lodge a Complaint</strong> — you may file a complaint with the National Privacy Commission at <a href="https://www.privacy.gov.ph" target="_blank">privacy.gov.ph</a>.</li>
+    </ul>
+    <p style="margin-top:.5rem">To exercise any of these rights, contact us at: <a href="mailto:james.bajillo@gmail.com">james.bajillo@gmail.com</a>. We will respond within 15 business days.</p>
+
+    <h2>8. Security Measures</h2>
+    <p>We implement technical and organizational measures to protect your personal data, including network-layer access controls, encrypted HTTPS administration, server-side input validation, and periodic security audits. No method of transmission over the internet is 100% secure; however, we strive to protect your data using reasonable means.</p>
+
+    <h2>9. Cookies and Similar Technologies</h2>
+    <p>This service does not use browser cookies on the captive portal. An HTTP session identifier is used temporarily to manage your payment flow and is discarded when the transaction completes.</p>
+
+    <h2>10. Changes to This Policy</h2>
+    <p>We may update this Privacy Policy from time to time. The effective date at the top of this page will reflect the most recent revision. Continued use of the service after changes constitutes acceptance of the updated policy.</p>
+
+    <h2>11. Contact Us</h2>
+    <div class="box">
+      <p><strong>Hotspot Operator (Data Protection contact)</strong><br/>
+      Email: <a href="mailto:james.bajillo@gmail.com">james.bajillo@gmail.com</a> &nbsp;|&nbsp; Mobile: 09771188880<br/>
+      National Privacy Commission: <a href="https://www.privacy.gov.ph" target="_blank">privacy.gov.ph</a></p>
+      <p style="margin-top:.75rem"><strong>Platform Developer</strong><br/>
+      TECHPINOY &mdash; <a href="https://techpinoy.com" target="_blank">techpinoy.com</a> (platform developer / system integrator, not the internet operator)</p>
+    </div>
+
+    <hr/>
+    <p style="font-size:.7rem;color:#475569;text-align:center">PAYWIFI Privacy Policy &mdash; Effective May 2026 &mdash; Compliant with RA 10173 (Data Privacy Act of 2012)</p>
+  </div>
+<script>
+function pwCloseOverlay(){try{var so=document.referrer&&document.referrer.indexOf(location.protocol+'//'+location.host)===0;if(so&&window.history.length>1){window.history.back();return;}}catch(e){}location.href='/';}
+document.addEventListener('keydown',function(e){if(e.key==='Escape')pwCloseOverlay();});
+</script>
+<script>try{if(window.self!==window.top){document.documentElement.style.background="transparent";document.body.style.background="transparent";document.body.style.padding="1rem";[".pw-portal-bg",".pw-portal-scrim",".pw-close",".back"].forEach(function(sel){var el=document.querySelector(sel);if(el)el.style.display="none";});}}catch(e){}</script>
+</body>
+</html>

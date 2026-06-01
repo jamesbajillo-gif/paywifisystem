@@ -1,0 +1,23 @@
+<div class="max-w-sm mx-auto mt-16">
+  <div class="text-center mb-6">
+    <p class="text-[11px] font-bold uppercase tracking-[0.2em]" style="color:var(--primary)">PAYWIFI</p>
+    <h1 class="text-3xl font-bold mt-1">Store operator</h1>
+    <p class="text-sm mt-2" style="color: var(--muted-foreground)">Sign in to confirm cash payments for your store.</p>
+  </div>
+  <% if (error) { %>
+    <div class="mb-3 rounded-xl px-4 py-3 text-sm border"
+      style="background-color: color-mix(in oklab, var(--destructive) 8%, var(--card)); color: var(--destructive); border-color: color-mix(in oklab, var(--destructive) 40%, transparent);">
+      <%= error %>
+    </div>
+  <% } %>
+  <form method="POST" action="/operator/login"
+    class="rounded-2xl border-2 p-5 flex flex-col gap-3" style="background-color: var(--card); border-color: var(--border)">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+    <label class="text-xs font-semibold" style="color: var(--muted-foreground)">Username</label>
+    <input name="username" autofocus required autocomplete="username" autocapitalize="off" />
+    <label class="text-xs font-semibold mt-2" style="color: var(--muted-foreground)">Password</label>
+    <input type="password" name="password" required autocomplete="current-password" />
+    <button type="submit" class="rounded-xl px-4 text-base font-bold mt-3 h-14"
+      style="background-color: var(--primary); color: var(--primary-foreground)">Sign in</button>
+  </form>
+</div>

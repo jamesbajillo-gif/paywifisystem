@@ -1,0 +1,384 @@
+<%
+  var cp  = {}; try { cp  = JSON.parse(campaign.claim_page_config||'{}'); } catch(e){}
+  var sec = {}; try { sec = JSON.parse(campaign.security_config||'{}'); } catch(e){}
+  var trigs = []; try { trigs = JSON.parse(campaign.triggers||'[]'); } catch(e){}
+  var trigSet = {};
+  trigs.forEach(function(t){ trigSet[t]=true; });
+  function chk(key){ return trigSet[key] ? 'checked' : ''; }
+  function schk(v){ return v ? 'checked' : ''; }
+  function val(v,d){ return (v!==null&&v!==undefined&&v!=='') ? v : (d||''); }
+%>
+<!-- Breadcrumb -->
+<div class="flex items-center gap-2 text-xs text-slate-500 mb-4">
+  <a href="/admin/free-trial" class="hover:text-slate-300">Free Trial</a>
+  <span>›</span>
+  <span class="text-slate-300"><%= isNew ? 'New Campaign' : campaign.name %></span>
+</div>
+
+<!-- Stats bar (edit mode only) -->
+<% if (!isNew && stats) { %>
+<div class="grid grid-cols-5 gap-3 mb-5">
+  <% [['Today',stats.today,'brand'],['Week',stats.week,'slate'],['Total',stats.total,'slate'],['Devices',stats.devices,'slate'],['SMS',stats.sms_sent,'green']].forEach(function(s){ %>
+  <div class="bg-slate-800 rounded-lg p-3 text-center">
+    <div class="text-xl font-bold text-<%= s[2] %>-400"><%= s[1] %></div>
+    <div class="text-xs text-slate-500"><%= s[0] %></div>
+  </div>
+  <% }); %>
+</div>
+<% } %>
+
+<form method="POST" action="<%= isNew ? '/admin/free-trial' : '/admin/free-trial/'+campaign.id %>">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+
+  <!-- Tab navigation -->
+  <div class="flex gap-0 overflow-x-auto mb-0 border-b border-slate-700" id="tab-nav">
+    <% ['General','Voucher','Triggers','Alert','Claim Page','Security','Analytics'].forEach(function(tab, i){ %>
+    <button type="button" onclick="switchTab(<%= i %>)" id="tab-btn-<%= i %>"
+      class="tab-btn px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors <%= i===0 ? 'text-brand-400 border-brand-400' : 'text-slate-400 border-transparent hover:text-slate-200' %>">
+      <%= tab %>
+    </button>
+    <% }); %>
+  </div>
+
+  <!-- Tab 0: General -->
+  <div id="tab-0" class="tab-panel pt-5">
+    <div class="grid md:grid-cols-2 gap-4 mb-4">
+      <div>
+        <label class="block text-xs font-semibold text-slate-400 mb-1">Campaign Name *</label>
+        <input type="text" name="name" value="<%= val(campaign.name) %>" required class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-brand-400" />
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-400 mb-1">Status</label>
+        <select name="status" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-brand-400">
+          <option value="enabled" <%= campaign.status==='enabled'?'selected':'' %>>Enabled</option>
+          <option value="disabled" <%= campaign.status!=='enabled'?'selected':'' %>>Disabled</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-400 mb-1">Portal Claimable</label>
+        <label class="flex items-center gap-2 text-sm text-slate-200 mt-1.5 cursor-pointer">
+          <input type="checkbox" name="portal_claimable" value="1" <%= (campaign.portal_claimable===undefined||campaign.portal_claimable) ? 'checked' : '' %> />
+          Guests can claim this from the portal
+        </label>
+        <p class="text-xs text-slate-500 mt-1">Uncheck for auto / nurturing-only stages (e.g. Signup &amp; Welcome rewards issued on registration).</p>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-400 mb-1">Trust-Eligible</label>
+        <label class="flex items-center gap-2 text-sm text-slate-200 mt-1.5 cursor-pointer">
+          <input type="checkbox" name="trust_eligible" value="1" <%= (campaign.trust_eligible===undefined||campaign.trust_eligible) ? 'checked' : '' %> />
+          Auto-create a trusted account when this voucher is redeemed
+        </label>
+        <p class="text-xs text-slate-500 mt-1">When ON, successfully redeeming a voucher from this campaign silently registers the number (background account + device link). Turn OFF for test / non-trust campaigns.</p>
+      </div>
+      <div class="md:col-span-2">
+        <label class="block text-xs font-semibold text-slate-400 mb-1">Description</label>
+        <textarea name="description" rows="2" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-brand-400"><%= val(campaign.description) %></textarea>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-400 mb-1">Priority (lower = higher priority)</label>
+        <input type="number" name="priority" value="<%= val(campaign.priority,0) %>" min="0" max="999" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-brand-400" />
+      </div>
+    </div>
+    <div class="border-t border-slate-700 pt-4 mb-4">
+      <p class="text-xs font-semibold text-slate-400 mb-3">Schedule / Availability</p>
+      <div class="grid md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">Start Date & Time</label>
+          <input type="datetime-local" name="start_datetime" value="<%= val(campaign.start_datetime) %>" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-brand-400" />
+        </div>
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">End Date & Time</label>
+          <input type="datetime-local" name="end_datetime" value="<%= val(campaign.end_datetime) %>" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-brand-400" />
+        </div>
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">Daily Window Start</label>
+          <input type="time" name="daily_start" value="<%= val(campaign.daily_start) %>" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-brand-400" />
+        </div>
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">Daily Window End</label>
+          <input type="time" name="daily_end" value="<%= val(campaign.daily_end) %>" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-brand-400" />
+        </div>
+      </div>
+    </div>
+    <div class="border-t border-slate-700 pt-4">
+      <p class="text-xs font-semibold text-slate-400 mb-3">Claim Limits</p>
+      <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">Max Claims / Day (0=∞)</label>
+          <input type="number" name="max_claims_day" value="<%= val(campaign.max_claims_day,0) %>" min="0" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-brand-400" />
+        </div>
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">Max / User</label>
+          <input type="number" name="max_claims_user" value="<%= val(campaign.max_claims_user,1) %>" min="0" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-brand-400" />
+        </div>
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">Max / Device (MAC)</label>
+          <input type="number" name="max_claims_device" value="<%= val(campaign.max_claims_device,1) %>" min="0" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-brand-400" />
+        </div>
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">Max / IP Address</label>
+          <input type="number" name="max_claims_ip" value="<%= val(campaign.max_claims_ip,3) %>" min="0" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-brand-400" />
+        </div>
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">Cooldown (minutes)</label>
+          <input type="number" name="cooldown_minutes" value="<%= val(campaign.cooldown_minutes,1440) %>" min="0" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-brand-400" />
+          <p class="text-xs text-slate-600 mt-0.5">1440 = 24h / 10080 = 7d</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab 1: Voucher -->
+  <div id="tab-1" class="tab-panel pt-5 hidden">
+    <div class="grid md:grid-cols-2 gap-4 mb-4">
+      <div class="md:col-span-2">
+        <label class="block text-xs font-semibold text-slate-400 mb-1">Voucher Plan (optional — overrides duration/speed)</label>
+        <select name="plan_id" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-brand-400">
+          <option value="">— Custom (use fields below) —</option>
+          <% plans.forEach(function(p){ %>
+          <option value="<%= p.id %>" <%= String(campaign.plan_id)===String(p.id)?'selected':'' %>><%= p.name %> (<%= p.duration_minutes %>min, <%= Math.round(p.bandwidth_kbps/1024) %>Mbps)<%= p.is_active ? '' : ' — hidden' %></option>
+          <% }); %>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-400 mb-1">Duration (minutes)</label>
+        <input type="number" name="duration_minutes" value="<%= val(campaign.duration_minutes,120) %>" min="1" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-brand-400" />
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-400 mb-1">Expiry (minutes after activation)</label>
+        <input type="number" name="expiry_minutes" value="<%= val(campaign.expiry_minutes,240) %>" min="1" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-brand-400" />
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-400 mb-1">Download Speed (Mbps)</label>
+        <input type="number" name="speed_down_mbps" value="<%= val(campaign.speed_down_mbps,10) %>" min="1" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-brand-400" />
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-400 mb-1">Upload Speed (Mbps)</label>
+        <input type="number" name="speed_up_mbps" value="<%= val(campaign.speed_up_mbps,5) %>" min="1" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-brand-400" />
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-400 mb-1">Voucher Code Prefix</label>
+        <input type="text" name="voucher_prefix" value="<%= val(campaign.voucher_prefix,'FT') %>" maxlength="8" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono focus:outline-none focus:border-brand-400" />
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-400 mb-1">Generation Delay (seconds)</label>
+        <input type="number" name="generation_delay_sec" value="<%= val(campaign.generation_delay_sec,0) %>" min="0" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-brand-400" />
+        <p class="text-xs text-slate-600 mt-0.5">0 = instant. Delay before code is revealed (ad view window).</p>
+      </div>
+    </div>
+    <div class="border-t border-slate-700 pt-4">
+      <div class="flex items-center justify-between mb-3">
+        <p class="text-xs font-semibold text-slate-400">SMS Delivery</p>
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" name="sms_enabled" value="1" <%= campaign.sms_enabled?'checked':'' %> class="rounded" />
+          <span class="text-xs text-slate-300">Enable SMS</span>
+        </label>
+      </div>
+      <label class="block text-xs text-slate-500 mb-1">SMS Template</label>
+      <textarea name="sms_template" rows="3" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono focus:outline-none focus:border-brand-400"><%= val(campaign.sms_template) %></textarea>
+      <p class="text-xs text-slate-600 mt-1">Variables: <code>{{code}}</code> <code>{{duration}}</code> <code>{{speed}}</code> <code>{{expiry}}</code></p>
+    </div>
+  </div>
+
+  <!-- Tab 2: Triggers -->
+  <div id="tab-2" class="tab-panel pt-5 hidden">
+    <p class="text-xs text-slate-400 mb-4">This campaign will be offered to a device if it matches <strong class="text-slate-300">any</strong> of the selected conditions. Leave all unchecked to show to everyone.</p>
+    <div class="grid md:grid-cols-2 gap-3">
+      <% var triggerDefs = [
+        ['new_guest','New Guest','Device has no session history AND no MAC record'],
+        ['no_session','No Active Session','Device currently has no active paid session'],
+        ['no_mac_record','Device Not Recognized','MAC address not in remembered devices list'],
+        ['first_visit','First-Time Visitor','Device has never claimed any free trial'],
+        ['has_account','Registered User','Device is linked to a registered mobile account'],
+        ['no_account','Unregistered User','Device has not registered a mobile account'],
+        ['after_registration','Just Registered','User completed account registration in this session'],
+        ['phone_not_used','Phone Not Used','Phone number has not been used for any free trial'],
+        ['delay_trigger','Delay Trigger','Show after the configured delay seconds'],
+        ['referral','Referral','User arrived via a referral link (future)']
+      ]; %>
+      <% triggerDefs.forEach(function(td){ %>
+      <label class="flex gap-3 bg-slate-800 rounded-lg p-4 cursor-pointer hover:bg-slate-700 transition-colors border border-slate-700">
+        <input type="checkbox" name="triggers" value="<%= td[0] %>" <%= chk(td[0]) %> class="mt-0.5 shrink-0" />
+        <div>
+          <p class="text-sm font-semibold text-slate-200"><%= td[1] %></p>
+          <p class="text-xs text-slate-500"><%= td[2] %></p>
+        </div>
+      </label>
+      <% }); %>
+    </div>
+  </div>
+
+  <!-- Tab 3: Alert -->
+  <div id="tab-3" class="tab-panel pt-5 hidden">
+    <p class="text-xs text-slate-400 mb-4">Configure the notification shown to eligible devices on the captive portal.</p>
+    <div class="grid md:grid-cols-2 gap-4">
+      <div class="md:col-span-2">
+        <label class="block text-xs font-semibold text-slate-400 mb-1">Alert Title</label>
+        <input type="text" name="alert_title" value="<%= val(campaign.alert_title,'Welcome! Get Free WiFi') %>" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-brand-400" />
+      </div>
+      <div class="md:col-span-2">
+        <label class="block text-xs font-semibold text-slate-400 mb-1">Alert Message</label>
+        <textarea name="alert_message" rows="3" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-brand-400"><%= val(campaign.alert_message) %></textarea>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-400 mb-1">CTA Button Text</label>
+        <input type="text" name="alert_cta" value="<%= val(campaign.alert_cta,'Claim Free Trial') %>" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-brand-400" />
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-400 mb-1">Popup Display Delay (seconds)</label>
+        <input type="number" name="alert_delay_sec" value="<%= val(campaign.alert_delay_sec,0) %>" min="0" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-brand-400" />
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-400 mb-1">Auto-Dismiss After (seconds, 0=never)</label>
+        <input type="number" name="alert_dismiss_sec" value="<%= val(campaign.alert_dismiss_sec,0) %>" min="0" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-brand-400" />
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab 4: Claim Page -->
+  <div id="tab-4" class="tab-panel pt-5 hidden">
+    <div class="grid md:grid-cols-2 gap-4 mb-4">
+      <div>
+        <label class="block text-xs font-semibold text-slate-400 mb-1">Page Header Text</label>
+        <input type="text" name="cp_header" value="<%= val(cp.header_text,'Get Your Free Trial') %>" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-brand-400" />
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-400 mb-1">Claim Button Text</label>
+        <input type="text" name="cp_claim_btn" value="<%= val(cp.claim_btn,'Claim Free WiFi') %>" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-brand-400" />
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-400 mb-1">Loading Message</label>
+        <input type="text" name="cp_loading" value="<%= val(cp.loading_msg,'Generating your voucher…') %>" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-brand-400" />
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-400 mb-1">Success Message</label>
+        <input type="text" name="cp_success" value="<%= val(cp.success_msg,'Your voucher has been sent via SMS!') %>" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-brand-400" />
+      </div>
+      <div class="flex gap-6">
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" name="cp_phone_prefill" value="1" <%= schk(cp.phone_prefill) %> class="rounded" />
+          <span class="text-xs text-slate-300">Pre-fill phone number</span>
+        </label>
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" name="cp_sms_consent" value="1" <%= cp.sms_consent!==false?'checked':'' %> class="rounded" />
+          <span class="text-xs text-slate-300">SMS consent checkbox</span>
+        </label>
+      </div>
+    </div>
+    <div class="border-t border-slate-700 pt-4">
+      <p class="text-xs font-semibold text-slate-400 mb-3">Advertisement</p>
+      <div class="grid md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">Ad Type</label>
+          <select name="cp_ad_type" id="cp_ad_type" onchange="document.getElementById('ad-fields').classList.toggle('hidden',this.value==='none')" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-brand-400">
+            <option value="none" <%= (cp.ad_type||'none')==='none'?'selected':'' %>>None</option>
+            <option value="google" <%= cp.ad_type==='google'?'selected':'' %>>Google Ads</option>
+            <option value="youtube" <%= cp.ad_type==='youtube'?'selected':'' %>>YouTube Video</option>
+            <option value="html" <%= cp.ad_type==='html'?'selected':'' %>>Custom HTML</option>
+          </select>
+        </div>
+        <div id="ad-fields" class="<%= (!cp.ad_type || cp.ad_type==='none') ? 'hidden' : '' %>">
+          <label class="block text-xs text-slate-500 mb-1">Ad Slot / Video URL</label>
+          <input type="text" name="cp_ad_slot" value="<%= val(cp.ad_slot) %>" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-brand-400" />
+        </div>
+        <div class="md:col-span-2">
+          <label class="block text-xs text-slate-500 mb-1">Custom HTML / Ad Code</label>
+          <textarea name="cp_ad_content" rows="4" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono text-xs focus:outline-none focus:border-brand-400"><%= val(cp.ad_content) %></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab 5: Security -->
+  <div id="tab-5" class="tab-panel pt-5 hidden">
+    <p class="text-xs text-slate-400 mb-4">Anti-abuse protections for this campaign.</p>
+    <div class="grid md:grid-cols-2 gap-3">
+      <% var secDefs = [
+        ['sec_mac','sec','duplicate_mac','MAC Address Validation','Block if same MAC already claimed'],
+        ['sec_ip','sec','duplicate_ip','IP Address Validation','Block if same IP already claimed'],
+        ['sec_phone','sec','duplicate_phone','Phone Number Validation','Block if same phone already used'],
+        ['sec_rl','sec','rate_limit','Rate Limiting','Apply global rate limits to this campaign'],
+        ['sec_otp','sec','otp_required','OTP Verification','Require SMS OTP before claiming'],
+        ['sec_vpn','sec','vpn_block','VPN / Proxy Block','Reject claims from VPN or proxy IPs'],
+        ['sec_fraud','sec','fraud_rules','Fraud Detection','Enable advanced fraud detection rules']
+      ]; %>
+      <% secDefs.forEach(function(sd){ %>
+      <label class="flex gap-3 bg-slate-800 rounded-lg p-4 cursor-pointer hover:bg-slate-700 transition-colors border border-slate-700">
+        <input type="checkbox" name="<%= sd[0] %>" value="1" <%= schk(sec[sd[2]]) %> class="mt-0.5 shrink-0" />
+        <div>
+          <p class="text-sm font-semibold text-slate-200"><%= sd[3] %></p>
+          <p class="text-xs text-slate-500"><%= sd[4] %></p>
+        </div>
+      </label>
+      <% }); %>
+    </div>
+  </div>
+
+  <!-- Tab 6: Analytics -->
+  <div id="tab-6" class="tab-panel pt-5 hidden">
+    <% if (isNew) { %>
+      <p class="text-slate-400 text-sm text-center py-8">Analytics will appear here after the campaign is saved and claims are recorded.</p>
+    <% } else { %>
+      <!-- Claims table -->
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-sm font-semibold text-slate-200">Recent Claims (<%= claims.length %>)</h3>
+        <button type="submit" name="_action" value="reset_claims" formnovalidate onclick="return confirm('Delete all claims for this campaign? Cannot be undone.')" class="px-3 py-1 rounded bg-red-900/30 hover:bg-red-900/60 text-red-400 text-xs font-medium">Reset Claims</button>
+      </div>
+      <div class="bg-slate-800 rounded-lg overflow-hidden">
+        <% if (!claims || claims.length===0) { %>
+          <p class="text-center text-slate-500 text-sm py-8">No claims recorded yet.</p>
+        <% } else { %>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead><tr class="text-xs text-slate-400 uppercase tracking-wide border-b border-slate-700">
+                <th class="text-left px-4 py-2">Phone</th>
+                <th class="text-left px-4 py-2">MAC</th>
+                <th class="text-left px-4 py-2">Code</th>
+                <th class="text-left px-4 py-2">SMS</th>
+                <th class="text-left px-4 py-2">Claimed</th>
+              </tr></thead>
+              <tbody>
+              <% claims.forEach(function(c){ %>
+                <tr class="border-b border-slate-700/50 hover:bg-slate-700/30">
+                  <td class="px-4 py-2 font-mono text-xs text-slate-300"><%= c.phone_number||'—' %></td>
+                  <td class="px-4 py-2 font-mono text-xs text-slate-400"><%= c.mac_address||'—' %></td>
+                  <td class="px-4 py-2 font-mono text-xs text-brand-400"><%= c.code||'—' %></td>
+                  <td class="px-4 py-2 text-xs">
+                    <% if(c.sms_status==='sent'){ %><span class="px-1.5 py-0.5 rounded bg-green-900/50 text-green-400">Sent</span>
+                    <% } else if(c.sms_status==='failed'){ %><span class="px-1.5 py-0.5 rounded bg-red-900/50 text-red-400">Failed</span>
+                    <% } else { %><span class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400">Pending</span><% } %>
+                  </td>
+                  <td class="px-4 py-2 text-xs text-slate-400"><%= c.claimed_at ? new Date(c.claimed_at*1000).toLocaleString() : '—' %></td>
+                </tr>
+              <% }); %>
+              </tbody>
+            </table>
+          </div>
+        <% } %>
+      </div>
+    <% } %>
+  </div>
+
+  <!-- Footer -->
+  <div class="flex items-center justify-between mt-6 pt-4 border-t border-slate-700 gap-3 flex-wrap">
+    <a href="/admin/free-trial" class="text-sm text-slate-400 hover:text-slate-200">← Back to campaigns</a>
+    <div class="flex gap-2">
+      <% if (!isNew) { %>
+      <button type="submit" name="_action" value="delete" formnovalidate onclick="return confirm('Delete this campaign?')" class="px-4 py-2 rounded bg-red-900/30 hover:bg-red-900/60 text-red-400 text-sm font-semibold">Delete</button>
+      <% } %>
+      <button type="submit" class="px-6 py-2 rounded bg-brand-500 hover:bg-brand-600 text-white text-sm font-bold"><%= isNew ? 'Create Campaign' : 'Save Changes' %></button>
+    </div>
+  </div>
+</form>
+
+<script>
+function switchTab(idx) {
+  document.querySelectorAll('.tab-panel').forEach(function(p,i){ p.classList.toggle('hidden',i!==idx); });
+  document.querySelectorAll('.tab-btn').forEach(function(b,i){
+    b.classList.toggle('text-brand-400',i===idx); b.classList.toggle('border-brand-400',i===idx);
+    b.classList.toggle('text-slate-400',i!==idx); b.classList.toggle('border-transparent',i!==idx);
+  });
+}
+// Open analytics tab if hash
+if (window.location.hash === '#analytics') switchTab(6);
+</script>
