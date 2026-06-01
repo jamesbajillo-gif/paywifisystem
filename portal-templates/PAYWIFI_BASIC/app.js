@@ -1326,7 +1326,25 @@ async function onCheckoutSubmit(e) {
       // "stay" → no action; user remains on checkout
       return;
     }
-    showAlert(res?.error || "Could not start payment. Please try again.");
+    // FRIENDLY-MSG-MAP-2026-06-02 — defensive map for code-only responses,
+    // so even if the backend returns just a `code` the user sees plain language.
+    var _FRIENDLY = {
+      NON_LAN_HOST:        "Connect to the PAYWIFI hotspot WiFi first \u2014 payments can't be made from outside the network.",
+      RATE_LIMITED:        "You're making payment requests too quickly. Please wait a moment and try again.",
+      FREE_TRIAL_CLAIMED:  "You've already used your free trial recently. Please try again later or buy a plan.",
+      PLAN_MISMATCH:       "You have a pending payment for a different plan. Cancel it before switching plans.",
+      METHOD_MISMATCH:     "You already have a pending payment with a different method. Cancel it before switching.",
+      ALREADY_PENDING:     "You already have a pending payment for this plan. Tap Continue to finish, or Cancel to start a new one.",
+      not_your_store:      "This payment was routed to a different store.",
+      wrong_state:         "This payment is no longer in a state where this action is allowed.",
+      race_lost:           "Another action claimed this payment first.",
+      already_paid:        "This payment was already confirmed.",
+      public_host_blocked: "Connect to the PAYWIFI hotspot WiFi first \u2014 payments can't be made from outside the network."
+    };
+    var _msg = (res && res.error)
+      || (res && res.code && _FRIENDLY[res.code])
+      || "Could not start payment. Please try again.";
+    showAlert(_msg);
   }
 }
 

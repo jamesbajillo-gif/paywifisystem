@@ -487,7 +487,7 @@ router.post('/payment/create', async (req, res) => {
   // including cash. 3 attempts / 15-min window (configurable).
   {
     const rlChk = rl.rlCheck(clientMac, clientIp, now);
-    if (!rlChk.ok) return res.status(429).json({ ok: false, error: 'rate_limited', reason: rlChk.reason, retry_after: rlChk.retry_after });
+    if (!rlChk.ok) return res.status(429).json({ ok: false, code: 'RATE_LIMITED', error: 'You\'re making payment requests too quickly. Please wait a moment and try again.', reason: rlChk.reason, retry_after: rlChk.retry_after });
     rl.rlRecord(clientMac, clientIp, now);
   }
 
@@ -1046,14 +1046,14 @@ router.post('/free-trial/claim', async (req, res) => {
     const prevClaim = db.prepare('SELECT claimed_at FROM free_trial_claims WHERE campaign_id=? AND mac_address=? ORDER BY claimed_at DESC LIMIT 1').get(campaign.id, mac);
     if (prevClaim) {
       const retryAfter = Math.max(0, (prevClaim.claimed_at + campaign.cooldown_minutes * 60) - now);
-      return res.status(429).json({ ok: false, error: 'free_trial_claimed', retry_after: retryAfter });
+      return res.status(429).json({ ok: false, code: 'FREE_TRIAL_CLAIMED', error: 'You\'ve already used your free trial recently. Please try again later or buy a plan.', retry_after: retryAfter });
     }
   }
   if (sec.duplicate_ip !== false && ip) {
     const ipCount = db.prepare('SELECT COUNT(*) n FROM free_trial_claims WHERE campaign_id=? AND ip_address=?').get(campaign.id, ip).n;
     const ipMax   = campaign.max_claims_ip > 0 ? campaign.max_claims_ip : 3;
     if (ipCount >= ipMax) {
-      return res.status(429).json({ ok: false, error: 'free_trial_claimed', retry_after: 0 });
+      return res.status(429).json({ ok: false, code: 'FREE_TRIAL_CLAIMED', error: 'You\'ve already used your free trial. Buy a plan to keep connected.', retry_after: 0 });
     }
   }
 
@@ -1061,7 +1061,7 @@ router.post('/free-trial/claim', async (req, res) => {
   const phHash = hashPhone(normPhone);
   const phCd   = campaign.cooldown_minutes * 60;
   const rPhone = db.prepare('SELECT claimed_at FROM free_trial_claims WHERE campaign_id=? AND phone_number=? AND claimed_at>? LIMIT 1').get(campaign.id, phHash, now - phCd);
-  if (rPhone) return res.status(429).json({ ok: false, error: 'free_trial_claimed', retry_after: (rPhone.claimed_at + phCd) - now });
+  if (rPhone) return res.status(429).json({ ok: false, code: 'FREE_TRIAL_CLAIMED', error: 'This phone number has already claimed a free trial recently. Please try again later.', retry_after: (rPhone.claimed_at + phCd) - now });
 
   // Build or use voucher plan from campaign settings
   const bandwidthKbps = campaign.speed_down_mbps * 1024;

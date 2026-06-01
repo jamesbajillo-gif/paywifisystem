@@ -35,8 +35,8 @@ module.exports = function blockPublicPayments(req, res, next) {
     return res.status(403).json({
       ok: false,
       code: 'NON_LAN_HOST',
-      error: 'public_host_blocked',
-      message: 'Payments must be made on the PAYWIFI hotspot network. Connect to the hotspot Wi-Fi and try again.'
+      error: 'Connect to the PAYWIFI hotspot WiFi first — payments can\'t be made from outside the network.',
+      message: 'Connect to the PAYWIFI hotspot WiFi first — payments can\'t be made from outside the network.'
     });
   }
   next();

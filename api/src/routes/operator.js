@@ -215,11 +215,11 @@ router.post('/api/confirm/:id', async (req, res) => {
   ).get(id);
   if (!row)                              return res.status(404).json({ ok: false, error: 'not_found' });
   // Store-ownership: an operator can ONLY confirm payments routed to their store.
-  if (row.store_id !== req.operator.id)  return res.status(403).json({ ok: false, error: 'not_your_store' });
+  if (row.store_id !== req.operator.id)  return res.status(403).json({ ok: false, code: 'not_your_store', error: 'This payment was routed to a different store.' });
   if (row.status === 'paid')             return res.json({ ok: false, error: 'already_confirmed', voucher_id: row.voucher_id });
   if (row.status === 'cancelled')        return res.json({ ok: false, error: 'cancelled' });
   if (row.status === 'expired')          return res.json({ ok: false, error: 'expired' });
-  if (row.status !== 'manual')           return res.json({ ok: false, error: 'wrong_state', state: row.status });
+  if (row.status !== 'manual')           return res.json({ ok: false, code: 'wrong_state', error: 'This payment is no longer in a confirmable state.', state: row.status });
   if (row.expires_at && row.expires_at <= now) return res.json({ ok: false, error: 'expired' });
 
   const codeLen = parseInt(
@@ -265,7 +265,7 @@ router.post('/api/confirm/:id', async (req, res) => {
     if (paid && paid.status === 'paid' && paid.code) {
       return res.json({ ok: true, code: paid.code, already_paid: true });
     }
-    return res.status(409).json({ ok: false, error: 'race_lost', state: paid ? paid.status : 'unknown' });
+    return res.status(409).json({ ok: false, code: 'race_lost', error: 'Another channel claimed this payment first.', state: paid ? paid.status : 'unknown' });
   }
 
   try {
@@ -338,14 +338,14 @@ router.post('/api/cancel/:id', (req, res) => {
   const row = db.prepare('SELECT id, status, store_id, channel_name, amount FROM pending_payments WHERE id=?').get(id);
   if (!row)                              return res.status(404).json({ ok: false, error: 'not_found' });
   if (row.store_id !== req.operator.id)  return res.status(403).json({ ok: false, error: 'not_your_store' });
-  if (row.status === 'paid')             return res.json({ ok: false, error: 'already_paid' });
+  if (row.status === 'paid')             return res.json({ ok: false, code: 'already_paid', error: 'This payment was already confirmed and a voucher was issued.' });
   if (row.status === 'cancelled')        return res.json({ ok: true, already: true });
   if (!['pending','manual','reserving'].includes(row.status))
-                                         return res.json({ ok: false, error: 'wrong_state', state: row.status });
+                                         return res.json({ ok: false, code: 'wrong_state', error: 'This payment is no longer in a state where it can be cancelled.', state: row.status });
 
   // Atomic claim: only one path can flip the row.
   const r = db.prepare("UPDATE pending_payments SET status='cancelled', updated_at=? WHERE id=? AND status=?").run(now, id, row.status);
-  if (r.changes === 0) return res.status(409).json({ ok: false, error: 'race_lost' });
+  if (r.changes === 0) return res.status(409).json({ ok: false, code: 'race_lost', error: 'Another action claimed this payment first.' });
 
   try {
     db.prepare(
