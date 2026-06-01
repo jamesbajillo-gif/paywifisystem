@@ -1,0 +1,268 @@
+#!/usr/bin/env bash
+# PAYWIFI-UPDATE — pull the latest from GitHub and reconcile the running system.
+#
+# Usage:
+#   sudo paywifi-update              # pull, apply, reload only what changed
+#   sudo paywifi-update --dry-run    # show what would change, change nothing
+#   sudo paywifi-update --force      # apply everything even if git reports no change
+#   sudo paywifi-update --branch X   # pull a specific branch (default: main)
+#
+# Strategy: the repo at /opt/paywifi-repo is the source of truth. After
+# `git pull` we rsync into the live paths, run npm install only if
+# package.json changed, syntax-check JS, and reload only the services whose
+# inputs changed. Secrets and the database are never touched.
+
+set -euo pipefail
+
+REPO=/opt/paywifi-repo
+BRANCH=main
+DRY=0
+FORCE=0
+LOG=/var/log/paywifi/update.log
+TS=$(date +%F-%H%M%S)
+
+# ── helpers ─────────────────────────────────────────────────────────────────
+log()  { printf '%s %s\n' "$(date '+%F %T')" "$*" | tee -a "$LOG"; }
+warn() { printf '\033[33m%s %s\033[0m\n' "$(date '+%F %T')" "$*" | tee -a "$LOG" >&2; }
+err()  { printf '\033[31m%s %s\033[0m\n' "$(date '+%F %T')" "$*" | tee -a "$LOG" >&2; }
+ok()   { printf '\033[32m%s %s\033[0m\n' "$(date '+%F %T')" "$*" | tee -a "$LOG"; }
+
+run() {
+  if [ "$DRY" = 1 ]; then
+    printf '  [dry-run] %s\n' "$*" | tee -a "$LOG"
+  else
+    "$@"
+  fi
+}
+
+# ── args ────────────────────────────────────────────────────────────────────
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --dry-run) DRY=1 ;;
+    --force)   FORCE=1 ;;
+    --branch)  shift; BRANCH="$1" ;;
+    -h|--help) sed -n '1,15p' "$0"; exit 0 ;;
+    *) err "unknown arg: $1"; exit 2 ;;
+  esac
+  shift
+done
+
+[ "$EUID" -eq 0 ] || { err "must run as root"; exit 1; }
+mkdir -p "$(dirname "$LOG")"; touch "$LOG"
+chmod 640 "$LOG" 2>/dev/null || true
+
+if [ ! -d "$REPO/.git" ]; then
+  err "$REPO is not a git checkout. Initial sync hasn't been done."
+  exit 1
+fi
+
+# ── pull ────────────────────────────────────────────────────────────────────
+log "── paywifi-update started (branch=$BRANCH dry=$DRY force=$FORCE) ──"
+cd "$REPO"
+
+BEFORE=$(git rev-parse HEAD)
+export GIT_SSH_COMMAND='ssh -i /root/.ssh/paywifi_github -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new'
+
+run git fetch --quiet origin "$BRANCH"
+if [ "$DRY" = 0 ]; then
+  git checkout -q "$BRANCH"
+  git reset -q --hard "origin/$BRANCH"
+fi
+AFTER=$(git rev-parse HEAD)
+
+log "before: $BEFORE"
+log "after:  $AFTER"
+
+if [ "$BEFORE" = "$AFTER" ] && [ "$FORCE" = 0 ]; then
+  ok "already up to date — nothing to do"
+  exit 0
+fi
+
+if [ "$BEFORE" != "$AFTER" ]; then
+  log "── changed files ──"
+  git diff --name-only "$BEFORE" "$AFTER" | sed 's/^/    /' | tee -a "$LOG"
+fi
+
+# Detect change categories
+CHANGED=$(git diff --name-only "$BEFORE" "$AFTER" 2>/dev/null || true)
+[ "$FORCE" = 1 ] && CHANGED="api/ portal-templates/ scripts/sbin/ ops/systemd/ ops/nginx/ ops/dnsmasq/ ops/sudoers/"
+
+changed() { printf '%s\n' "$CHANGED" | grep -q "^$1"; }
+
+NEED_API_RESTART=0
+NEED_SESSIOND_RESTART=0
+NEED_NGINX_RELOAD=0
+NEED_DNSMASQ_RELOAD=0
+NEED_DAEMON_RELOAD=0
+NEED_NPM_INSTALL=0
+
+# ── api/ — Node source ──────────────────────────────────────────────────────
+if changed "api/"; then
+  log "── sync api/src + api/views ──"
+  run rsync -a --delete \
+    --exclude='node_modules/' --exclude='*.bak.*' --exclude='*.bak-*' \
+    "$REPO/api/src/"  /opt/paywifi/api/src/
+  if [ -d "$REPO/api/views" ]; then
+    run rsync -a --delete --exclude='*.bak.*' --exclude='*.bak-*' \
+      "$REPO/api/views/" /opt/paywifi/api/views/
+  fi
+  if [ -f "$REPO/api/package.json" ]; then
+    # Compare package.json to detect dep changes
+    if ! cmp -s "$REPO/api/package.json" /opt/paywifi/api/package.json 2>/dev/null; then
+      log "  package.json changed → will npm install"
+      NEED_NPM_INSTALL=1
+      run cp "$REPO/api/package.json"      /opt/paywifi/api/package.json
+      [ -f "$REPO/api/package-lock.json" ] && run cp "$REPO/api/package-lock.json" /opt/paywifi/api/package-lock.json
+    fi
+  fi
+  run chown -R paywifi:paywifi /opt/paywifi/api/src /opt/paywifi/api/views 2>/dev/null || true
+  NEED_API_RESTART=1
+  # sessiond is part of api/src — restart it too
+  if printf '%s\n' "$CHANGED" | grep -q "api/src/sessiond"; then
+    NEED_SESSIOND_RESTART=1
+  fi
+fi
+
+# ── portal-templates/ ───────────────────────────────────────────────────────
+if changed "portal-templates/"; then
+  log "── sync portal-templates ──"
+  run rsync -a --delete --exclude='*.bak.*' --exclude='*.bak-*' --exclude='node_modules/' \
+    "$REPO/portal-templates/" /opt/paywifi/portal-templates/
+  run chown -R paywifi:paywifi /opt/paywifi/portal-templates 2>/dev/null || true
+  # If the active template lives in /opt/paywifi/portal as a copy/symlink, refresh via paywifi-template helper.
+  if [ -x /usr/local/sbin/paywifi-template ] && [ "$DRY" = 0 ]; then
+    ACTIVE=$(readlink /opt/paywifi/portal 2>/dev/null | xargs -I{} basename {} || echo "")
+    if [ -n "$ACTIVE" ]; then
+      log "  refreshing active template '$ACTIVE'"
+      run /usr/local/sbin/paywifi-template activate "$ACTIVE" || warn "  template refresh non-fatal"
+    fi
+  fi
+fi
+
+# ── scripts/sbin/ — privileged helpers ──────────────────────────────────────
+if changed "scripts/sbin/"; then
+  log "── sync /usr/local/sbin/paywifi-* helpers ──"
+  for f in "$REPO/scripts/sbin/"*; do
+    base=$(basename "$f")
+    if ! cmp -s "$f" "/usr/local/sbin/$base" 2>/dev/null; then
+      log "  $base"
+      run install -m 755 -o root -g root "$f" "/usr/local/sbin/$base"
+    fi
+  done
+fi
+
+# ── ops/systemd/ — unit files ───────────────────────────────────────────────
+if changed "ops/systemd/"; then
+  log "── sync systemd units ──"
+  for f in "$REPO/ops/systemd/"*; do
+    base=$(basename "$f")
+    if ! cmp -s "$f" "/etc/systemd/system/$base" 2>/dev/null; then
+      log "  $base"
+      run install -m 644 -o root -g root "$f" "/etc/systemd/system/$base"
+      NEED_DAEMON_RELOAD=1
+      # Map unit -> service to restart
+      case "$base" in
+        paywifi-api.service)      NEED_API_RESTART=1 ;;
+        paywifi-sessiond.service) NEED_SESSIOND_RESTART=1 ;;
+      esac
+    fi
+  done
+fi
+
+# ── ops/nginx/ ──────────────────────────────────────────────────────────────
+if changed "ops/nginx/"; then
+  log "── sync nginx site config ──"
+  if ! cmp -s "$REPO/ops/nginx/paywifi" /etc/nginx/sites-available/paywifi 2>/dev/null; then
+    run install -m 644 "$REPO/ops/nginx/paywifi" /etc/nginx/sites-available/paywifi
+    NEED_NGINX_RELOAD=1
+  fi
+fi
+
+# ── ops/dnsmasq/ ────────────────────────────────────────────────────────────
+if changed "ops/dnsmasq/"; then
+  log "── sync dnsmasq config ──"
+  if ! cmp -s "$REPO/ops/dnsmasq/paywifi.conf" /etc/dnsmasq.d/paywifi.conf 2>/dev/null; then
+    run install -m 644 "$REPO/ops/dnsmasq/paywifi.conf" /etc/dnsmasq.d/paywifi.conf
+    NEED_DNSMASQ_RELOAD=1
+  fi
+fi
+
+# ── ops/sudoers/ ────────────────────────────────────────────────────────────
+if changed "ops/sudoers/"; then
+  log "── sync sudoers entries ──"
+  for f in "$REPO/ops/sudoers/"*; do
+    base=$(basename "$f")
+    tgt="/etc/sudoers.d/$base"
+    if ! cmp -s "$f" "$tgt" 2>/dev/null; then
+      log "  $base — validating before install"
+      if [ "$DRY" = 0 ]; then
+        cp "$f" "$tgt.new"
+        chmod 440 "$tgt.new"; chown root:root "$tgt.new"
+        if visudo -c -f "$tgt.new" >/dev/null 2>&1; then
+          mv "$tgt.new" "$tgt"
+        else
+          err "  sudoers $base failed visudo check, NOT installed"
+          rm -f "$tgt.new"
+        fi
+      else
+        log "  [dry-run] would visudo-check + install $tgt"
+      fi
+    fi
+  done
+fi
+
+# ── npm install (only if package.json changed) ──────────────────────────────
+if [ "$NEED_NPM_INSTALL" = 1 ] && [ "$DRY" = 0 ]; then
+  log "── npm install ──"
+  sudo -u paywifi npm --prefix /opt/paywifi/api install --omit=dev --no-audit --no-fund 2>&1 | tail -5 | tee -a "$LOG" || warn "npm install non-fatal"
+fi
+
+# ── syntax checks before restart ────────────────────────────────────────────
+if [ "$NEED_API_RESTART" = 1 ] && [ "$DRY" = 0 ]; then
+  log "── syntax check api/src ──"
+  if ! find /opt/paywifi/api/src -name '*.js' -print0 | xargs -0 -n1 -I{} node --check {} 2>&1 | tee -a "$LOG" | grep -q .; then
+    ok "  all JS files parse"
+  else
+    err "  SYNTAX ERROR detected — aborting restart"
+    exit 3
+  fi
+fi
+
+# ── reload affected services ────────────────────────────────────────────────
+if [ "$NEED_DAEMON_RELOAD" = 1 ]; then
+  log "── systemctl daemon-reload ──"
+  run systemctl daemon-reload
+fi
+if [ "$NEED_NGINX_RELOAD" = 1 ]; then
+  log "── nginx -t + reload ──"
+  if [ "$DRY" = 0 ]; then
+    if nginx -t 2>&1 | tee -a "$LOG" | grep -qi "successful"; then
+      systemctl reload nginx
+    else
+      err "  nginx config test FAILED — not reloading"
+    fi
+  fi
+fi
+if [ "$NEED_DNSMASQ_RELOAD" = 1 ]; then
+  log "── reload dnsmasq ──"
+  run systemctl restart dnsmasq
+fi
+if [ "$NEED_API_RESTART" = 1 ]; then
+  log "── restart paywifi-api ──"
+  run systemctl restart paywifi-api
+  if [ "$DRY" = 0 ]; then
+    sleep 2
+    if systemctl is-active --quiet paywifi-api; then
+      ok "  paywifi-api active"
+    else
+      err "  paywifi-api FAILED to come up — check journal -u paywifi-api"
+      exit 4
+    fi
+  fi
+fi
+if [ "$NEED_SESSIOND_RESTART" = 1 ]; then
+  log "── restart paywifi-sessiond ──"
+  run systemctl restart paywifi-sessiond
+fi
+
+ok "── update complete: $BEFORE → $AFTER ──"
