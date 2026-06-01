@@ -397,6 +397,9 @@ server {
     }
 
     location @spa_redirect {
+        # SPA-FALLBACK-302-2026-06-02 — relative Location so Cloudflare passes
+        # the 302 through to the browser instead of internally following it.
+        absolute_redirect off;
         return 302 /;
     }
 }
