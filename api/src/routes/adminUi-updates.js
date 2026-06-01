@@ -24,6 +24,27 @@ function readGitStatus() {
 }
 
 // Pull the last 80 journal lines from a oneshot unit so admins can see deploy output.
+// PUSH-FLOW-2026-06-02 — compare a couple of representative live files
+// against the repo so the UI can show a 'live state differs from repo' hint.
+const path = require('path');
+function liveIsDirty() {
+  const pairs = [
+    ['/opt/paywifi/api/src/server.js',                 '/opt/paywifi-repo/api/src/server.js'],
+    ['/opt/paywifi/api/src/routes/portal.js',          '/opt/paywifi-repo/api/src/routes/portal.js'],
+    ['/opt/paywifi/api/src/routes/adminUi-updates.js', '/opt/paywifi-repo/api/src/routes/adminUi-updates.js'],
+    ['/opt/paywifi/api/views/admin/updates.ejs',       '/opt/paywifi-repo/api/views/admin/updates.ejs'],
+    ['/etc/nginx/sites-available/paywifi',             '/opt/paywifi-repo/ops/nginx/paywifi'],
+  ];
+  for (const [live, repo] of pairs) {
+    try {
+      const a = fs.readFileSync(live);
+      const b = fs.readFileSync(repo);
+      if (a.length !== b.length || !a.equals(b)) return true;
+    } catch (e) { /* missing file on either side counts as 'unknown', not dirty */ }
+  }
+  return false;
+}
+
 function readUnitLog(unit) {
   try {
     const r = spawnSync('journalctl', ['-u', unit, '--no-pager', '-n', '80', '-o', 'short-iso'], { encoding: 'utf-8' });
@@ -50,13 +71,18 @@ router.get('/updates', (req, res) => {
   const git         = readGitStatus();
   const updateState = unitIsActive('paywifi-update.service');
   const fetchState  = unitIsActive('paywifi-git-status.service');
+  const pushState   = unitIsActive('paywifi-push.service');
   const deployLog   = readUnitLog('paywifi-update.service');
+  const pushLog     = readUnitLog('paywifi-push.service');
+
+  // PUSH-FLOW-2026-06-02 — quick "dirty" detector. mtimes only; cheap enough.
+  const dirty = liveIsDirty();
 
   res.render('admin/updates', {
     title:  'Update Logs · PAYWIFI',
     active: 'updates',
     rows, cats, filter: cat,
-    git, updateState, fetchState, deployLog,
+    git, updateState, fetchState, pushState, deployLog, pushLog, dirty,
     flash: req.session.updateFlash || null,
     
   });
@@ -149,6 +175,24 @@ router.post('/updates/git/deploy', (req, res) => {
     }
   } catch (e) {
     req.session.updateFlash = { kind: 'err', message: 'Deploy failed: ' + String(e.message || e).slice(0, 200) };
+  }
+  res.redirect('/admin/updates');
+});
+
+// POST /admin/updates/git/push — mirror live gateway state into the repo,
+// commit, and push to origin/main. The commit message comes from the form.
+// PUSH-FLOW-2026-06-02
+router.post('/updates/git/push', (req, res) => {
+  const raw = (req.body && req.body.message || '').trim();
+  const message = raw || ('Gateway snapshot — ' + new Date().toISOString());
+  try {
+    fs.writeFileSync('/var/lib/paywifi/push-message.txt', message.slice(0, 2000), { mode: 0o640 });
+    try { fs.chmodSync('/var/lib/paywifi/push-message.txt', 0o640); } catch (e) {}
+    execFileSync('sudo', ['-n', '/bin/systemctl', 'start', 'paywifi-push.service'], { timeout: 120000 });
+    audit(req.admin && req.admin.id, 'update_push', message.slice(0, 200), req.clientIp);
+    req.session.updateFlash = { kind: 'ok', message: 'Pushed to GitHub. See "Push log" for the result.' };
+  } catch (e) {
+    req.session.updateFlash = { kind: 'err', message: 'Push failed: ' + String(e.message || e).slice(0, 200) };
   }
   res.redirect('/admin/updates');
 });
