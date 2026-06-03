@@ -3,6 +3,9 @@ const path    = require('path');
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const session = require('express-session');
+const SqliteStore = require('better-sqlite3-session-store')(session);
+const sessionDb = new (require('better-sqlite3'))('/var/lib/paywifi/sessions.db');
+sessionDb.pragma('journal_mode = WAL');
 const db      = require('./db');
 const clientInfo  = require('./middleware/clientInfo');
 const csrf        = require('./middleware/csrf');
@@ -66,12 +69,26 @@ app.use('/portal/payment/status', rateLimit({ windowMs: 60*1000, max: 60, keyGen
 app.use('/portal/payment/cancel', rateLimit({ windowMs: 60*1000, max: 10, keyGenerator: rlKeyByIp, message: JSON.stringify({ ok: false, error: 'Too many cancel requests.' }) }));
 // Webhooks — cap to prevent log flooding / fake-event spam
 app.use('/webhooks', rateLimit({ windowMs: 60*1000, max: 120, keyGenerator: rlKeyByIp, message: JSON.stringify({ ok: false, error: 'Too many webhook requests.' }) }));
+// SESSION-PERSIST-2026-06-03 — SQLite-backed store so sessions survive API
+// restarts. rolling: true refreshes the cookie on every request → 30-day
+// sliding window. Partners stay signed in unless they explicitly logout or
+// idle out past the window.
 app.use(session({
   name: 'paywifi.admin.sid',
-  secret: db.cfg.api.session_secret || db.cfg.api.jwt_secret,   // R-10: separate session secret
+  secret: db.cfg.api.session_secret || db.cfg.api.jwt_secret,
   resave: false,
+  rolling: true,
   saveUninitialized: false,
-  cookie: { httpOnly: true, sameSite: 'lax', secure: process.env.PAYWIFI_HTTPS === '1', maxAge: 12 * 3600 * 1000 }
+  store: new SqliteStore({
+    client: sessionDb,
+    expired: { clear: true, intervalMs: 15 * 60 * 1000 }
+  }),
+  cookie: {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.PAYWIFI_HTTPS === '1',
+    maxAge: 30 * 24 * 3600 * 1000
+  }
 }));
 app.use(clientInfo);
 
