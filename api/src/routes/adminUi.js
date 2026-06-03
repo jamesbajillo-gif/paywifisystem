@@ -387,6 +387,21 @@ router.post('/settings', (req, res) => {
   res.redirect('/admin/settings');
 });
 
+// OPERATOR-OTP-2026-06-03 — single-key toggle endpoint for checkbox flips
+router.post('/settings/single', (req, res) => {
+  const key = String((req.body || {}).key || '');
+  const value = req.body.value === '1' ? '1' : '0';
+  const allowed = ['operator_auto_approve'];
+  if (!allowed.includes(key)) { flash(req, 'err', 'Unknown setting key.'); return res.redirect('/admin/settings'); }
+  const now = Math.floor(Date.now() / 1000);
+  const ex = db.prepare("SELECT key FROM settings WHERE key=?").get(key);
+  if (ex) db.prepare("UPDATE settings SET value=?,updated_at=? WHERE key=?").run(value, now, key);
+  else     db.prepare("INSERT INTO settings(key,value,updated_at) VALUES(?,?,?)").run(key, value, now);
+  audit(req.admin.id, 'setting_toggle', key + '=' + value, req.clientIp);
+  flash(req, 'ok', key + ' = ' + value);
+  res.redirect('/admin/settings');
+});
+
 router.post('/settings/store-partners', (req, res) => {
   const raw = (req.body.store_partners || '').trim();
   const partners = raw.split('\n').map(l => l.trim()).filter(Boolean).map(l => {

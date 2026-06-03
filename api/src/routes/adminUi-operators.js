@@ -11,7 +11,6 @@
 //   POST /admin/operators/:id/unlock       clear lockout/failed-counter
 const router = require('express').Router();
 const db     = require('../db');
-const bcrypt = require('bcryptjs');
 
 function requireAdmin(req, res, next) {
   if (!req.admin) return res.redirect('/admin/login');
@@ -50,7 +49,7 @@ function operatorStats(opId) {
 // ── GET /admin/operators ────────────────────────────────────────────────────
 router.get('/operators', requireAdmin, (req, res) => {
   const rows = db.prepare(
-    "SELECT id, username, store_name, store_slug, mobile, email, status, commission_pct, " +
+    "SELECT id, store_name, store_slug, mobile, email, status, commission_pct, " +
     "       failed_login_count, locked_until, last_login_at, last_login_ip, created_at, suspended_at " +
     "  FROM operators ORDER BY id ASC"
   ).all();
@@ -81,9 +80,7 @@ router.get('/operators/new', requireAdmin, (req, res) => {
 // ── POST /admin/operators/create ────────────────────────────────────────────
 router.post('/operators/create', requireAdmin, (req, res) => {
   const body = req.body || {};
-  const username  = String(body.username || '').trim().toLowerCase();
-  const password  = String(body.password || '');
-  const storeName = String(body.store_name || '').trim().slice(0, 80);
+      const storeName = String(body.store_name || '').trim().slice(0, 80);
   let   slug      = String(body.store_slug || '').trim().toLowerCase();
   const mobile    = normalizeMobile(body.mobile);
   const email     = String(body.email || '').trim().slice(0, 120) || null;
@@ -92,11 +89,10 @@ router.post('/operators/create', requireAdmin, (req, res) => {
   const status    = ['active','pending','suspended'].includes(body.status) ? body.status : 'active';
 
   const errs = [];
-  if (!/^[a-z0-9_]{3,32}$/.test(username))  errs.push('Username must be 3-32 chars (a-z, 0-9, underscore).');
-  if (password.length < 6)                  errs.push('Password must be at least 6 characters.');
-  if (!storeName)                           errs.push('Store name is required.');
+    if (!storeName) errs.push('Store name is required.');
+  if (mobile === null) errs.push('Mobile is required (09xxxxxxxxx).');
   if (mobile === null && body.mobile)       errs.push('Mobile must be 09xxxxxxxxx or 639xxxxxxxxx.');
-  if (!slug) slug = slugify(storeName) || slugify(username);
+  if (!slug) slug = slugify(storeName);
   if (!/^[a-z0-9-]{2,32}$/.test(slug))      errs.push('Store slug must be 2-32 chars (a-z, 0-9, dash).');
 
   if (errs.length) {
@@ -106,22 +102,21 @@ router.post('/operators/create', requireAdmin, (req, res) => {
 
   const now = Math.floor(Date.now() / 1000);
   try {
-    const hash = bcrypt.hashSync(password, 10);
     const r = db.prepare(
       "INSERT INTO operators " +
-      "  (username, password_hash, store_name, store_slug, mobile, email, status, commission_pct, " +
-      "   notes, is_active, created_at, updated_at, created_by) " +
-      " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)"
+      "  (mobile, store_name, store_slug, email, status, commission_pct, " +
+      "   notes, is_active, created_at, updated_at, created_by, registered_via) " +
+      " VALUES (?,?,?,?,?,?,?,?,?,?,?,'admin')"
     ).run(
-      username, hash, storeName, slug, mobile, email, status, commission_pct,
+      mobile, storeName, slug, email, status, commission_pct,
       notes, status === 'active' ? 1 : 0, now, now, req.admin.id
     );
-    audit(req.admin.id, 'operator_create', 'id=' + r.lastInsertRowid + ' username=' + username + ' status=' + status, req.clientIp);
+    audit(req.admin.id, 'operator_create', 'id=' + r.lastInsertRowid + '  status=' + status, req.clientIp);
     req.session.opFlash = { kind: 'ok', message: 'Operator "' + storeName + '" created.' };
     res.redirect('/admin/operators/' + r.lastInsertRowid);
   } catch (e) {
-    const msg = /UNIQUE constraint failed: operators.username/.test(e.message)
-      ? 'A user with that username already exists.'
+    const msg = /UNIQUE constraint failed: operators.mobile/.test(e.message)
+      ? 'An operator with that mobile number already exists.'
       : /UNIQUE constraint failed: operators.store_slug/.test(e.message)
       ? 'A store with that slug already exists.'
       : 'Could not create operator: ' + e.message;
@@ -134,8 +129,8 @@ router.post('/operators/create', requireAdmin, (req, res) => {
 router.get('/operators/:id', requireAdmin, (req, res) => {
   const id = parseInt(req.params.id, 10);
   const op = db.prepare(
-    "SELECT id, username, store_name, store_slug, mobile, email, status, commission_pct, notes, " +
-    "       failed_login_count, locked_until, last_login_at, last_login_ip, created_at, suspended_at, suspended_by " +
+    "SELECT id, store_name, store_slug, mobile, email, status, commission_pct, notes, " +
+    "       failed_login_count, locked_until, last_login_at, last_login_ip, created_at, suspended_at, suspended_by, registered_via " +
     "  FROM operators WHERE id=?"
   ).get(id);
   if (!op) { req.session.opFlash = { kind: 'err', message: 'Operator not found.' }; return res.redirect('/admin/operators'); }
@@ -217,21 +212,7 @@ router.post('/operators/:id/status', requireAdmin, (req, res) => {
   res.redirect('/admin/operators/' + id);
 });
 
-// ── POST /admin/operators/:id/password ──────────────────────────────────────
-router.post('/operators/:id/password', requireAdmin, (req, res) => {
-  const id = parseInt(req.params.id, 10);
-  const pw = String((req.body || {}).password || '');
-  if (pw.length < 6) {
-    req.session.opFlash = { kind: 'err', message: 'Password must be at least 6 chars.' };
-    return res.redirect('/admin/operators/' + id);
-  }
-  const hash = bcrypt.hashSync(pw, 10);
-  const now  = Math.floor(Date.now() / 1000);
-  db.prepare('UPDATE operators SET password_hash=?, failed_login_count=0, locked_until=NULL, updated_at=? WHERE id=?').run(hash, now, id);
-  audit(req.admin.id, 'operator_password_reset', 'id=' + id, req.clientIp);
-  req.session.opFlash = { kind: 'ok', message: 'Password reset.' };
-  res.redirect('/admin/operators/' + id);
-});
+// password reset removed — login is OTP-only
 
 // ── POST /admin/operators/:id/unlock ────────────────────────────────────────
 router.post('/operators/:id/unlock', requireAdmin, (req, res) => {

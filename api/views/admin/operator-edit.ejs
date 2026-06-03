@@ -7,7 +7,7 @@
       </h1>
       <p class="text-sm" style="color: var(--muted-foreground)">
         <% if (isNew) { %>Create a store partner who confirms cash payments and earns commission.
-        <% } else { %>@<%= op.username %> · store slug <code><%= op.store_slug %></code>
+        <% } else { %>mobile <code><%= op.mobile %></code> · store slug <code><%= op.store_slug %></code>
         <% } %>
       </p>
     </div>
@@ -78,22 +78,7 @@
     class="rounded-lg border p-5 space-y-4" style="background: var(--card); border-color: var(--border)">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
 
-    <% if (isNew) { %>
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label class="block text-xs uppercase tracking-wider mb-1" style="color: var(--muted-foreground)">Username (immutable)</label>
-          <input name="username" required pattern="[a-z0-9_]{3,32}" placeholder="lower-case, 3-32 chars"
-            class="w-full text-sm px-3 py-2 rounded border font-mono"
-            style="background: var(--background); border-color: var(--border); color: var(--foreground)" />
-        </div>
-        <div>
-          <label class="block text-xs uppercase tracking-wider mb-1" style="color: var(--muted-foreground)">Password</label>
-          <input name="password" type="password" required minlength="6" placeholder="min 6 chars"
-            class="w-full text-sm px-3 py-2 rounded border"
-            style="background: var(--background); border-color: var(--border); color: var(--foreground)" />
-        </div>
-      </div>
-    <% } %>
+    
 
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
       <div>
@@ -115,7 +100,7 @@
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
       <div>
         <label class="block text-xs uppercase tracking-wider mb-1" style="color: var(--muted-foreground)">Mobile (09xxxxxxxxx)</label>
-        <input name="mobile" pattern="(09\d{9}|639\d{9})" placeholder="09171234567" value="<%= op.mobile ? op.mobile.replace(/^63/, '0') : '' %>"
+        <input name="mobile" required pattern="(09\d{9}|639\d{9})" placeholder="09171234567" value="<%= op.mobile ? op.mobile.replace(/^63/, '0') : '' %>"
           class="w-full text-sm px-3 py-2 rounded border"
           style="background: var(--background); border-color: var(--border); color: var(--foreground)" />
       </div>
@@ -181,20 +166,6 @@
           </form>
         <% }) %>
       </div>
-    </div>
-
-    <!-- Password reset -->
-    <div class="rounded-lg border p-5" style="background: var(--card); border-color: var(--border)">
-      <h2 class="text-base font-semibold mb-3" style="color: var(--foreground)">Reset password</h2>
-      <form method="POST" action="/admin/operators/<%= op.id %>/password" class="flex gap-3"
-        onsubmit="return confirm('Reset password for <%= op.username %>?')">
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-        <input name="password" type="password" required minlength="6" placeholder="New password (min 6)"
-          class="flex-1 text-sm px-3 py-2 rounded border"
-          style="background: var(--background); border-color: var(--border); color: var(--foreground)" />
-        <button type="submit" class="px-4 py-2 rounded font-semibold text-sm"
-          style="background: var(--primary); color: var(--primary-foreground)">Reset</button>
-      </form>
     </div>
 
     <% if (typeof recent !== 'undefined' && recent.length) { %>

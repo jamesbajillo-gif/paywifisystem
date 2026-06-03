@@ -37,7 +37,7 @@
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2 flex-wrap">
                 <span class="font-bold" style="color: var(--foreground)"><%= op.store_name %></span>
-                <span class="text-xs font-mono" style="color: var(--muted-foreground)">@<%= op.username %></span>
+                <span class="text-xs font-mono" style="color: var(--muted-foreground)"><%= op.mobile || "no mobile" %></span>
                 <span class="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded"
                   style="background: color-mix(in oklab, <%= stColor %> 15%, var(--card)); color: <%= stColor %>; border: 1px solid color-mix(in oklab, <%= stColor %> 30%, var(--border))">
                   <%= op.status %>

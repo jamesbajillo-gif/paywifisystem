@@ -47,9 +47,10 @@ function audit(opId, action, details, ip) {
 
 function loadOperatorIntoReq(req, res, next) {
   if (req.session && req.session.operatorId) {
-    // OPERATOR-SECHARDEN-2026-06-02 — load richer fields + enforce status active.
+    // OPERATOR-OTP-2026-06-03 — mobile is identity (no username column anymore).
     const op = db.prepare(
-      "SELECT id, username, store_name, store_slug, is_active, status, mobile, commission_pct, last_login_ip, last_login_at " +
+      "SELECT id, store_name, store_slug, is_active, status, mobile, email, " +
+      "       commission_pct, last_login_ip, last_login_at " +
       "FROM operators WHERE id=? AND status='active'"
     ).get(req.session.operatorId);
     if (op) { req.operator = op; res.locals.operator = op; }
@@ -66,77 +67,9 @@ function requireOperator(req, res, next) {
 
 router.use(loadOperatorIntoReq);
 
-// ─── login + logout ─────────────────────────────────────────────────────────
-router.get('/login', (req, res) => {
-  if (req.operator) return res.redirect('/operator/');
-  render(res, 'login', { title: 'Operator · sign in', active: 'login' });
-});
-
-router.post('/login', (req, res) => {
-  // OPERATOR-SECHARDEN-2026-06-02 — account lockout + status-aware auth.
-  const username = String((req.body || {}).username || '').trim().toLowerCase();
-  const pw       = String((req.body || {}).password || '');
-  const now      = Math.floor(Date.now() / 1000);
-
-  const op = username
-    ? db.prepare("SELECT * FROM operators WHERE username=? AND status != 'archived'").get(username)
-    : null;
-
-  // Generic message to avoid leaking which operators exist + invite enumeration.
-  const genericError = 'Sign-in failed. Check your credentials or contact admin if your account is locked.';
-
-  if (!op) {
-    audit(null, 'login_fail', 'username=' + username + ' reason=no_account', req.clientIp);
-    return render(res, 'login', { title: 'Operator · sign in', active: 'login', error: genericError });
-  }
-
-  // Status gates
-  if (op.status === 'suspended') {
-    audit(op.id, 'login_fail', 'reason=suspended', req.clientIp);
-    return render(res, 'login', { title: 'Operator · sign in', active: 'login',
-      error: 'Your account has been suspended. Contact the admin.' });
-  }
-  if (op.status === 'pending') {
-    audit(op.id, 'login_fail', 'reason=pending', req.clientIp);
-    return render(res, 'login', { title: 'Operator · sign in', active: 'login',
-      error: 'Your account is awaiting admin activation.' });
-  }
-
-  // Lockout check
-  if (op.locked_until && op.locked_until > now) {
-    const wait = op.locked_until - now;
-    audit(op.id, 'login_fail', 'reason=locked retry_in=' + wait, req.clientIp);
-    return render(res, 'login', { title: 'Operator · sign in', active: 'login',
-      error: 'Account locked. Try again in ' + Math.ceil(wait/60) + ' minutes.' });
-  }
-
-  // Password check
-  if (!bcrypt.compareSync(pw, op.password_hash)) {
-    const newCount = (op.failed_login_count || 0) + 1;
-    // 5 strikes → lock for 15 min
-    if (newCount >= 5) {
-      db.prepare('UPDATE operators SET failed_login_count=?, locked_until=? WHERE id=?')
-        .run(0, now + 15 * 60, op.id);
-      audit(op.id, 'login_fail', 'reason=bad_password locked=15min', req.clientIp);
-    } else {
-      db.prepare('UPDATE operators SET failed_login_count=? WHERE id=?')
-        .run(newCount, op.id);
-      audit(op.id, 'login_fail', 'reason=bad_password attempts=' + newCount, req.clientIp);
-    }
-    return render(res, 'login', { title: 'Operator · sign in', active: 'login', error: genericError });
-  }
-
-  // SUCCESS — reset lockout counters, refresh session
-  db.prepare('UPDATE operators SET last_login_at=?, last_login_ip=?, failed_login_count=0, locked_until=NULL WHERE id=?')
-    .run(now, req.clientIp || null, op.id);
-
-  if (req.session) {
-    delete req.session.adminId;
-    req.session.operatorId = op.id;
-  }
-  audit(op.id, 'login_ok', null, req.clientIp);
-  res.redirect('/operator/');
-});
+// OTP-DELEGATION-2026-06-03 — /login, /register, /verify, /cancel now live
+// in routes/operator-otp.js. Logout stays here.
+router.use('/', require('./operator-otp'));
 
 router.post('/logout', (req, res) => {
   if (req.session) req.session.destroy(() => res.redirect('/operator/login'));
@@ -291,17 +224,7 @@ router.post('/settings/store-name', (req, res) => {
   res.redirect('/operator/settings?saved=1');
 });
 
-router.post('/settings/password', (req, res) => {
-  const cur = String((req.body || {}).current || '');
-  const next = String((req.body || {}).next || '');
-  if (next.length < 6) return res.redirect('/operator/settings?err=short');
-  const op = db.prepare('SELECT password_hash FROM operators WHERE id=?').get(req.operator.id);
-  if (!op || !bcrypt.compareSync(cur, op.password_hash)) return res.redirect('/operator/settings?err=wrongpw');
-  db.prepare('UPDATE operators SET password_hash=?, updated_at=? WHERE id=?')
-    .run(bcrypt.hashSync(next, 10), Math.floor(Date.now()/1000), req.operator.id);
-  audit(req.operator.id, 'change_password', null, req.clientIp);
-  res.redirect('/operator/settings?saved=1');
-});
+// settings/password removed — operator login is OTP-only.
 
 // ─── JSON API ───────────────────────────────────────────────────────────────
 router.get('/api/pending', (req, res) => {

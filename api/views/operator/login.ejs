@@ -1,23 +1,121 @@
-<div class="max-w-sm mx-auto mt-16">
+<%# PAYWIFI-OPERATOR-OTP-2026-06-03 — sign-in + register + verify on one page %>
+<div class="max-w-sm mx-auto mt-12">
   <div class="text-center mb-6">
     <p class="text-[11px] font-bold uppercase tracking-[0.2em]" style="color:var(--primary)">PAYWIFI</p>
     <h1 class="text-3xl font-bold mt-1">Store operator</h1>
-    <p class="text-sm mt-2" style="color: var(--muted-foreground)">Sign in to confirm cash payments for your store.</p>
+    <p class="text-sm mt-2" style="color: var(--muted-foreground)">
+      <% if (pendingPurpose) { %>Enter the 6-digit code we sent to your mobile.
+      <% } else { %>Sign in or register a new store with your mobile number.<% } %>
+    </p>
   </div>
-  <% if (error) { %>
-    <div class="mb-3 rounded-xl px-4 py-3 text-sm border"
-      style="background-color: color-mix(in oklab, var(--destructive) 8%, var(--card)); color: var(--destructive); border-color: color-mix(in oklab, var(--destructive) 40%, transparent);">
-      <%= error %>
+
+  <% if (typeof flash !== 'undefined' && flash) { %>
+    <div class="mb-4 rounded-xl px-4 py-3 text-sm border"
+      style="background-color: color-mix(in oklab, <%= flash.kind === 'ok' ? 'var(--success)' : 'var(--destructive)' %> 8%, var(--card));
+             color: <%= flash.kind === 'ok' ? 'var(--success)' : 'var(--destructive)' %>;
+             border-color: color-mix(in oklab, <%= flash.kind === 'ok' ? 'var(--success)' : 'var(--destructive)' %> 40%, transparent);">
+      <%= flash.message %>
     </div>
   <% } %>
-  <form method="POST" action="/operator/login"
-    class="rounded-2xl border-2 p-5 flex flex-col gap-3" style="background-color: var(--card); border-color: var(--border)">
-    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-    <label class="text-xs font-semibold" style="color: var(--muted-foreground)">Username</label>
-    <input name="username" autofocus required autocomplete="username" autocapitalize="off" />
-    <label class="text-xs font-semibold mt-2" style="color: var(--muted-foreground)">Password</label>
-    <input type="password" name="password" required autocomplete="current-password" />
-    <button type="submit" class="rounded-xl px-4 text-base font-bold mt-3 h-14"
-      style="background-color: var(--primary); color: var(--primary-foreground)">Sign in</button>
-  </form>
+
+  <% if (pendingPurpose) { %>
+    <!-- ── OTP VERIFY STEP ─────────────────────────────────────────── -->
+    <form method="POST" action="/operator/verify"
+      class="rounded-2xl border-2 p-5 flex flex-col gap-3" style="background-color: var(--card); border-color: var(--border)">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+      <div>
+        <p class="text-xs font-semibold mb-1" style="color: var(--muted-foreground)">
+          Code sent to <span class="font-mono"><%= pendingMobile ? ('+' + pendingMobile.slice(0,2) + ' ' + pendingMobile.slice(2,5) + ' xxx ' + pendingMobile.slice(9)) : 'your phone' %></span>
+        </p>
+        <input name="code" inputmode="numeric" maxlength="6" pattern="\d{6}" required autofocus
+          placeholder="6-digit code"
+          class="text-center text-2xl tracking-[0.5em] font-mono"
+          style="background: var(--background); border: 2px solid var(--border); border-radius: 12px; padding: 14px 12px; width: 100%; color: var(--foreground)" />
+      </div>
+      <button type="submit" class="rounded-xl px-4 text-base font-bold mt-2 h-14"
+        style="background-color: var(--primary); color: var(--primary-foreground)">
+        Verify and <%= pendingPurpose === 'register' ? 'finish registration' : 'sign in' %>
+      </button>
+    </form>
+
+    <div class="mt-3 flex items-center justify-between text-xs" style="color: var(--muted-foreground)">
+      <form method="POST" action="/operator/<%= pendingPurpose %>" class="inline">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+        <input type="hidden" name="mobile" value="<%= pendingMobile %>" />
+        <% if (pendingPurpose === 'register') { %>
+          <input type="hidden" name="store_name" value="<%= typeof opPendingStoreName !== 'undefined' && opPendingStoreName ? opPendingStoreName : '' %>" />
+        <% } %>
+        <button type="submit" class="underline" style="color: var(--primary)">Resend code</button>
+      </form>
+      <form method="POST" action="/operator/cancel" class="inline">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+        <button type="submit" class="underline">Cancel</button>
+      </form>
+    </div>
+
+  <% } else { %>
+    <!-- ── TABBED SIGN-IN / REGISTER ───────────────────────────────── -->
+    <div class="rounded-2xl border-2 overflow-hidden" style="background-color: var(--card); border-color: var(--border)">
+      <div class="flex border-b" style="border-color: var(--border)">
+        <button type="button" id="tab-signin"
+          class="flex-1 py-3 text-sm font-bold transition-colors"
+          style="background: var(--primary); color: var(--primary-foreground)"
+          onclick="document.getElementById('panel-signin').style.display='block';document.getElementById('panel-register').style.display='none';this.style.background='var(--primary)';this.style.color='var(--primary-foreground)';document.getElementById('tab-register').style.background='var(--card)';document.getElementById('tab-register').style.color='var(--muted-foreground)';">
+          Sign in
+        </button>
+        <button type="button" id="tab-register"
+          class="flex-1 py-3 text-sm font-bold transition-colors"
+          style="background: var(--card); color: var(--muted-foreground)"
+          onclick="document.getElementById('panel-signin').style.display='none';document.getElementById('panel-register').style.display='block';this.style.background='var(--primary)';this.style.color='var(--primary-foreground)';document.getElementById('tab-signin').style.background='var(--card)';document.getElementById('tab-signin').style.color='var(--muted-foreground)';">
+          Register
+        </button>
+      </div>
+
+      <!-- Sign in panel -->
+      <form id="panel-signin" method="POST" action="/operator/login"
+        class="p-5 flex flex-col gap-3" style="display: block">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+        <label class="text-xs font-semibold" style="color: var(--muted-foreground)">Mobile number</label>
+        <input name="mobile" required pattern="(09\d{9}|639\d{9})" autocomplete="tel"
+          placeholder="09xxxxxxxxx" inputmode="tel"
+          style="background: var(--background); border: 2px solid var(--border); border-radius: 12px; padding: 12px; color: var(--foreground); font-size: 16px" />
+        <button type="submit" class="rounded-xl px-4 text-base font-bold mt-1 h-14"
+          style="background-color: var(--primary); color: var(--primary-foreground)">
+          Send sign-in code
+        </button>
+        <p class="text-xs mt-1" style="color: var(--muted-foreground)">
+          If your mobile is registered and active, we'll text you a 6-digit code.
+        </p>
+      </form>
+
+      <!-- Register panel -->
+      <form id="panel-register" method="POST" action="/operator/register"
+        class="p-5 flex flex-col gap-3" style="display: none">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+        <label class="text-xs font-semibold" style="color: var(--muted-foreground)">Mobile number</label>
+        <input name="mobile" required pattern="(09\d{9}|639\d{9})" autocomplete="tel"
+          placeholder="09xxxxxxxxx" inputmode="tel"
+          style="background: var(--background); border: 2px solid var(--border); border-radius: 12px; padding: 12px; color: var(--foreground); font-size: 16px" />
+        <label class="text-xs font-semibold mt-1" style="color: var(--muted-foreground)">Store name</label>
+        <input name="store_name" required maxlength="80"
+          placeholder="e.g. Mytch Store"
+          style="background: var(--background); border: 2px solid var(--border); border-radius: 12px; padding: 12px; color: var(--foreground); font-size: 16px" />
+        <button type="submit" class="rounded-xl px-4 text-base font-bold mt-1 h-14"
+          style="background-color: var(--primary); color: var(--primary-foreground)">
+          Send registration code
+        </button>
+        <p class="text-xs mt-1" style="color: var(--muted-foreground)">
+          <% if (autoApprove) { %>
+            New accounts are auto-approved. You'll be signed in right after verifying the code.
+          <% } else { %>
+            New accounts need admin approval before you can sign in.
+          <% } %>
+        </p>
+      </form>
+    </div>
+
+    <p class="text-center text-xs mt-4" style="color: var(--muted-foreground)">
+      Need help? Contact the PAYWIFI admin.
+    </p>
+  <% } %>
 </div>
