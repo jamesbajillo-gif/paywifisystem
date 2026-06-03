@@ -55,7 +55,9 @@ var DEFAULT = [
   {id:'hours',type:'hours',enabled:false,order:6,title:'Business Hours',hours:{mon:'',tue:'',wed:'',thu:'',fri:'',sat:'',sun:''}},
   {id:'contact',type:'contact',enabled:false,order:7,title:'Contact Us',phone:'',email:'',facebook:'',instagram:''},
   {id:'promo',type:'promo',enabled:false,order:8,title:'Promotion',image_url:'',caption:''},
-  {id:'custom_html',type:'html',enabled:false,order:9,title:'Custom',html:''}
+  {id:'custom_html',type:'html',enabled:false,order:9,title:'Custom',html:''},
+  {id:'ads_card',type:'ads_card',enabled:true,order:10,title:'Your Ads Here',subtitle:'Submit to inquire',contact_email:'ads@example.com'},
+  {id:'partner_cta',type:'partner_cta',enabled:true,order:11,title:'Partner with Us',subtitle:'',chip:'',rollout:'',contact_number:'',contact_email:''}
 ];
 var raw = <%- widgetsInitJson %>;
 var widgets = Array.isArray(raw) ? raw : DEFAULT;
@@ -70,8 +72,8 @@ if(Array.isArray(raw)){
 var editIdx = null, dragSrc = null;
 
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
-var TYPE_ICONS = {text:'\u{1F4DD}',announcement:'\u{1F4E2}',hours:'\u{1F550}',contact:'\u{1F4DE}',promo:'\u{1F5BC}️',html:'</>',payment_options:'\u{1F4B3}',available_plans:'\u{1F4F6}',status_bar:'\u{1F4CA}'};
-var TYPE_LABELS = {text:'text',announcement:'announcement',hours:'hours',contact:'contact',promo:'promo',html:'html',payment_options:'payment options',available_plans:'available plans',status_bar:'status bar'};
+var TYPE_ICONS = {text:'\u{1F4DD}',announcement:'\u{1F4E2}',hours:'\u{1F550}',contact:'\u{1F4DE}',promo:'\u{1F5BC}\uFE0F',html:'</>',payment_options:'\u{1F4B3}',available_plans:'\u{1F4F6}',status_bar:'\u{1F4CA}',ads_card:'\u{1F4E3}',partner_cta:'\u{1F91D}'};
+var TYPE_LABELS = {text:'text',announcement:'announcement',hours:'hours',contact:'contact',promo:'promo',html:'html',payment_options:'payment options',available_plans:'available plans',status_bar:'status bar',ads_card:'ads card',partner_cta:'partner CTA'};
 
 function render(){
   var sorted = widgets.slice().sort(function(a,b){return (a.order||0)-(b.order||0);});
@@ -117,7 +119,7 @@ function render(){
     document.getElementById('wep-title').textContent='Editing: '+esc(widgets[editIdx].title||widgets[editIdx].type);
     document.getElementById('wef').innerHTML=buildForm(widgets[editIdx]);
     document.getElementById('btn-wep-delete').style.display=widgets[editIdx].id&&
-      ['location','reminder','payment_options','available_plans','status_bar'].includes(widgets[editIdx].id)?'none':'';
+      ['location','reminder','payment_options','available_plans','status_bar','ads_card','partner_cta'].includes(widgets[editIdx].id)?'none':'';
   } else {
     ep.classList.add('hidden');
     editIdx=null;
@@ -157,6 +159,15 @@ function buildForm(w){
     h+=inp('caption',w.caption,'Caption','Optional caption');
   } else if(w.type==='html'){
     h+=ta('html',w.html,'HTML content (scripts are stripped on the portal)');
+  } else if(w.type==='ads_card'){
+    h+=inp('subtitle',w.subtitle,'Subtitle','Submit to inquire');
+    h+=inp('contact_email',w.contact_email,'Inquiry email','ads@example.com');
+  } else if(w.type==='partner_cta'){
+    h+=inp('subtitle',w.subtitle,'CTA subtitle','Become a PAYWIFI Partner Store');
+    h+=inp('chip',w.chip,'Chip / badge','Coming Soon');
+    h+=ta('rollout',w.rollout,'Rollout message (accessibility / future use)');
+    h+=inp('contact_number',w.contact_number,'Contact phone','09xx xxx xxxx');
+    h+=inp('contact_email',w.contact_email,'Contact email','hello@example.com');
   }
   if(w.type==='available_plans'||w.type==='status_bar'){
     h+='<div class="flex items-center gap-3 mt-1">'
@@ -182,6 +193,8 @@ function applyEdit(){
     ['phone','email','facebook','instagram'].forEach(function(k){w[k]=g(k);});
   } else if(w.type==='promo'){w.image_url=g('image_url');w.caption=g('caption');}
   else if(w.type==='html'){w.html=g('html');}
+  else if(w.type==='ads_card'){w.subtitle=g('subtitle');w.contact_email=g('contact_email');}
+  else if(w.type==='partner_cta'){w.subtitle=g('subtitle');w.chip=g('chip');w.rollout=g('rollout');w.contact_number=g('contact_number');w.contact_email=g('contact_email');}
   editIdx=null; render();
 }
 window.wUp=function(i){

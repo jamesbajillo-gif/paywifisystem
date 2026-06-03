@@ -97,28 +97,60 @@ function methodIconId(opt) {
 
 /* ------------------------------ branding ------------------------------ */
 
-function hydratePartnerWidget() {
-  // PARTNER-WIDGET-2026-06-03 — pull from /portal/config.partner (already
-  // loaded into state.config at boot). Reads partner_cta_text /
-  // partner_rollout_message / partner_availability_status / partner_contact_number
-  // settings — same data the admin /settings page edits.
-  try {
-    var p = (state.config && state.config.partner) || {};
-    var sub = $("partner-widget-sub");
-    var chip = $("partner-widget-chip");
-    var btn = $("partner-widget");
-    if (!btn) return;
-    if (sub) sub.textContent = (p.cta_text || "Become a PAYWIFI Partner").trim();
-    if (chip && p.availability_status) {
-      chip.textContent = p.availability_status;
-      chip.classList.remove("hidden");
-    }
-    // aria-label includes the rollout message so screen readers get the full pitch
-    if (p.rollout_message) {
-      btn.setAttribute("aria-label", "Partner with us — " + p.rollout_message);
-    }
-  } catch (e) { /* widget hydration is non-critical */ }
+function findWidget(type) {
+  var ws = (state.config && state.config.widgets) || [];
+  for (var i = 0; i < ws.length; i++) if (ws[i].type === type) return ws[i];
+  return null;
 }
+
+function hydratePortalSidebarWidgets() {
+  // PORTAL-WIDGET-2026-06-03 — both 'Your Ads Here' and 'Partner with Us'
+  // are managed in /admin/widgets. Enabled flag + all fields come from the
+  // widget config; legacy partner_* settings remain a fallback.
+  try {
+    var ads = findWidget("ads_card");
+    var adsBtn = $("ads-widget");
+    if (adsBtn) {
+      if (ads && ads.enabled === false) {
+        adsBtn.classList.add("hidden");
+      } else {
+        adsBtn.classList.remove("hidden");
+        var adsTitle = adsBtn.querySelector("p.text-lg");
+        var adsSub   = adsBtn.querySelector("p.text-sm");
+        if (ads && adsTitle) adsTitle.textContent = ads.title    || "Your Ads Here";
+        if (ads && adsSub)   adsSub.textContent   = ads.subtitle || "Submit to inquire";
+      }
+    }
+
+    var pcw = findWidget("partner_cta");
+    var legacy = (state.config && state.config.partner) || {};
+    var pBtn  = $("partner-widget");
+    var pSub  = $("partner-widget-sub");
+    var pChip = $("partner-widget-chip");
+    if (pBtn) {
+      if (pcw && pcw.enabled === false) {
+        pBtn.classList.add("hidden");
+      } else {
+        pBtn.classList.remove("hidden");
+        var pTitle = pBtn.querySelector("p.text-lg");
+        var title    = (pcw && pcw.title)    || "Partner with Us";
+        var subtitle = (pcw && pcw.subtitle) || legacy.cta_text             || "Become a PAYWIFI Partner";
+        var chipTxt  = (pcw && pcw.chip)     || legacy.availability_status  || "";
+        var rollout  = (pcw && pcw.rollout)  || legacy.rollout_message      || "";
+        if (pTitle) pTitle.textContent = title;
+        if (pSub)   pSub.textContent   = subtitle;
+        if (pChip) {
+          if (chipTxt) { pChip.textContent = chipTxt; pChip.classList.remove("hidden"); }
+          else         { pChip.classList.add("hidden"); }
+        }
+        if (rollout) pBtn.setAttribute("aria-label", "Partner with us — " + rollout);
+      }
+    }
+  } catch (e) { /* non-critical */ }
+}
+
+// Back-compat alias
+function hydratePartnerWidget() { hydratePortalSidebarWidgets(); }
 
 function applyBranding() {
   const c = state.config || {};
@@ -1619,19 +1651,20 @@ document.addEventListener("DOMContentLoaded", () => {
   $("paste-btn").addEventListener("click", pasteVoucher);
   $("no-voucher-btn").addEventListener("click", showPlans);
   $("ads-widget").addEventListener("click", () => {
-    window.location.href = "mailto:ads@example.com?subject=Ad%20slot%20inquiry";
+    // PORTAL-WIDGET-2026-06-03 — pull email target from widget config
+    var w = findWidget("ads_card") || {};
+    var to = w.contact_email || "ads@example.com";
+    window.location.href = "mailto:" + to + "?subject=Ad%20slot%20inquiry";
   });
   // PARTNER-WIDGET-2026-06-03 — prefer tel: to partner.contact_number, fall back to mailto.
   $("partner-widget").addEventListener("click", () => {
-    var p = (state.config && state.config.partner) || {};
-    var num = String(p.contact_number || "").replace(/[^\d+]/g, "");
-    if (num) {
-      window.location.href = "tel:" + num;
-    } else if (p.contact_email) {
-      window.location.href = "mailto:" + p.contact_email + "?subject=PAYWIFI%20Partner%20inquiry";
-    } else {
-      window.location.href = "/partner/login";
-    }
+    var w = findWidget("partner_cta") || {};
+    var legacy = (state.config && state.config.partner) || {};
+    var phone  = String(w.contact_number || legacy.contact_number || "").replace(/[^\d+]/g, "");
+    var email  = w.contact_email || legacy.contact_email || "";
+    if (phone)      window.location.href = "tel:" + phone;
+    else if (email) window.location.href = "mailto:" + email + "?subject=PAYWIFI%20Partner%20inquiry";
+    else            window.location.href = "/partner/login";
   });
   $("plans-close").addEventListener("click", showHome);
   $("plans-back").addEventListener("click", (e) => { e.preventDefault(); showHome(); });

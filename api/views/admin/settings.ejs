@@ -60,6 +60,11 @@
     <p class="text-xs text-slate-400 mb-4">These apply to the portal page that guests see. Changes take effect immediately.</p>
     <form method="POST" action="/admin/settings" class="space-y-4 text-sm">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+      <div class="rounded border border-slate-700 bg-slate-900/70 px-3 py-2 text-xs text-slate-400">
+        Partner-with-us &amp; Your-Ads-Here copy now live under
+        <a href="/admin/widgets" class="text-brand-400 hover:text-brand-300 font-semibold">Portal widgets</a>
+        (tap a widget &rarr; pencil to edit).
+      </div>
       <% var meta = {
         portal_name:              { label: 'Portal name',              hint: 'Shown as the title on the guest portal (e.g. "MY CAFE WIFI")' },
         portal_brand_color:       { label: 'Brand color',              hint: 'Hex color — reserved for future themed layouts (#0ea5e9)' },
@@ -71,15 +76,10 @@
         rl_max_attempts:          { label: 'Payment attempts (max)',   hint: 'Max payment attempts allowed per rate-limit window. Default 3.' },
         rl_window_min:            { label: 'Rate limit window (min)',  hint: 'Rolling window for counting payment attempts. Default 15 min.' },
         rl_gap_sec:               { label: 'Min gap between attempts (sec)', hint: 'Seconds a client must wait between consecutive payment attempts. Default 15.' },
-        rl_cancel_cooldown_sec:   { label: 'Cancel cooldown (sec)',    hint: 'Seconds to wait after cancelling a payment before trying again. Default 10.' },
-        partner_contact_number:     { label: 'Partner contact number',  hint: 'Shown in the Cash Payment partner-store block' },
-        partner_contact_email:      { label: 'Partner contact email',   hint: 'Shown in the Cash Payment partner block (blank = hide)' },
-        partner_cta_text:           { label: 'Partner CTA heading',     hint: 'Heading for the partner-store invitation' },
-        partner_availability_status:{ label: 'Partner availability',    hint: 'e.g. Coming Soon / Available' },
-        partner_rollout_message:    { label: 'Partner rollout message', hint: 'Short description of the partner-store opportunity' }
+        rl_cancel_cooldown_sec:   { label: 'Cancel cooldown (sec)',    hint: 'Seconds to wait after cancelling a payment before trying again. Default 10.' }
       }; %>
       <% settings.forEach(function(s){ %>
-        <% if (s.key === 'portal_widgets' || s.key === 'domain_name' || s.key === 'free_trial_enabled' || s.key === 'partners' || s.key.startsWith('maintenance_')) return; %>
+        <% if (s.key === 'portal_widgets' || s.key === 'domain_name' || s.key === 'free_trial_enabled' || s.key === 'partners' || s.key.startsWith('maintenance_') || s.key.startsWith('partner_')) return; %>
         <% var m = meta[s.key] || { label: s.key, hint: '' }; %>
         <div>
           <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5"><%= m.label %></label>

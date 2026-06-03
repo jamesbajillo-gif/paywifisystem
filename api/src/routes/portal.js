@@ -127,6 +127,9 @@ const DEFAULT_WIDGETS = [
     phone:'', email:'', facebook:'', instagram:'' },
   { id:'promo',           type:'promo',           enabled:false, order:6, title:'Promotion',       image_url:'', caption:'' },
   { id:'custom_html',     type:'html',            enabled:false, order:7, title:'Custom',          html:'' },
+  // PORTAL-WIDGET-2026-06-03 — captive-portal sidebar tiles
+  { id:'ads_card',        type:'ads_card',        enabled:true,  order:8, title:'Your Ads Here',    subtitle:'Submit to inquire', contact_email:'ads@example.com' },
+  { id:'partner_cta',     type:'partner_cta',     enabled:true,  order:9, title:'Partner with Us',  subtitle:'',                  chip:'',                       rollout:'', contact_number:'', contact_email:'' },
 ];
 
 // ── Portal config ────────────────────────────────────────────────────────────
@@ -135,6 +138,20 @@ router.get('/config', (req, res) => {
   const settings = Object.fromEntries(rows.map(r => [r.key, r.value]));
   let widgets = DEFAULT_WIDGETS;
   try { if (settings.portal_widgets) widgets = JSON.parse(settings.portal_widgets); } catch (e) {}
+  // PORTAL-WIDGET-2026-06-03 — ensure singleton tiles exist; back-fill empty fields from legacy partner_* settings.
+  (function ensureSingletonWidgets() {
+    const have = new Set(widgets.map(w => w.type));
+    if (!have.has('ads_card'))    widgets.push(DEFAULT_WIDGETS.find(w => w.type === 'ads_card'));
+    if (!have.has('partner_cta')) widgets.push(DEFAULT_WIDGETS.find(w => w.type === 'partner_cta'));
+    const pcw = widgets.find(w => w.type === 'partner_cta');
+    if (pcw) {
+      if (!pcw.subtitle)        pcw.subtitle        = settings.partner_cta_text             || '';
+      if (!pcw.chip)            pcw.chip            = settings.partner_availability_status  || '';
+      if (!pcw.rollout)         pcw.rollout         = settings.partner_rollout_message      || '';
+      if (!pcw.contact_number)  pcw.contact_number  = settings.partner_contact_number       || '';
+      if (!pcw.contact_email)   pcw.contact_email   = settings.partner_contact_email        || '';
+    }
+  })();
   // STORE-WIRE-2026-06-01 — derive partners from active operators
   // (cash payments are routed by partner_id → operator).
   let storePartners = [];
@@ -173,7 +190,7 @@ router.get('/config', (req, res) => {
       contact_email:    settings.maintenance_contact_email     || '',
       contact_messenger:settings.maintenance_contact_messenger || '',
     },
-    widgets: widgets.filter(w => w.enabled || w.type==='status_bar' || w.type==='available_plans').sort((a, b) => (a.order||0) - (b.order||0)),
+    widgets: widgets.filter(w => w.enabled || w.type==='status_bar' || w.type==='available_plans' || w.type==='ads_card' || w.type==='partner_cta').sort((a, b) => (a.order||0) - (b.order||0)),
     partners: storePartners,
     partner: {
       contact_number:      settings.partner_contact_number      || '',
