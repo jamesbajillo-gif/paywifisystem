@@ -174,6 +174,11 @@ router.get('/login', (req, res) => {
 // ─────────────────────────────────────────────────────────────
 // PUBLIC: POST /partner/login — submit mobile → send OTP
 router.post('/login', async (req, res) => {
+  // SESSION-SHORTCIRCUIT-2026-06-03 — already signed in → go straight to dashboard, skip OTP.
+  if (req.partner) {
+    audit(req.partner.id, 'login_skipped_already_signed_in', null, req.clientIp);
+    return res.redirect('/partner/');
+  }
   const mobile = normalizeMobile((req.body || {}).mobile);
   if (!mobile) {
     req.session.prLoginFlash = { kind: 'err', message: 'Please enter a valid Philippine mobile number (09xxxxxxxxx).' };
@@ -205,6 +210,7 @@ router.post('/login', async (req, res) => {
 // ─────────────────────────────────────────────────────────────
 // PUBLIC: POST /partner/register — submit mobile + store name → send OTP
 router.post('/register', async (req, res) => {
+  if (req.partner) { audit(req.partner.id, 'register_skipped_already_signed_in', null, req.clientIp); return res.redirect('/partner/'); }
   const mobile    = normalizeMobile((req.body || {}).mobile);
   const storeName = String((req.body || {}).partner_name || '').trim().slice(0, 80);
   // TERMS-EMAIL-2026-06-03 — optional email + required T&C agreement
@@ -250,6 +256,7 @@ router.post('/register', async (req, res) => {
 // ─────────────────────────────────────────────────────────────
 // PUBLIC: POST /partner/verify — submit OTP code → consume + log in
 router.post('/verify', (req, res) => {
+  if (req.partner) { audit(req.partner.id, 'verify_skipped_already_signed_in', null, req.clientIp); return res.redirect('/partner/'); }
   const mobile  = req.session.prPendingMobile;
   const purpose = req.session.prPendingPurpose;
   const code    = String((req.body || {}).code || '').replace(/[^\d]/g, '').slice(0, 6);
