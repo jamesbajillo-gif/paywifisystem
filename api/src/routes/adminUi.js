@@ -645,19 +645,33 @@ router.get('/reports', (req, res) => {
 // ── Widget config ────────────────────────────────────────────────────────────
 router.get('/widgets', (req, res) => {
   const settings = db.prepare('SELECT key, value FROM settings').all();
-  // YOUTUBE-WIDGET-2026-06-03 — feed the edit dropdown with processed visible media.
+  // YOUTUBE-WIDGET-2026-06-03 — feed media + per-row analytics + partner list.
   let mediaAssets = [];
+  let mediaStats  = {};
+  let partners    = [];
   try {
     mediaAssets = db.prepare(
-      "SELECT id, video_id, title, duration_sec, status, visibility, thumbnail_path, file_size, error, created_at " +
+      "SELECT id, video_id, title, duration_sec, status, visibility, thumbnail_path, file_size, error, created_at, source_type, partner_id " +
       "FROM media_assets ORDER BY id DESC"
+    ).all();
+    const statRows = db.prepare(
+      "SELECT media_id, event, COUNT(*) AS n FROM media_events GROUP BY media_id, event"
+    ).all();
+    statRows.forEach(r => {
+      if (!mediaStats[r.media_id]) mediaStats[r.media_id] = {};
+      mediaStats[r.media_id][r.event] = r.n;
+    });
+    partners = db.prepare(
+      "SELECT id, partner_name FROM partners WHERE status='active' ORDER BY partner_name"
     ).all();
   } catch (e) {}
   render(res, 'portal-widgets', {
     title: 'Portal Widgets · PAYWIFI',
     active: 'widgets',
     settings,
-    mediaAssets
+    mediaAssets,
+    mediaStats,
+    partners
   });
 });
 

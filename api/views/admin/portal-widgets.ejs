@@ -45,6 +45,8 @@
 <script>
 window.CSRF = '<%= csrfToken %>';
 window.MEDIA_ASSETS = <%- JSON.stringify(typeof mediaAssets !== 'undefined' ? mediaAssets : []) %>;
+window.MEDIA_STATS  = <%- JSON.stringify(typeof mediaStats  !== 'undefined' ? mediaStats  : {}) %>;
+window.PARTNERS     = <%- JSON.stringify(typeof partners    !== 'undefined' ? partners    : []) %>;
 window.PW_WIDGETS_INIT = <%- widgetsInitJson %>;
 </script>
 <script src="/admin-portal-widgets.js"></script>

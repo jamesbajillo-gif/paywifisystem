@@ -257,6 +257,15 @@ function buildForm(w){
       +'<option value="mobile"' +(dr==='mobile'?' selected':'') +'>Mobile only</option>'
       +'<option value="desktop"'+(dr==='desktop'?' selected':'')+'>Desktop only</option>'
       +'</select></div>';
+    // Partner scope
+    var pId = w.partner_id ? String(w.partner_id) : '';
+    var pOpts = '<option value=""'+(pId===''?' selected':'')+'>All partners (global)</option>';
+    (window.PARTNERS||[]).forEach(function(pp){
+      pOpts += '<option value="'+pp.id+'"'+(pId===String(pp.id)?' selected':'')+'>'+esc(pp.partner_name)+'</option>';
+    });
+    h+='<div class="mt-3"><label class="text-xs font-semibold text-slate-300">Partner scope</label>'
+      +'<p class="text-[11px] text-slate-500 mb-1.5">Limit the widget to a specific partner network (future multi-tenant use).</p>'
+      +'<select name="partner_id" class="w-full px-2 py-1 rounded bg-slate-800 border border-slate-700 text-sm text-slate-200">'+pOpts+'</select></div>';
     setTimeout(function(){
       var rs=document.querySelectorAll('#wef [name="playlist_mode"]');
       rs.forEach(function(r){r.addEventListener('change',function(){
@@ -339,6 +348,8 @@ function applyEdit(){
     w.end_at   = ea ? Math.floor(new Date(ea).getTime()/1000) : null;
     var drEl = document.querySelector('#wef [name="device_rule"]');
     w.device_rule = drEl ? drEl.value : 'any';
+    var piEl = document.querySelector('#wef [name="partner_id"]');
+    w.partner_id = (piEl && piEl.value) ? parseInt(piEl.value,10) : null;
   }
   editIdx=null; render();
 }
@@ -413,6 +424,9 @@ function renderMediaRow(m, plist, mode){
   var dur=m.duration_sec?Math.floor(m.duration_sec/60)+':'+String(m.duration_sec%60).padStart(2,'0'):'';
   var sz=m.file_size?(m.file_size/1024/1024).toFixed(1)+'MB':'';
   var meta=[m.status,dur,sz].filter(Boolean).join(' \u00B7 ');
+  var st=(window.MEDIA_STATS && window.MEDIA_STATS[m.id]) || {};
+  var nView=st.view_start||0, nDone=st.view_complete||0, nSkip=st.skip||0;
+  var statsChip = (nView||nDone||nSkip) ? '<span class="text-[10px] text-slate-500 flex items-center gap-1 mt-0.5"><span title="Views">\u25B6\uFE0E'+nView+'</span> <span title="Completed">\u2713'+nDone+'</span>'+(nSkip?' <span title="Skips">skip:'+nSkip+'</span>':'')+'</span>' : '';
   var inPlist=plist.indexOf(String(m.id))>=0;
   var canPlay=m.status==='processed'&&m.visibility;
   var plCb='<label class="yt-pl-row flex items-center gap-1 text-[11px] text-slate-300" style="display:'+(mode==='playlist'?'flex':'none')+'"><input type="checkbox" class="yt-pl-cb w-3.5 h-3.5 accent-brand-500" value="'+m.id+'"'+(inPlist?' checked':'')+(canPlay?'':' disabled')+'>'+(canPlay?'in playlist':'not ready')+'</label>';
@@ -425,6 +439,7 @@ function renderMediaRow(m, plist, mode){
     +'<div class="flex-1 min-w-0">'
       +'<div class="text-xs text-slate-200 font-medium truncate" title="'+esc(m.title||m.video_id)+'">#'+m.id+' '+esc(m.title||m.video_id||'(no title)')+'</div>'
       +'<div class="text-[10px] flex items-center gap-1"><span style="color:'+stColor+'">'+esc(meta)+'</span>'+(m.error?'<span class="text-rose-400 truncate" title="'+esc(m.error)+'"> err</span>':'')+'</div>'
+    +statsChip
     +'</div>'
     +plCb
     +'<div class="flex gap-1 shrink-0">'+actions+'</div>'
