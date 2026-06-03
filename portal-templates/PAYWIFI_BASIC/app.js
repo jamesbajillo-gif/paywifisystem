@@ -422,8 +422,8 @@ function renderPaymentMethods() {
 }
 
 function populateStores() {
-  // Source has a dummy STORES roster. PAYWIFI exposes store_partners in
-  // /api/portal/config — currently empty. Render whatever is there.
+  // PARTNER-LABEL-2026-06-03 — PAYWIFI exposes active partners as
+  // /api/portal/config.partners (legacy alias: store_partners). Render whatever is there.
   const sel = $("store-select");
   // Wipe everything except the placeholder option.
   while (sel.options.length > 1) sel.remove(1);
@@ -1489,7 +1489,7 @@ async function boot() {
     state.config = cfg || {};
     state.plans = (plans && plans.plans) || [];
     state.paymentOptions = (pos && pos.options) || [];
-    state.storePartners = (cfg && cfg.store_partners) || [];
+    state.storePartners = (cfg && (cfg.partners || cfg.store_partners)) || [];
     applyBranding();
   } catch (e) { console.warn("[boot] config load failed:", e); }
 
