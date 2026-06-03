@@ -55,15 +55,18 @@ function audit(opId, action, details, ip) {
 }
 
 function loadOperatorIntoReq(req, res, next) {
-  if (req.session && req.session.partnerId) {
-    // PARTNER-OTP-2026-06-03 — mobile is identity (no username column anymore).
+  // SESSION-FIX-2026-06-03 — verify handler sets operatorId; accept both keys for transition
+  const sid = req.session && (req.session.partnerId || req.session.operatorId);
+  if (sid) {
     const op = db.prepare(
       "SELECT id, partner_name, partner_slug, is_active, status, mobile, email, " +
-      "       commission_pct, last_login_ip, last_login_at " +
-      "FROM partners WHERE id=? AND status='active'"
-    ).get(req.session.partnerId);
+      "       commission_pct, last_login_ip, last_login_at, full_name, address, " +
+      "       gcash_number, gcash_account, remit_details, wizard_step, wizard_completed_at, " +
+      "       restricted_at, restricted_reason " +
+      "FROM partners WHERE id=? AND status IN ('active','restricted')"
+    ).get(sid);
     if (op) { req.partner = op; res.locals.partner = op; }
-    else { delete req.session.partnerId; }
+    else { delete req.session.partnerId; delete req.session.operatorId; }
   }
   next();
 }
