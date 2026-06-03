@@ -37,7 +37,7 @@
     style="border-color: var(--border); background: var(--card)">Refresh</button>
 </header>
 
-<%# DASH-3070-EJS-2026-06-03 — restriction banner + compliance + canonical 30/70 cards %>
+<%# DASH-3070-EJS-2026-06-03 — restriction banner + compliance + canonical 30 70 cards %>
 <% if (partner.status === 'restricted') { %>
   <div class="rounded-2xl border-2 p-4 mb-6"
     style="background: color-mix(in oklab, var(--destructive) 12%, var(--card));
@@ -71,7 +71,7 @@
   </div>
 <% } %>
 
-<%# Canonical 30/70 metrics %>
+<%# Canonical 30 70 metrics %>
 <% if (partnerMetrics) { %>
   <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
     <div class="rounded-2xl border-2 p-4" style="background: var(--card); border-color: var(--border)">
@@ -376,39 +376,4 @@
 })();
 </script>
 
-<%# AUDIT-FIX-DASH-EJS-2026-06-03 — browser notification on new pending payment %>
-<script>
-(function () {
-  if (!('Notification' in window)) return;
-  var lastCount = parseInt(document.getElementById('pending-count')?.textContent || '0', 10);
-  // Ask once (silently) on first qualifying interaction
-  function maybeAsk() {
-    if (Notification.permission === 'default') {
-      Notification.requestPermission().catch(function(){});
-    }
-  }
-  document.addEventListener('visibilitychange', maybeAsk, { once: true });
-  document.addEventListener('click',  maybeAsk, { once: true });
 
-  // Poll the dashboard refresh feed to detect new pending rows.
-  // Reuse the existing /partner/api/pending JSON.
-  async function pollPending() {
-    try {
-      var r = await fetch('/partner/api/pending', { credentials: 'same-origin', cache: 'no-store' });
-      var j = await r.json();
-      if (!j || !j.ok) return;
-      var n = (j.items || []).length;
-      if (n > lastCount && Notification.permission === 'granted' && document.hidden) {
-        var diff = n - lastCount;
-        var newest = (j.items || [])[0] || {};
-        var body = (newest.plan_name || 'Cash payment') + ' · ₱' + (newest.amount || '0') + (diff > 1 ? ' (+ ' + (diff-1) + ' more)' : '');
-        try {
-          new Notification('New PAYWIFI payment', { body: body, tag: 'pwf-pending', renotify: true, icon: '/images/icon-192.png' });
-        } catch (e) {}
-      }
-      lastCount = n;
-    } catch (e) {}
-  }
-  setInterval(pollPending, 5500);
-})();
-</script>
