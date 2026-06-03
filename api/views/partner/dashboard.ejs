@@ -37,6 +37,60 @@
     style="border-color: var(--border); background: var(--card)">Refresh</button>
 </header>
 
+<%# DASH-3070-EJS-2026-06-03 — restriction banner + compliance + canonical 30/70 cards %>
+<% if (partner.status === 'restricted') { %>
+  <div class="rounded-2xl border-2 p-4 mb-6"
+    style="background: color-mix(in oklab, var(--destructive) 12%, var(--card));
+           border-color: color-mix(in oklab, var(--destructive) 40%, var(--border))">
+    <div class="flex items-start gap-3">
+      <span style="font-size: 22px; line-height: 1">⛔</span>
+      <div class="flex-1">
+        <p class="text-[11px] font-bold uppercase tracking-[0.2em]" style="color: var(--destructive)">Account restricted</p>
+        <p class="text-base font-bold mt-0.5">You can no longer confirm new payments.</p>
+        <p class="text-sm mt-1" style="color: var(--muted-foreground)">
+          <%= partner.restricted_reason || 'Outstanding weekly remittance required.' %>
+          Submit your remittance to restore access — the system reinstates automatically once the balance is cleared.
+        </p>
+        <a href="/partner/remit" class="inline-block mt-3 rounded-xl px-4 h-11 text-sm font-bold leading-[44px]"
+          style="background: var(--destructive); color: white">Remit now</a>
+      </div>
+    </div>
+  </div>
+<% } else if (partnerCompliance && partnerCompliance.outstanding > 0 && !partnerCompliance.delinquent) { %>
+  <div class="rounded-2xl border-2 p-4 mb-6"
+    style="background: color-mix(in oklab, var(--primary) 8%, var(--card));
+           border-color: color-mix(in oklab, var(--primary) 30%, var(--border))">
+    <p class="text-[11px] font-bold uppercase tracking-[0.2em]" style="color: var(--primary)">This week's remittance</p>
+    <p class="text-sm mt-1" style="color: var(--foreground)">
+      <strong><%= fmtPHP(partnerCompliance.outstanding) %></strong> outstanding from last week's sales
+      (<%= partnerCompliance.remit_pct.toFixed(0) %>% of <%= fmtPHP(partnerCompliance.gross_sales) %>).
+      Due by <%= new Date(partnerCompliance.deadline * 1000).toLocaleString('en-PH', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) %>.
+    </p>
+    <a href="/partner/remit" class="inline-block mt-3 rounded-xl px-4 h-10 text-sm font-bold leading-[40px]"
+      style="background: var(--primary); color: var(--primary-foreground)">Remit now</a>
+  </div>
+<% } %>
+
+<%# Canonical 30/70 metrics %>
+<% if (partnerMetrics) { %>
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+    <div class="rounded-2xl border-2 p-4" style="background: var(--card); border-color: var(--border)">
+      <p class="text-[11px] uppercase tracking-wider" style="color: var(--muted-foreground)">Total sales</p>
+      <p class="text-2xl font-bold tabular-nums mt-0.5"><%= fmtPHP(partnerMetrics.total_sales) %></p>
+      <p class="text-xs mt-1" style="color: var(--muted-foreground)"><%= partnerMetrics.paid_count %> completed</p>
+    </div>
+    <div class="rounded-2xl border-2 p-4" style="background: color-mix(in oklab, var(--success) 6%, var(--card)); border-color: color-mix(in oklab, var(--success) 30%, var(--border))">
+      <p class="text-[11px] uppercase tracking-wider" style="color: var(--muted-foreground)">Your profit (<%= partnerMetrics.commission_pct.toFixed(0) %>%)</p>
+      <p class="text-2xl font-bold tabular-nums mt-0.5" style="color: var(--success)"><%= fmtPHP(partnerMetrics.partner_profit) %></p>
+      <p class="text-xs mt-1" style="color: var(--muted-foreground)">lifetime earnings</p>
+    </div>
+    <div class="rounded-2xl border-2 p-4" style="background: <%= partnerMetrics.remittance_balance > 0 ? 'color-mix(in oklab, var(--destructive) 6%, var(--card))' : 'color-mix(in oklab, var(--success) 6%, var(--card))' %>; border-color: <%= partnerMetrics.remittance_balance > 0 ? 'color-mix(in oklab, var(--destructive) 30%, var(--border))' : 'color-mix(in oklab, var(--success) 30%, var(--border))' %>">
+      <p class="text-[11px] uppercase tracking-wider" style="color: var(--muted-foreground)">Remittance balance (<%= partnerMetrics.remit_pct.toFixed(0) %>%)</p>
+      <p class="text-2xl font-bold tabular-nums mt-0.5" style="color: <%= partnerMetrics.remittance_balance > 0 ? 'var(--destructive)' : 'var(--success)' %>"><%= fmtPHP(partnerMetrics.remittance_balance) %></p>
+      <p class="text-xs mt-1" style="color: var(--muted-foreground)">remitted <%= fmtPHP(partnerMetrics.remitted_total) %></p>
+    </div>
+  </div>
+
 <div class="grid grid-cols-2 gap-3 mb-6">
   <div class="rounded-2xl border-2 p-4" style="background: var(--card); border-color: var(--border)">
     <p class="text-[11px] uppercase tracking-wider" style="color: var(--muted-foreground)">Today's revenue</p>

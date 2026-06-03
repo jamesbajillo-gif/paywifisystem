@@ -630,6 +630,14 @@ function tick() {
   try { refreshNearExpirySessions();  } catch (e) { console.error('refreshNearExpirySessions:',  e); }
   try { welcomeSmsSweep();            } catch (e) { console.error('welcomeSmsSweep:',            e); }
   try { latePendingSweep();           } catch (e) { console.error('latePendingSweep:',           e); }
+  // COMPLIANCE-SWEEP-2026-06-03 — evaluate weekly remittance compliance for all partners
+  try {
+    const compliance = require('./services/compliance');
+    const r = compliance.evaluatePreviousWeek();
+    if (r.restricted || r.unrestricted) {
+      console.log('[sessiond] compliance: evaluated=' + r.evaluated + ' restricted=' + r.restricted + ' unrestricted=' + r.unrestricted);
+    }
+  } catch (e) { console.error('complianceSweep:', e); }
   try { byteSweep();                  } catch (e) { console.error('byteSweep:',                  e); }
   try { leaseSweep();                 } catch (e) { console.error('leaseSweep:',                 e); }
   try { autoLinkAgingSweep();         } catch (e) { console.error('autoLinkAgingSweep:',         e); }

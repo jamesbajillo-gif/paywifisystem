@@ -90,6 +90,10 @@ router.use(requireOperator);
 
 // ─── dashboard ──────────────────────────────────────────────────────────────
 router.get('/', (req, res) => {
+  // WIZARD-2026-06-03 — redirect to wizard if not yet completed
+  if (!req.partner.wizard_completed_at) {
+    return res.redirect('/partner/wizard');
+  }
   // AUDIT-FIX-DASH-2026-06-03 — track lifecycle milestones
   try {
     const now = Math.floor(Date.now()/1000);
@@ -123,9 +127,13 @@ router.get('/', (req, res) => {
   ).get(todayStart, sid).n;
 
   const balance = computeOwed(req.partner.id);
-  const partnerLifecycle = db.prepare("SELECT dashboard_visits, onboarded_at, first_payment_at, first_remit_at FROM partners WHERE id=?").get(req.partner.id) || {};
+  const partnerLifecycle = db.prepare("SELECT dashboard_visits, onboarded_at, first_payment_at, first_remit_at, wizard_step, wizard_completed_at FROM partners WHERE id=?").get(req.partner.id) || {};
   const slaMin = parseInt((db.prepare("SELECT value FROM settings WHERE key='partner_confirm_sla_min'").get() || {}).value || '5', 10);
-  render(res, 'dashboard', { balance, partnerLifecycle, slaMin,
+  // DASH-3070-2026-06-03 — compliance + canonical 30/70 metrics
+  const compliance = require('../services/compliance');
+  const partnerMetrics = compliance.partnerMetrics(req.partner.id);
+  const partnerCompliance = compliance.snapshotForPartner(req.partner.id);
+  render(res, 'dashboard', { balance, partnerLifecycle, slaMin, partnerMetrics, partnerCompliance,
     title: 'Partner · Dashboard',
     active: 'dash',
     pending, todayRev, todayCount,
@@ -276,6 +284,13 @@ router.get('/api/pending', (req, res) => {
 });
 
 router.post('/api/confirm/:id', async (req, res) => {
+  // RESTRICTED-GUARD-2026-06-03 — block confirms while partner is restricted
+  if (req.partner && req.partner.status === 'restricted') {
+    return res.status(403).json({
+      ok: false, code: 'PARTNER_RESTRICTED',
+      error: 'Your account is restricted due to outstanding remittance. Settle your balance to resume confirming payments.'
+    });
+  }
   const id  = parseInt(req.params.id, 10);
   if (!id) return res.status(400).json({ ok: false, error: 'bad_id' });
 
@@ -504,6 +519,70 @@ router.post('/onboarded', (req, res) => {
   const now = Math.floor(Date.now()/1000);
   db.prepare("UPDATE partners SET onboarded_at=COALESCE(onboarded_at, ?), updated_at=? WHERE id=?").run(now, now, req.partner.id);
   audit(req.partner.id, 'partner_onboarded', null, req.clientIp);
+  res.redirect('/partner/');
+});
+
+// WIZARD-2026-06-03 — 7-step welcome wizard
+router.get('/wizard', (req, res) => {
+  if (req.partner.wizard_completed_at) return res.redirect('/partner/');
+  const compliance = require('../services/compliance');
+  const slaMin = parseInt((db.prepare("SELECT value FROM settings WHERE key='partner_confirm_sla_min'").get() || {}).value || '5', 10);
+  // Reload partner to include any newly-saved profile fields
+  const partner = db.prepare(
+    "SELECT id, partner_name, mobile, email, full_name, address, gcash_number, gcash_account, remit_details, wizard_step, wizard_completed_at FROM partners WHERE id=?"
+  ).get(req.partner.id);
+  render(res, 'wizard', {
+    title: 'Welcome · PAYWIFI Partner',
+    active: 'wizard',
+    partner,
+    step: Math.min(7, partner.wizard_step || 0),
+    commissionPct: compliance.commissionPct(),
+    remitPct: compliance.remitPct(),
+    slaMin,
+  });
+});
+
+router.post('/wizard/next', (req, res) => {
+  const now = Math.floor(Date.now()/1000);
+  const cur = req.partner.wizard_step || 0;
+  // Step 1 (Profile) writes fields
+  if (cur === 1) {
+    const fullName = String((req.body || {}).full_name || '').trim().slice(0, 120);
+    const email    = String((req.body || {}).email     || '').trim().slice(0, 120);
+    const address  = String((req.body || {}).address   || '').trim().slice(0, 200) || null;
+    const gcashRaw = String((req.body || {}).gcash_number || '').replace(/[^\d]/g, '');
+    const gcashAccount = String((req.body || {}).gcash_account || '').trim().slice(0, 120) || null;
+    let gcashNorm = null;
+    if (/^09\d{9}$/.test(gcashRaw)) gcashNorm = '63' + gcashRaw.slice(1);
+    else if (/^639\d{9}$/.test(gcashRaw)) gcashNorm = gcashRaw;
+    if (!fullName) return res.redirect('/partner/wizard?err=name');
+    if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.redirect('/partner/wizard?err=email');
+    if (!gcashNorm) return res.redirect('/partner/wizard?err=gcash');
+    db.prepare(
+      "UPDATE partners SET full_name=?, email=?, address=?, gcash_number=?, gcash_account=?, remit_details=?, updated_at=? WHERE id=?"
+    ).run(fullName, email, address, gcashNorm, gcashAccount,
+         JSON.stringify({ method: 'gcash', number: gcashNorm, account: gcashAccount }), now, req.partner.id);
+  }
+  db.prepare("UPDATE partners SET wizard_step=?, updated_at=? WHERE id=?").run(cur + 1, now, req.partner.id);
+  audit(req.partner.id, 'wizard_step', 'from=' + cur + ' to=' + (cur+1), req.clientIp);
+  res.redirect('/partner/wizard');
+});
+
+router.post('/wizard/finish', (req, res) => {
+  const now = Math.floor(Date.now()/1000);
+  db.prepare(
+    "UPDATE partners SET wizard_step=7, wizard_completed_at=?, onboarded_at=COALESCE(onboarded_at, ?), updated_at=? WHERE id=?"
+  ).run(now, now, now, req.partner.id);
+  audit(req.partner.id, 'wizard_completed', null, req.clientIp);
+  res.redirect('/partner/');
+});
+
+router.get('/wizard/skip', (req, res) => {
+  const now = Math.floor(Date.now()/1000);
+  db.prepare(
+    "UPDATE partners SET wizard_completed_at=?, onboarded_at=COALESCE(onboarded_at, ?), updated_at=? WHERE id=?"
+  ).run(now, now, now, req.partner.id);
+  audit(req.partner.id, 'wizard_skipped', 'at_step=' + (req.partner.wizard_step || 0), req.clientIp);
   res.redirect('/partner/');
 });
 

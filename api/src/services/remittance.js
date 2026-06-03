@@ -17,7 +17,7 @@ function computeOwed(partnerId) {
   ).get(partnerId);
 
   const commission        = (r.gross || 0) * pct / 100;
-  const owed_before_remit = (r.gross || 0) - commission;
+  const owed_before_remit = (r.gross || 0) * remitPct / 100;
 
   const remitted = db.prepare(
     "SELECT COALESCE(SUM(amount),0) AS s FROM remittances WHERE partner_id=? AND status='approved'"
@@ -27,6 +27,7 @@ function computeOwed(partnerId) {
     gross:             Number(r.gross || 0),
     paid_count:        r.paid_count,
     commission_pct:    pct,
+    remit_pct:         remitPct,
     commission:        Number(commission.toFixed(2)),
     owed_before_remit: Number(owed_before_remit.toFixed(2)),
     remitted:          Number(remitted || 0),

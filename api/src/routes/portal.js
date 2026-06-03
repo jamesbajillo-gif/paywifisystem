@@ -139,8 +139,9 @@ router.get('/config', (req, res) => {
   // (cash payments are routed by partner_id → operator).
   let storePartners = [];
   try {
+    // RESTRICTED-DROPDOWN-2026-06-03 — only show partners with status='active' (excludes restricted, suspended, pending, archived)
     storePartners = db.prepare(
-      "SELECT id, partner_slug AS slug, partner_name AS name FROM partners WHERE is_active=1 ORDER BY id ASC"
+      "SELECT id, partner_slug AS slug, partner_name AS name FROM partners WHERE status='active' ORDER BY id ASC"
     ).all();
   } catch (e) {}
   if (!storePartners.length) {
@@ -510,6 +511,16 @@ router.post('/payment/create', async (req, res) => {
     // captive-portal dropdown. Only operators with this partner_id will see
     // the row on their /partner dashboard.
     const _storeId = parseInt((req.body || {}).partner_id, 10);
+  // RESTRICTED-CREATE-2026-06-03 — refuse cash payments routed to restricted partner
+  if (_storeId) {
+    const _p = db.prepare("SELECT status FROM partners WHERE id=?").get(_storeId);
+    if (_p && _p.status !== 'active') {
+      return res.status(403).json({
+        ok: false, code: 'PARTNER_NOT_ACTIVE',
+        error: 'The selected store is currently unavailable. Please choose another store.'
+      });
+    }
+  }
     if (Number.isFinite(_storeId) && _storeId > 0) {
       try { db.prepare('UPDATE pending_payments SET partner_id=? WHERE id=?').run(_storeId, row.lastInsertRowid); } catch (e) {}
     }

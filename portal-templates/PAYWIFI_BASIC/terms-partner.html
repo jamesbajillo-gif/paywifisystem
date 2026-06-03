@@ -11,68 +11,83 @@
   h2{margin-top:32px;font-size:18px;border-top:1px solid #e2e8f0;padding-top:24px}
   ol{padding-left:20px}
   li{margin:6px 0}
-  code{background:#f1f5f9;padding:1px 6px;border-radius:4px;font-size:13px}
   .nav{display:inline-flex;align-items:center;gap:6px;color:#0ea5e9;text-decoration:none;font-size:14px;font-weight:600;margin-bottom:24px}
+  .box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;margin:12px 0;font-size:14px}
 </style>
 </head>
 <body>
 <a class="nav" href="/partner">← Back to sign in</a>
 <h1>PAYWIFI Partner Terms</h1>
-<p class="sub">Version 1.0 · Effective 2026-06-03</p>
+<p class="sub">Version 1.1 · Effective 2026-06-03</p>
 
 <p>By registering as a PAYWIFI Partner, you agree to operate a cash-payment counter for the PAYWIFI captive portal under the following terms.</p>
 
-<h2>1. Your role</h2>
+<div class="box">
+  <strong>Quick summary:</strong> You keep <strong>30%</strong> of every paid transaction. You remit <strong>70%</strong> to PAYWIFI <strong>weekly</strong>. Miss the weekly deadline and the system automatically restricts your ability to accept new payments until you catch up.
+</div>
+
+<h2>1. Revenue share</h2>
 <ol>
-  <li>Accept cash from customers buying a PAYWIFI Wi-Fi plan.</li>
-  <li>Confirm the payment in the partner dashboard so the customer's voucher can be issued.</li>
-  <li>Remit the gross amount minus your commission to PAYWIFI on the agreed schedule.</li>
+  <li><strong>Partner commission: 30%.</strong> Of every paid customer transaction routed to your partner code, you retain 30% as your earnings.</li>
+  <li><strong>Remittance obligation: 70%.</strong> The remaining 70% of gross collected payments is owed to PAYWIFI.</li>
+  <li>These percentages are fixed by platform policy and apply uniformly to all partners.</li>
 </ol>
 
-<h2>2. Commission</h2>
+<h2>2. Weekly remittance schedule</h2>
 <ol>
-  <li>Your commission percentage is set by the PAYWIFI admin and visible on your dashboard.</li>
-  <li>Commission is calculated per paid transaction and accrues to your outstanding balance.</li>
-  <li>Changes to your commission rate take effect on the date the admin records them and apply to future transactions only.</li>
+  <li>The week starts <strong>Monday 00:00 Asia/Manila</strong> and ends <strong>Sunday 23:59 Asia/Manila</strong>.</li>
+  <li>You must remit at least <strong>70% of the previous week's gross sales</strong> by <strong>Monday 23:59 Asia/Manila</strong> of the following week (the deadline window).</li>
+  <li>Remittances are submitted in the partner dashboard with a reference number (GCash, bank transfer, or cash). Admin approval confirms receipt.</li>
 </ol>
 
-<h2>3. Confirmations</h2>
+<h2>3. Payment processing responsibilities</h2>
 <ol>
-  <li>You must confirm a payment only after receiving the full cash amount from the customer.</li>
-  <li>Target service level: confirm within 5 minutes of receiving cash. Repeated delays may result in suspension.</li>
-  <li>If a customer pays the wrong amount or does not show up, decline the payment with a reason.</li>
+  <li>Confirm a payment in the dashboard only after receiving the full cash amount from the customer.</li>
+  <li>Target service level: confirm within <strong>5 minutes</strong> of receiving cash. The system pages you with an SMS if a pending payment passes that mark.</li>
+  <li>Decline payments for no-show customers, wrong amounts, or anything suspicious, and pick the appropriate reason.</li>
+  <li>Refunds, if any, are handled by PAYWIFI on a case-by-case basis after admin review.</li>
 </ol>
 
-<h2>4. Remittance</h2>
+<h2>4. Compliance and automatic restriction</h2>
 <ol>
-  <li>Submit cash, GCash, or bank-transfer remittances in the dashboard with a reference number.</li>
-  <li>Cash held more than 7 days unremitted is considered overdue.</li>
-  <li>The PAYWIFI admin must approve each remittance before it reduces your outstanding balance.</li>
+  <li>If your previous week's required remittance is not received in full by the deadline, your account is automatically flipped to <strong>restricted</strong>.</li>
+  <li>While restricted: you can sign in, view sales and history, and submit a remittance — but you cannot confirm new cash payments and your store is removed from the customer-facing dropdown.</li>
+  <li>When the outstanding balance is cleared (or an admin grants an override), the system automatically reinstates you.</li>
+  <li>Repeated delinquency may result in <strong>suspension</strong> or <strong>archival</strong> at admin discretion.</li>
 </ol>
 
-<h2>5. Account &amp; data</h2>
+<h2>5. Statuses</h2>
 <ol>
-  <li>Your mobile number is the primary identifier and cannot be changed without admin assistance.</li>
-  <li>You are responsible for keeping the device that receives your sign-in codes secure.</li>
-  <li>PAYWIFI may send transactional SMS to your mobile (sign-in codes, status changes, late-pending alerts).</li>
+  <li><strong>Active</strong> — compliant and operational.</li>
+  <li><strong>Restricted</strong> — automatic temporary block due to outstanding weekly remittance.</li>
+  <li><strong>Suspended</strong> — admin-imposed block, typically for breach of these terms.</li>
+  <li><strong>Archived</strong> — partner is no longer active. Historical data is preserved for reconciliation.</li>
 </ol>
 
-<h2>6. Suspension &amp; termination</h2>
+<h2>6. Account &amp; data privacy</h2>
 <ol>
-  <li>PAYWIFI may suspend or archive a partner account at any time for unpaid balances, fraud, or breach of these terms.</li>
-  <li>Suspended partners cannot sign in but their historical data is preserved for reconciliation.</li>
-  <li>You may close your account by contacting the admin. Outstanding balances remain due.</li>
+  <li>Your mobile number is the primary identifier. Sign-in is OTP-based.</li>
+  <li>You consent to receive transactional SMS (codes, status changes, late-pending alerts, restriction/reinstatement notices).</li>
+  <li>PAYWIFI processes the personal data you provide in accordance with the Philippine Data Privacy Act of 2012. See the <a href="/privacy-partner.html">Partner Privacy Notice</a> for details.</li>
+  <li>You are responsible for keeping the device that receives OTPs secure. Account compromise from a shared device is your liability.</li>
 </ol>
 
-<h2>7. Liability</h2>
+<h2>7. Platform usage</h2>
+<ol>
+  <li>You may not transfer, sell, or lease your partner account. Each partner is identified by a unique mobile number.</li>
+  <li>You may not solicit customers off-platform to bypass remittance.</li>
+  <li>Reverse-engineering, scraping, or attempting to abuse PAYWIFI APIs is prohibited.</li>
+</ol>
+
+<h2>8. Liability</h2>
 <ol>
   <li>PAYWIFI is not responsible for cash lost, stolen, or miscounted at your counter.</li>
-  <li>Service is provided as-is; PAYWIFI is not liable for downtime or revenue lost during outages.</li>
+  <li>Service is provided as-is. PAYWIFI is not liable for downtime, network outages, or revenue lost during interruptions.</li>
 </ol>
 
-<h2>8. Contact</h2>
-<p>Questions or disputes: contact the PAYWIFI admin via the phone or email shown in your partner dashboard footer.</p>
+<h2>9. Contact</h2>
+<p>Questions, disputes, or restriction overrides: contact the PAYWIFI admin via the phone or email shown in your partner dashboard footer.</p>
 
-<p style="margin-top:32px;font-size:12px;color:#94a3b8">© PAYWIFI · This document version may be updated; partners will be notified of material changes.</p>
+<p style="margin-top:32px;font-size:12px;color:#94a3b8">© PAYWIFI · Material changes to this document will be notified via SMS or email. Continued use after a notified change constitutes acceptance.</p>
 </body>
 </html>

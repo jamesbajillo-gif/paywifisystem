@@ -140,7 +140,18 @@ router.get('/partners/:id', requireAdmin, (req, res) => {
     " WHERE partner_id=? ORDER BY id DESC LIMIT 30"
   ).all(id);
 
+  // PARTNER-EDIT-EXT-2026-06-03 — restriction history + compliance snapshot
+  const restrictionLog = db.prepare(
+    "SELECT action, reason, by_admin_id, by_system, created_at FROM partner_restriction_log WHERE partner_id=? ORDER BY id DESC LIMIT 10"
+  ).all(id);
+  let compliance = null;
+  try {
+    const svc = require('../services/compliance');
+    compliance = svc.snapshotForPartner(id);
+  } catch (e) {}
+
   res.render('admin/partner-edit', {
+    restrictionLog, compliance,
     title:  op.partner_name + ' · PAYWIFI',
     active: 'partners',
     isNew:  false,
@@ -200,7 +211,7 @@ router.post('/partners/:id/update', requireAdmin, (req, res) => {
 router.post('/partners/:id/status', requireAdmin, (req, res) => {
   const id = parseInt(req.params.id, 10);
   const wanted = String((req.body || {}).status || '').toLowerCase();
-  if (!['active','pending','suspended','archived'].includes(wanted)) {
+  if (!['active','restricted','pending','suspended','archived'].includes(wanted)) {
     req.session.prFlash = { kind: 'err', message: 'Invalid status.' };
     return res.redirect('/admin/partners/' + id);
   }
@@ -250,6 +261,36 @@ router.post('/partners/:id/unlock', requireAdmin, (req, res) => {
     .run(Math.floor(Date.now()/1000), id);
   audit(req.admin.id, 'partner_unlock', 'id=' + id, req.clientIp);
   req.session.prFlash = { kind: 'ok', message: 'Account unlocked.' };
+  res.redirect('/admin/partners/' + id);
+});
+
+// OVERRIDE-2026-06-03 — admin grants a temporary override that exempts a partner
+// from auto-restriction (e.g. they paid late but the admin already received it).
+router.post('/partners/:id/override', requireAdmin, (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const hours = Math.max(1, Math.min(168, parseInt((req.body || {}).hours || '72', 10)));
+  const reason = String((req.body || {}).reason || '').trim().slice(0, 240) || 'admin grant';
+  const now = Math.floor(Date.now() / 1000);
+  const until = now + hours * 3600;
+  const p = db.prepare('SELECT id, status FROM partners WHERE id=?').get(id);
+  if (!p) return res.redirect('/admin/partners');
+  db.prepare("UPDATE partners SET restriction_override_until=?, restriction_override_by=?, status=CASE WHEN status='restricted' THEN 'active' ELSE status END, restricted_at=CASE WHEN status='restricted' THEN NULL ELSE restricted_at END, restricted_reason=CASE WHEN status='restricted' THEN NULL ELSE restricted_reason END, updated_at=? WHERE id=?")
+    .run(until, req.admin.id, now, id);
+  db.prepare("INSERT INTO partner_restriction_log (partner_id, action, reason, by_admin_id, by_system, created_at) VALUES (?, 'override_grant', ?, ?, 0, ?)")
+    .run(id, 'until ' + new Date(until*1000).toISOString() + ' — ' + reason, req.admin.id, now);
+  audit(req.admin.id, 'partner_override_grant', 'id=' + id + ' until=' + until + ' hours=' + hours + ' reason=' + reason, req.clientIp);
+  req.session.prFlash = { kind: 'ok', message: 'Override granted for ' + hours + 'h. Partner reinstated.' };
+  res.redirect('/admin/partners/' + id);
+});
+
+router.post('/partners/:id/override/revoke', requireAdmin, (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const now = Math.floor(Date.now() / 1000);
+  db.prepare("UPDATE partners SET restriction_override_until=NULL, restriction_override_by=NULL, updated_at=? WHERE id=?").run(now, id);
+  db.prepare("INSERT INTO partner_restriction_log (partner_id, action, reason, by_admin_id, by_system, created_at) VALUES (?, 'override_revoke', 'admin revoke', ?, 0, ?)")
+    .run(id, req.admin.id, now);
+  audit(req.admin.id, 'partner_override_revoke', 'id=' + id, req.clientIp);
+  req.session.prFlash = { kind: 'ok', message: 'Override revoked.' };
   res.redirect('/admin/partners/' + id);
 });
 

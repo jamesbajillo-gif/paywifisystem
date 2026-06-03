@@ -1,0 +1,227 @@
+<%# PAYWIFI-WIZARD-2026-06-03 — 7-step partner welcome wizard %>
+<link rel="stylesheet" href="/op-auth.css" />
+<style>
+  .wiz-shell { max-width: 560px; margin: 0 auto; padding: 24px 20px 48px; }
+  .wiz-progress { display:flex; gap:4px; margin-bottom: 20px; }
+  .wiz-pip { flex:1; height:4px; background: color-mix(in oklab, var(--muted-foreground) 20%, var(--card)); border-radius: 2px; transition: background 200ms ease; }
+  .wiz-pip.done { background: var(--success); }
+  .wiz-pip.active { background: var(--primary); }
+  .wiz-card { background: var(--card); border: 2px solid var(--border); border-radius: 20px; padding: 24px; }
+  .wiz-step-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.2em; color: var(--primary); margin-bottom: 6px; }
+  .wiz-title { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.2; margin: 0 0 8px; color: var(--foreground); }
+  .wiz-lead  { font-size: 15px; line-height: 1.55; color: var(--muted-foreground); margin: 0 0 18px; }
+  .wiz-list  { margin: 0 0 18px; padding-left: 22px; }
+  .wiz-list li { margin: 6px 0; line-height: 1.5; color: var(--foreground); font-size: 14px; }
+  .wiz-emoji { display: inline-block; font-size: 40px; margin-bottom: 8px; }
+  .wiz-actions { display:flex; gap:10px; margin-top: 20px; }
+  .wiz-actions form { flex: 1; }
+  .wiz-actions .btn-primary { width: 100%; height: 52px; }
+  .wiz-actions .btn-secondary {
+    width: 100%; height: 52px; border-radius: 12px; border: 2px solid var(--border);
+    background: var(--card); color: var(--muted-foreground); font-weight: 600; font-size: 15px;
+  }
+  .wiz-stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 14px 0 18px; }
+  .wiz-stat { background: color-mix(in oklab, var(--primary) 6%, var(--card)); border: 1px solid color-mix(in oklab, var(--primary) 30%, var(--border)); padding: 12px; border-radius: 12px; text-align: center; }
+  .wiz-stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted-foreground); }
+  .wiz-stat-value { font-size: 20px; font-weight: 800; color: var(--primary); margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .wiz-formula { background: var(--background); border: 1px dashed var(--border); padding: 12px 14px; border-radius: 12px; font-family: ui-monospace, Menlo, monospace; font-size: 13px; color: var(--foreground); margin: 12px 0; }
+  .wiz-field { display: block; margin-bottom: 12px; }
+  .wiz-field-label { display:block; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted-foreground); margin-bottom: 6px; }
+  .wiz-field input, .wiz-field textarea {
+    width: 100%; box-sizing: border-box; height: 48px; padding: 0 14px; border-radius: 12px;
+    border: 1.5px solid var(--border); background: var(--background); color: var(--foreground); font-size: 15px;
+    font-weight: 500; appearance: none;
+  }
+  .wiz-field textarea { padding: 12px 14px; min-height: 80px; height: auto; resize: vertical; }
+  .wiz-callout { background: color-mix(in oklab, var(--destructive) 8%, var(--card)); border: 1px solid color-mix(in oklab, var(--destructive) 30%, var(--border)); border-radius: 12px; padding: 12px 14px; font-size: 13px; color: var(--destructive); margin-top: 14px; }
+  .wiz-help-grid { display: grid; grid-template-columns: 1fr; gap: 10px; margin-top: 8px; }
+  .wiz-help-row { background: var(--background); border: 1px solid var(--border); padding: 12px 14px; border-radius: 12px; display: flex; align-items: center; gap: 12px; font-size: 14px; }
+  .wiz-help-row strong { color: var(--foreground); }
+</style>
+
+<div class="wiz-shell">
+  <div class="wiz-progress" aria-label="Wizard progress">
+    <% for (var i = 0; i < 7; i++) { %>
+      <span class="wiz-pip <%= i < step ? 'done' : (i === step ? 'active' : '') %>"></span>
+    <% } %>
+  </div>
+
+  <div class="wiz-card">
+    <% if (step === 0) { %>
+      <%# ── Welcome ─────────────────────────────────── %>
+      <span class="wiz-emoji">👋</span>
+      <p class="wiz-step-label">Welcome · <%= partner.partner_name %></p>
+      <h1 class="wiz-title">Welcome to the Partner Portal</h1>
+      <p class="wiz-lead">This platform lets you accept customer payments, track your sales and profit, submit remittances, and manage your partner account — all from one place. Let's set you up in 7 quick steps.</p>
+      <form method="POST" action="/partner/wizard/next" class="wiz-actions">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+        <button type="submit" class="btn-primary">Let's go →</button>
+      </form>
+
+    <% } else if (step === 1) { %>
+      <%# ── Profile ─────────────────────────────────── %>
+      <p class="wiz-step-label">Step 1 of 7 · Profile</p>
+      <h1 class="wiz-title">Complete your profile</h1>
+      <p class="wiz-lead">We'll use these details for your statements and for sending you remittance receipts.</p>
+      <form method="POST" action="/partner/wizard/next">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+        <label class="wiz-field">
+          <span class="wiz-field-label">Full name *</span>
+          <input name="full_name" required maxlength="120" value="<%= partner.full_name || '' %>" placeholder="Juan dela Cruz" autocomplete="name" />
+        </label>
+        <label class="wiz-field">
+          <span class="wiz-field-label">Mobile (cannot change)</span>
+          <input value="+<%= partner.mobile %>" disabled style="opacity:0.6" />
+        </label>
+        <label class="wiz-field">
+          <span class="wiz-field-label">Email *</span>
+          <input name="email" type="email" required maxlength="120" value="<%= partner.email || '' %>" placeholder="you@example.com" autocomplete="email" />
+        </label>
+        <label class="wiz-field">
+          <span class="wiz-field-label">Store / business name</span>
+          <input value="<%= partner.partner_name %>" disabled style="opacity:0.6" />
+        </label>
+        <label class="wiz-field">
+          <span class="wiz-field-label">Store address (optional)</span>
+          <input name="address" maxlength="200" value="<%= partner.address || '' %>" placeholder="Brgy. San Antonio, Pasig City" />
+        </label>
+        <label class="wiz-field">
+          <span class="wiz-field-label">Remittance — GCash number *</span>
+          <input name="gcash_number" required pattern="(09\d{9}|639\d{9})" maxlength="13" value="<%= partner.gcash_number || '' %>" placeholder="09171234567" inputmode="tel" />
+        </label>
+        <label class="wiz-field">
+          <span class="wiz-field-label">GCash account name (optional)</span>
+          <input name="gcash_account" maxlength="120" value="<%= partner.gcash_account || '' %>" placeholder="As shown on your GCash app" />
+        </label>
+        <div class="wiz-actions">
+          <button type="submit" class="btn-primary">Save & continue →</button>
+        </div>
+      </form>
+
+    <% } else if (step === 2) { %>
+      <%# ── Revenue ────────────────────────────────────── %>
+      <p class="wiz-step-label">Step 2 of 7 · Revenue sharing</p>
+      <h1 class="wiz-title">How earnings work</h1>
+      <p class="wiz-lead">You collect customer payments. You keep <strong><%= commissionPct %>%</strong>. You remit <strong><%= remitPct %>%</strong> to PAYWIFI each week.</p>
+      <div class="wiz-stat-grid">
+        <div class="wiz-stat">
+          <div class="wiz-stat-label">Customer pays you</div>
+          <div class="wiz-stat-value">₱10,000</div>
+        </div>
+        <div class="wiz-stat">
+          <div class="wiz-stat-label">Your profit (<%= commissionPct %>%)</div>
+          <div class="wiz-stat-value" style="color: var(--success)">₱<%= (10000 * commissionPct / 100).toLocaleString() %></div>
+        </div>
+        <div class="wiz-stat" style="grid-column: 1 / -1; background: color-mix(in oklab, var(--destructive) 6%, var(--card)); border-color: color-mix(in oklab, var(--destructive) 30%, var(--border))">
+          <div class="wiz-stat-label">You remit to PAYWIFI (<%= remitPct %>%)</div>
+          <div class="wiz-stat-value" style="color: var(--destructive)">₱<%= (10000 * remitPct / 100).toLocaleString() %></div>
+        </div>
+      </div>
+      <div class="wiz-formula">
+        Partner profit = total sales × <%= commissionPct %>%<br/>
+        Remittance balance = total sales × <%= remitPct %>% − total remitted
+      </div>
+      <form method="POST" action="/partner/wizard/next" class="wiz-actions">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+        <button type="submit" class="btn-primary">Got it →</button>
+      </form>
+
+    <% } else if (step === 3) { %>
+      <%# ── Accepting payments ─────────────────────────── %>
+      <p class="wiz-step-label">Step 3 of 7 · Accepting payments</p>
+      <h1 class="wiz-title">When a customer pays you</h1>
+      <p class="wiz-lead">Customers can choose your store at checkout. When they pay cash, it appears here for confirmation.</p>
+      <ol class="wiz-list">
+        <li>Customer picks a Wi-Fi plan and selects your store.</li>
+        <li>They pay you cash in person.</li>
+        <li>The payment appears in <strong>Awaiting confirmation</strong> on your dashboard.</li>
+        <li>You tap <strong>Confirm</strong>. We immediately generate the voucher.</li>
+        <li>Hand the voucher code (or let our SMS deliver it) to the customer.</li>
+      </ol>
+      <div class="wiz-callout">
+        <strong>Service level:</strong> confirm cash within <strong><%= slaMin %> minutes</strong>. Late pending payments page you with an SMS.
+      </div>
+      <form method="POST" action="/partner/wizard/next" class="wiz-actions">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+        <button type="submit" class="btn-primary">Next →</button>
+      </form>
+
+    <% } else if (step === 4) { %>
+      <%# ── Dashboard ──────────────────────────────────── %>
+      <p class="wiz-step-label">Step 4 of 7 · Sales dashboard</p>
+      <h1 class="wiz-title">Your dashboard at a glance</h1>
+      <p class="wiz-lead">Every signed-in screen surfaces the metrics you care about. The dashboard headline shows:</p>
+      <ol class="wiz-list">
+        <li><strong>Total sales</strong> — gross cash you've collected, lifetime.</li>
+        <li><strong>Your profit</strong> — <%= commissionPct %>% of that.</li>
+        <li><strong>Remittance balance</strong> — how much you still owe PAYWIFI.</li>
+        <li><strong>Awaiting confirmation</strong> — pending cash payments to act on now.</li>
+        <li><strong>Transaction history</strong> — drill into individual payments under Sales.</li>
+      </ol>
+      <form method="POST" action="/partner/wizard/next" class="wiz-actions">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+        <button type="submit" class="btn-primary">Next →</button>
+      </form>
+
+    <% } else if (step === 5) { %>
+      <%# ── Remit ──────────────────────────────────────── %>
+      <p class="wiz-step-label">Step 5 of 7 · Submit remittances</p>
+      <h1 class="wiz-title">Sending money to PAYWIFI</h1>
+      <p class="wiz-lead">Open the <strong>Remit</strong> tab. Send the amount you owe via GCash to PAYWIFI's number, then submit the reference number for admin approval.</p>
+      <ol class="wiz-list">
+        <li>Check your outstanding balance — it's right at the top of the Remit page.</li>
+        <li>Send the amount via GCash from the number you registered.</li>
+        <li>Paste the GCash reference number, pick the method (GCash / Bank / Cash), and submit.</li>
+        <li>Once an admin approves it, your balance drops automatically.</li>
+        <li>Remittance history stays on the page — downloadable as CSV from Sales.</li>
+      </ol>
+      <form method="POST" action="/partner/wizard/next" class="wiz-actions">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+        <button type="submit" class="btn-primary">Next →</button>
+      </form>
+
+    <% } else if (step === 6) { %>
+      <%# ── Compliance ─────────────────────────────────── %>
+      <p class="wiz-step-label">Step 6 of 7 · Weekly compliance</p>
+      <h1 class="wiz-title">Stay in good standing</h1>
+      <p class="wiz-lead">To keep accepting payments, you must remit <strong><%= remitPct %>% of last week's sales</strong> by the end of the following Monday.</p>
+      <div class="wiz-callout">
+        <strong>Missing the deadline</strong> automatically restricts your account — you cannot accept new payments until the outstanding balance is cleared. The system reinstates you automatically when you catch up.
+      </div>
+      <p class="wiz-lead" style="margin-top: 12px">
+        Suspensions or archival are admin-only actions and bypass this automatic flow.
+      </p>
+      <form method="POST" action="/partner/wizard/next" class="wiz-actions">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+        <button type="submit" class="btn-primary">I understand →</button>
+      </form>
+
+    <% } else if (step >= 7) { %>
+      <%# ── Help ───────────────────────────────────────── %>
+      <p class="wiz-step-label">Step 7 of 7 · Need help?</p>
+      <h1 class="wiz-title">We're here when you need us</h1>
+      <p class="wiz-lead">Save these contact details — they're also pinned at the bottom of every partner page.</p>
+      <div class="wiz-help-grid">
+        <% if (supportContact && supportContact.phone) { %>
+          <div class="wiz-help-row">📞 <span><strong>Phone:</strong> <a href="tel:<%= supportContact.phone %>" style="color:var(--primary)"><%= supportContact.phone %></a></span></div>
+        <% } %>
+        <% if (supportContact && supportContact.email) { %>
+          <div class="wiz-help-row">✉️ <span><strong>Email:</strong> <a href="mailto:<%= supportContact.email %>" style="color:var(--primary)"><%= supportContact.email %></a></span></div>
+        <% } %>
+        <div class="wiz-help-row">📘 <span><strong>FAQ:</strong> <a href="/partner-faq.html" target="_blank" style="color:var(--primary)">paywifi.net/partner-faq.html</a></span></div>
+        <div class="wiz-help-row">🔒 <span><strong>Privacy:</strong> <a href="/privacy-partner.html" target="_blank" style="color:var(--primary)">paywifi.net/privacy-partner.html</a></span></div>
+        <div class="wiz-help-row">📜 <span><strong>Terms:</strong> <a href="/terms-partner.html" target="_blank" style="color:var(--primary)">paywifi.net/terms-partner.html</a></span></div>
+      </div>
+      <form method="POST" action="/partner/wizard/finish" class="wiz-actions">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+        <button type="submit" class="btn-primary">Start using the portal →</button>
+      </form>
+    <% } %>
+  </div>
+
+  <% if (step > 0 && step < 7) { %>
+    <p style="text-align: center; margin-top: 18px; font-size: 13px;">
+      <a href="/partner/wizard/skip" style="color: var(--muted-foreground); text-decoration: underline">Skip the rest, I'll figure it out</a>
+    </p>
+  <% } %>
+</div>
