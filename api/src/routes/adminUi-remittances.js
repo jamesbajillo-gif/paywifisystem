@@ -37,7 +37,7 @@ router.get('/remittances', requireAdmin, (req, res) => {
   }
 
   // Per-operator outstanding (helps admin see context next to each remittance)
-  const ops = db.prepare("SELECT id, partner_name, username, commission_pct FROM partners WHERE status='active'").all();
+  const ops = db.prepare("SELECT id, partner_name, commission_pct FROM partners WHERE status='active'").all();
   const balances = ops.map(o => ({ ...o, balance: computeOwed(o.id) }));
 
   res.render('admin/remittances', {
