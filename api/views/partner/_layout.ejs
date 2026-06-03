@@ -35,18 +35,18 @@
 <body class="min-h-screen">
 <% if (active && active !== 'login') { %>
   <nav class="op-nav px-6 py-2.5 flex items-center gap-1 flex-wrap text-sm sticky top-0 z-30">
-    <a href="/operator/" class="font-bold text-base mr-3" style="color:var(--primary)">PAYWIFI</a>
-    <a href="/operator/"          class="nav-link <%= active==='dash'     ? 'active' : '' %>">Dashboard</a>
-    <a href="/operator/sales"     class="nav-link <%= active==='sales'    ? 'active' : '' %>">Sales</a>
-<a href="/operator/remit"     class="nav-link <%= active==='sales'    ? 'active' : '' %>">Remit</a>
-    <a href="/operator/settings"  class="nav-link <%= active==='settings' ? 'active' : '' %>">Settings</a>
+    <a href="/partner/" class="font-bold text-base mr-3" style="color:var(--primary)">PAYWIFI</a>
+    <a href="/partner/"          class="nav-link <%= active==='dash'     ? 'active' : '' %>">Dashboard</a>
+    <a href="/partner/sales"     class="nav-link <%= active==='sales'    ? 'active' : '' %>">Sales</a>
+<a href="/partner/remit"     class="nav-link <%= active==='sales'    ? 'active' : '' %>">Remit</a>
+    <a href="/partner/settings"  class="nav-link <%= active==='settings' ? 'active' : '' %>">Settings</a>
     <span class="ml-auto flex items-center gap-3 text-xs" style="color: var(--muted-foreground)">
       <% if (operator) { %>
         <span class="hidden sm:inline">Store:</span>
-        <span class="font-semibold" style="color: var(--foreground)"><%= operator.store_name %></span>
+        <span class="font-semibold" style="color: var(--foreground)"><%= operator.partner_name %></span>
         <span class="opacity-60">@<%= operator.username %></span>
       <% } %>
-      <form method="POST" action="/operator/logout" class="inline">
+      <form method="POST" action="/partner/logout" class="inline">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
         <button class="hover:underline" style="color: var(--destructive)" type="submit">Logout</button>
       </form>

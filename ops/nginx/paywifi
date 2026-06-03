@@ -41,7 +41,7 @@ server {
     }
 
     # OPERATOR-NGINX-2026-06-01 — cashier surface over HTTPS (mgmt + LAN).
-    location /operator {
+    location /partner {
         limit_req  zone=req_api burst=40 nodelay;
         limit_conn conn_perip 50;
         add_header Cache-Control "no-store, no-cache, must-revalidate";
@@ -276,7 +276,7 @@ server {
     }
 
     # OPERATOR-NGINX-2026-06-01 — cashier surface, LAN-accessible over plain HTTP.
-    location /operator {
+    location /partner {
         # Rate-limit + conn-cap (reuse the api zones — same characteristics)
         limit_req  zone=req_api burst=40 nodelay;
         limit_conn conn_perip 50;

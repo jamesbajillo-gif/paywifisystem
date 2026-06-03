@@ -1,11 +1,11 @@
-<%# PAYWIFI-OPERATOR-ADMIN-2026-06-02 — list page %>
+<%# PAYWIFI-PARTNER-ADMIN-2026-06-02 — list page %>
 <div class="space-y-6">
   <div class="flex items-center justify-between">
     <div>
-      <h1 class="text-2xl font-bold" style="color: var(--foreground)">Operators</h1>
-      <p class="text-sm" style="color: var(--muted-foreground)">Store partners who confirm cash payments and earn commission.</p>
+      <h1 class="text-2xl font-bold" style="color: var(--foreground)">Partners</h1>
+      <p class="text-sm" style="color: var(--muted-foreground)">Partners who confirm cash payments and earn commission.</p>
     </div>
-    <a href="/admin/operators/new" class="px-4 py-2 rounded font-semibold text-sm"
+    <a href="/admin/partners/new" class="px-4 py-2 rounded font-semibold text-sm"
       style="background: var(--primary); color: var(--primary-foreground)">+ New operator</a>
   </div>
 
@@ -20,7 +20,7 @@
 
   <% if (!operators.length) { %>
     <div class="rounded-lg border p-8 text-center text-sm" style="background: var(--card); border-color: var(--border); color: var(--muted-foreground)">
-      No operators yet. <a href="/admin/operators/new" class="underline" style="color: var(--primary)">Add the first one</a>.
+      No operators yet. <a href="/admin/partners/new" class="underline" style="color: var(--primary)">Add the first one</a>.
     </div>
   <% } else { %>
     <div class="rounded-lg border overflow-hidden" style="background: var(--card); border-color: var(--border)">
@@ -30,13 +30,13 @@
            var lastLogin = op.last_login_at ? new Date(op.last_login_at * 1000).toLocaleString() : '—';
            var commission = (op.commission_pct || 0).toFixed(0);
       %>
-        <a href="/admin/operators/<%= op.id %>"
+        <a href="/admin/partners/<%= op.id %>"
           class="block px-4 py-3 transition-colors <%= idx > 0 ? 'border-t' : '' %>"
           style="border-color: var(--border); text-decoration: none; color: inherit">
           <div class="flex items-center gap-3 min-w-0">
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2 flex-wrap">
-                <span class="font-bold" style="color: var(--foreground)"><%= op.store_name %></span>
+                <span class="font-bold" style="color: var(--foreground)"><%= op.partner_name %></span>
                 <span class="text-xs font-mono" style="color: var(--muted-foreground)"><%= op.mobile || "no mobile" %></span>
                 <span class="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded"
                   style="background: color-mix(in oklab, <%= stColor %> 15%, var(--card)); color: <%= stColor %>; border: 1px solid color-mix(in oklab, <%= stColor %> 30%, var(--border))">

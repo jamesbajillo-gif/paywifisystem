@@ -18,9 +18,9 @@ const ejs = require('ejs');
 app.engine('ejs', (filePath, options, callback) => {
   ejs.renderFile(filePath, options, (err, body) => {
     if (err) return callback(err);
-    // OPERATOR-LAYOUT-DISPATCH-2026-06-01 — operator pages use their own layout.
-    const isOperator = filePath.indexOf(path.sep + 'operator' + path.sep) !== -1;
-    const layoutPath = path.join(__dirname, '..', 'views', isOperator ? 'operator' : 'admin', '_layout.ejs');
+    // PARTNER-LAYOUT-DISPATCH-2026-06-01 — operator pages use their own layout.
+    const isPartner = filePath.indexOf(path.sep + 'partner' + path.sep) !== -1;
+    const layoutPath = path.join(__dirname, '..', 'views', isPartner ? 'partner' : 'admin', '_layout.ejs');
     ejs.renderFile(layoutPath, { ...options, body }, callback);
   });
 });
@@ -35,19 +35,19 @@ app.set('trust proxy', 1);   // nginx sets X-Forwarded-For
 const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 const rlKeyByIp = ipKeyGenerator;  // handles IPv6-mapped IPv4 correctly
 // Admin login (UI + both API paths)
-// OPERATOR-LOGIN-RL-2026-06-02 — match adminLoginLimiter: 10 / 5 min per IP
-const operatorLoginLimiter = rateLimit({ windowMs: 5*60*1000, max: 10, standardHeaders: true, skip: (r) => r.method !== 'POST', message: 'Too many sign-in attempts. Try again in 5 minutes.' });
+// PARTNER-LOGIN-RL-2026-06-02 — match adminLoginLimiter: 10 / 5 min per IP
+const partnerLoginLimiter = rateLimit({ windowMs: 5*60*1000, max: 10, standardHeaders: true, skip: (r) => r.method !== 'POST', message: 'Too many sign-in attempts. Try again in 5 minutes.' });
 const adminLoginLimiter = rateLimit({ windowMs: 5*60*1000, max: 10, standardHeaders: true, keyGenerator: rlKeyByIp, message: 'Too many attempts.' });
 app.use('/admin/login',     adminLoginLimiter);
 app.use('/admin-api/login', adminLoginLimiter);
 app.use('/admin/api/login', adminLoginLimiter);   // was missing — primary JWT login path
-app.use('/operator/login', operatorLoginLimiter);
+app.use('/partner/login', partnerLoginLimiter);
 // OTP rate limits: SMS-sending costs money — tighter caps.
-const operatorOtpLimiter   = rateLimit({ windowMs: 60*1000,    max: 3,  standardHeaders: true, skip: (r) => r.method !== 'POST', message: 'Too many code requests. Wait a minute.' });
-const operatorVerifyLimiter = rateLimit({ windowMs: 60*1000,   max: 15, standardHeaders: true, skip: (r) => r.method !== 'POST', message: 'Too many verification attempts. Wait a minute.' });
-app.use('/operator/login',    operatorOtpLimiter);     // POST mobile → SMS
-app.use('/operator/register', operatorOtpLimiter);     // POST mobile+store → SMS
-app.use('/operator/verify',   operatorVerifyLimiter); 
+const partnerOtpLimiter   = rateLimit({ windowMs: 60*1000,    max: 3,  standardHeaders: true, skip: (r) => r.method !== 'POST', message: 'Too many code requests. Wait a minute.' });
+const partnerVerifyLimiter = rateLimit({ windowMs: 60*1000,   max: 15, standardHeaders: true, skip: (r) => r.method !== 'POST', message: 'Too many verification attempts. Wait a minute.' });
+app.use('/partner/login',    partnerOtpLimiter);     // POST mobile → SMS
+app.use('/partner/register', partnerOtpLimiter);     // POST mobile+store → SMS
+app.use('/partner/verify',   partnerVerifyLimiter); 
 // Portal endpoints
 // PAYWIFI-PUBLIC-HOST-BLOCK-2026-06-01 — refuse payment endpoints from paywifi.net (public host)
 const blockPublicPayments = require('./middleware/blockPublicPayments');
@@ -102,13 +102,13 @@ app.use('/admin', adminSession, csrf, require('./routes/adminUi-queue'));   // S
 app.use('/admin', adminSession, csrf, require('./routes/adminUi-updates'));  // update logs
 app.use('/admin', adminSession, csrf, require('./routes/adminUi-infra'));     // infrastructure health
 app.use('/admin', adminSession, csrf, require('./routes/adminUi-devices'));
-app.use('/admin', adminSession, csrf, require('./routes/adminUi-operators'));
+app.use('/admin', adminSession, csrf, require('./routes/adminUi-partners'));
 app.use('/admin', adminSession, csrf, require('./routes/adminUi-remittances'));  // operator CRUD   // device diagnostics
 app.use('/admin', adminSession, csrf, require('./routes/adminUi-cloudflare')); // PAYWIFI-CLOUDFLARED-2026-06-01 — Cloudflare tunnel admin
 
-// OPERATOR-ROUTE-MOUNT-2026-06-01 — cashier surface, static-password auth,
-// completely scoped to /operator/* (the operator session has no /admin access).
-app.use('/operator', csrf, require('./routes/operator'));
+// PARTNER-ROUTE-MOUNT-2026-06-01 — cashier surface, static-password auth,
+// completely scoped to /partner/* (the partner session has no /admin access).
+app.use('/partner', csrf, require('./routes/partner'));
 
 // ---- Webhooks (no auth — modules verify their own token) ------------------
 app.use('/webhooks', require('./routes/webhooks'));

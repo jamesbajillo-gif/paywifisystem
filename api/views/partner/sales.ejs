@@ -1,25 +1,25 @@
-<%# OPERATOR-COMMISSION-UI-2026-06-02 — date range + commission %>
+<%# PARTNER-COMMISSION-UI-2026-06-02 — date range + commission %>
 <header class="mb-6">
   <p class="text-[11px] font-bold uppercase tracking-[0.2em]" style="color:var(--primary)">PAYWIFI · Operator</p>
-  <h1 class="text-3xl font-bold tracking-tight"><%= operator.store_name %> · Sales</h1>
+  <h1 class="text-3xl font-bold tracking-tight"><%= operator.partner_name %> · Sales</h1>
   <p class="text-sm mt-1" style="color: var(--muted-foreground)">Filter by date range — exports as CSV for accounting.</p>
 </header>
 
 <!-- Date range picker -->
 <div class="rounded-2xl border-2 p-3 mb-4 flex flex-wrap items-center gap-2" style="background: var(--card); border-color: var(--border)">
   <% ['today','7d','30d','90d','all'].forEach(function(p){ %>
-    <a href="/operator/sales?preset=<%= p %>" class="px-3 py-1.5 rounded text-xs font-semibold"
+    <a href="/partner/sales?preset=<%= p %>" class="px-3 py-1.5 rounded text-xs font-semibold"
       style="background: <%= range.preset === p ? 'var(--primary)' : 'var(--background)' %>; color: <%= range.preset === p ? 'var(--primary-foreground)' : 'var(--muted-foreground)' %>; border: 1px solid var(--border)"><%= p === '7d' ? '7 days' : p === '30d' ? '30 days' : p === '90d' ? '90 days' : p %></a>
   <% }) %>
   <span style="color: var(--muted-foreground); font-size: 12px">|</span>
-  <form method="GET" action="/operator/sales" class="flex items-center gap-1 text-xs">
+  <form method="GET" action="/partner/sales" class="flex items-center gap-1 text-xs">
     <input type="date" name="from" required value="<%= new Date(range.from * 1000).toISOString().slice(0,10) %>" />
     <span style="color: var(--muted-foreground)">→</span>
     <input type="date" name="to" required value="<%= new Date(range.to * 1000).toISOString().slice(0,10) %>" />
     <button type="submit" class="px-2 py-1 rounded font-semibold" style="background: var(--secondary); color: var(--secondary-foreground); border: 1px solid var(--border)">Go</button>
   </form>
   <div class="ml-auto">
-    <a href="/operator/sales.csv?<%= range.preset === 'custom' ? 'from=' + new Date(range.from * 1000).toISOString().slice(0,10) + '&to=' + new Date(range.to * 1000).toISOString().slice(0,10) : 'preset=' + range.preset %>"
+    <a href="/partner/sales.csv?<%= range.preset === 'custom' ? 'from=' + new Date(range.from * 1000).toISOString().slice(0,10) + '&to=' + new Date(range.to * 1000).toISOString().slice(0,10) : 'preset=' + range.preset %>"
       class="px-3 py-1.5 rounded text-xs font-semibold" style="background: var(--card); color: var(--foreground); border: 1px solid var(--border)">
       Download CSV
     </a>

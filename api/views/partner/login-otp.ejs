@@ -6,7 +6,7 @@
   </span>
 </div>
 
-<form id="verify-form" method="POST" action="/operator/verify" autocomplete="off" novalidate>
+<form id="verify-form" method="POST" action="/partner/verify" autocomplete="off" novalidate>
   <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
   <input type="hidden" name="code" id="code-aggregate" />
   <div class="otp-row" id="otp-row">
@@ -23,15 +23,15 @@
 </form>
 
 <div style="display:flex; align-items:center; justify-content:space-between; margin-top: 18px; gap: 8px">
-  <form method="POST" action="/operator/<%= pendingPurpose %>" style="margin:0">
+  <form method="POST" action="/partner/<%= pendingPurpose %>" style="margin:0">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
     <input type="hidden" name="mobile" value="<%= pendingMobile %>" />
-    <% if (pendingPurpose === 'register' && typeof opPendingStoreName !== 'undefined' && opPendingStoreName) { %>
-      <input type="hidden" name="store_name" value="<%= opPendingStoreName %>" />
+    <% if (pendingPurpose === 'register' && typeof prPendingPartnerName !== 'undefined' && prPendingPartnerName) { %>
+      <input type="hidden" name="partner_name" value="<%= prPendingPartnerName %>" />
     <% } %>
     <button type="submit" class="btn-ghost">Resend code</button>
   </form>
-  <form method="POST" action="/operator/cancel" style="margin:0">
+  <form method="POST" action="/partner/cancel" style="margin:0">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
     <button type="submit" class="btn-ghost-muted">Use a different number</button>
   </form>

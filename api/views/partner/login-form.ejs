@@ -7,7 +7,7 @@
 </div>
 
 <div class="panel" id="panel-signin" data-active="true" role="tabpanel" aria-labelledby="seg-signin">
-  <form method="POST" action="/operator/login" autocomplete="on" novalidate>
+  <form method="POST" action="/partner/login" autocomplete="on" novalidate>
     <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
     <div class="field">
       <label for="signin-mobile" class="field-label">Mobile number</label>
@@ -22,12 +22,12 @@
 </div>
 
 <div class="panel" id="panel-register" data-active="false" role="tabpanel" aria-labelledby="seg-register">
-  <form method="POST" action="/operator/register" autocomplete="on" novalidate>
+  <form method="POST" action="/partner/register" autocomplete="on" novalidate>
     <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
     <div class="field">
-      <label for="register-store" class="field-label">Store name</label>
+      <label for="register-store" class="field-label">Partner name</label>
       <input id="register-store" class="field-input"
-        name="store_name" required maxlength="80"
+        name="partner_name" required maxlength="80"
         placeholder="e.g. Mytch Store" autocomplete="organization" />
     </div>
     <div class="field">

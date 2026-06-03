@@ -12,15 +12,15 @@
   <p class="text-xs mb-4" style="color: var(--muted-foreground)">These fields are permanent. Contact the admin to change them.</p>
   <dl class="grid grid-cols-1 sm:grid-cols-2 gap-3">
     <div><dt class="text-[11px] uppercase tracking-wider" style="color: var(--muted-foreground)">Mobile</dt><dd class="text-base font-bold font-mono mt-1"><%= operator.mobile || "—" %></dd></div>
-    <div><dt class="text-[11px] uppercase tracking-wider" style="color: var(--muted-foreground)">Store slug</dt><dd class="text-base font-bold font-mono mt-1"><%= operator.store_slug %></dd></div>
+    <div><dt class="text-[11px] uppercase tracking-wider" style="color: var(--muted-foreground)">Store slug</dt><dd class="text-base font-bold font-mono mt-1"><%= operator.partner_slug %></dd></div>
   </dl>
 </section>
 <section class="rounded-2xl border-2 p-5 mb-5" style="background: var(--card); border-color: var(--border)">
-  <h2 class="text-base font-bold mb-1">Store name</h2>
+  <h2 class="text-base font-bold mb-1">Partner name</h2>
   <p class="text-xs mb-4" style="color: var(--muted-foreground)">Shows in the customer's checkout dropdown. Rename anytime — username stays the same.</p>
-  <form method="POST" action="/operator/settings/store-name" class="flex flex-col sm:flex-row gap-3">
+  <form method="POST" action="/partner/settings/store-name" class="flex flex-col sm:flex-row gap-3">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-    <input name="store_name" value="<%= operator.store_name %>" maxlength="80" required class="flex-1" />
+    <input name="partner_name" value="<%= operator.partner_name %>" maxlength="80" required class="flex-1" />
     <button type="submit" class="rounded-xl px-4 h-12 text-base font-bold" style="background: var(--primary); color: var(--primary-foreground)">Save name</button>
   </form>
 </section>

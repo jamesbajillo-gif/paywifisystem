@@ -24,20 +24,20 @@ router.get('/remittances', requireAdmin, (req, res) => {
   let rows;
   if (where === 'all') {
     rows = db.prepare(
-      "SELECT r.*, o.store_name, o.username FROM remittances r " +
-      "  JOIN operators o ON o.id = r.operator_id " +
+      "SELECT r.*, o.partner_name, o.username FROM remittances r " +
+      "  JOIN partners o ON o.id = r.partner_id " +
       " ORDER BY r.created_at DESC LIMIT 200"
     ).all();
   } else {
     rows = db.prepare(
-      "SELECT r.*, o.store_name, o.username FROM remittances r " +
-      "  JOIN operators o ON o.id = r.operator_id " +
+      "SELECT r.*, o.partner_name, o.username FROM remittances r " +
+      "  JOIN partners o ON o.id = r.partner_id " +
       " WHERE r.status=? ORDER BY r.created_at DESC LIMIT 200"
     ).all(where);
   }
 
   // Per-operator outstanding (helps admin see context next to each remittance)
-  const ops = db.prepare("SELECT id, store_name, username, commission_pct FROM operators WHERE status='active'").all();
+  const ops = db.prepare("SELECT id, partner_name, username, commission_pct FROM partners WHERE status='active'").all();
   const balances = ops.map(o => ({ ...o, balance: computeOwed(o.id) }));
 
   res.render('admin/remittances', {

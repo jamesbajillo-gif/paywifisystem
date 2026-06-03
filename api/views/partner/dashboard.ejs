@@ -1,7 +1,7 @@
 <header class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
   <div class="min-w-0">
     <p class="text-[11px] font-bold uppercase tracking-[0.2em]" style="color:var(--primary)">PAYWIFI · Operator</p>
-    <h1 class="text-3xl font-bold tracking-tight"><%= operator.store_name %></h1>
+    <h1 class="text-3xl font-bold tracking-tight"><%= operator.partner_name %></h1>
     <p class="text-sm mt-1" style="color: var(--muted-foreground)">Cash payments routed to your store. Auto-refreshes every 5s.</p>
   </div>
   <button id="refresh-btn" type="button" class="rounded-xl border-2 px-3 h-10 text-sm font-semibold inline-flex items-center gap-1.5"
@@ -19,7 +19,7 @@
   </div>
 </div>
 
-<!-- OPERATOR-COMMISSION-UI-2026-06-02 — outstanding balance card -->
+<!-- PARTNER-COMMISSION-UI-2026-06-02 — outstanding balance card -->
 <% if (typeof balance !== 'undefined' && balance) { %>
   <div class="rounded-2xl border-2 p-4 mb-6 flex items-center justify-between gap-3"
     style="background: <%= balance.outstanding > 0 ? 'color-mix(in oklab, var(--destructive) 8%, var(--card))' : 'color-mix(in oklab, var(--success) 8%, var(--card))' %>;
@@ -31,7 +31,7 @@
         <%= fmtPHP(balance.gross) %> gross − <%= balance.commission_pct.toFixed(0) %>% commission (<%= fmtPHP(balance.commission) %>) − <%= fmtPHP(balance.remitted) %> remitted
       </p>
     </div>
-    <a href="/operator/remit" class="rounded-xl px-4 h-12 text-sm font-bold inline-flex items-center shrink-0"
+    <a href="/partner/remit" class="rounded-xl px-4 h-12 text-sm font-bold inline-flex items-center shrink-0"
       style="background: var(--primary); color: var(--primary-foreground)">Remit cash</a>
   </div>
 <% } %>
@@ -167,7 +167,7 @@
     if (!confirm('Decline this payment? The customer will need to start a new one.')) return;
     setStage('processing');
     try {
-      const r = await fetch('/operator/api/cancel/' + activePid, {
+      const r = await fetch('/partner/api/cancel/' + activePid, {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'x-csrf-token': CSRF }, body: '{}',
       }).then(r => r.json());
       if (!r.ok && !r.already) {
@@ -190,7 +190,7 @@
   async function submitConfirm() {
     if (!activePid) return; setStage('processing');
     try {
-      const r = await fetch('/operator/api/confirm/' + activePid, { method:'POST', headers:{'Content-Type':'application/json','x-csrf-token':CSRF}, body:'{}' }).then(r => r.json());
+      const r = await fetch('/partner/api/confirm/' + activePid, { method:'POST', headers:{'Content-Type':'application/json','x-csrf-token':CSRF}, body:'{}' }).then(r => r.json());
       if (!r.ok) {
         document.getElementById('confirm-error-msg').textContent = ({
           already_confirmed:'This payment was already confirmed.', cancelled:'This payment was cancelled.',
@@ -216,7 +216,7 @@
           const tick = async () => {
             polls += 1;
             try {
-              const s = await fetch('/operator/api/sms-status/' + encodeURIComponent(msgId)).then(r => r.json());
+              const s = await fetch('/partner/api/sms-status/' + encodeURIComponent(msgId)).then(r => r.json());
               if (s && s.ok) {
                 if (s.status === 'sent') {
                   smsEl.textContent = '✓ SMS delivered to ' + masked;
@@ -248,7 +248,7 @@
 
   async function refresh() {
     try {
-      const r = await fetch('/operator/api/pending').then(r => r.json()); if (!r.ok) return;
+      const r = await fetch('/partner/api/pending').then(r => r.json()); if (!r.ok) return;
       const list = document.getElementById('pending-list');
       const empty = document.getElementById('pending-empty');
       const count = document.getElementById('pending-count');

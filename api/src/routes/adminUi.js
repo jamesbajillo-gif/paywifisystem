@@ -364,7 +364,7 @@ router.get('/settings', (req, res) => {
   const settings = db.prepare(`SELECT key, value FROM settings ORDER BY key`).all();
   const ftRow    = settings.find(s => s.key === 'free_trial_enabled');
   const ftEnabled = ftRow ? ftRow.value : '1';
-  const storeRow = settings.find(s => s.key === 'store_partners');
+  const storeRow = settings.find(s => s.key === 'partners');
   let storePartnersDisplay = '';
   try {
     const sp = JSON.parse(storeRow ? storeRow.value : '[]');
@@ -387,11 +387,11 @@ router.post('/settings', (req, res) => {
   res.redirect('/admin/settings');
 });
 
-// OPERATOR-OTP-2026-06-03 — single-key toggle endpoint for checkbox flips
+// PARTNER-OTP-2026-06-03 — single-key toggle endpoint for checkbox flips
 router.post('/settings/single', (req, res) => {
   const key = String((req.body || {}).key || '');
   const value = req.body.value === '1' ? '1' : '0';
-  const allowed = ['operator_auto_approve'];
+  const allowed = ['partner_auto_approve'];
   if (!allowed.includes(key)) { flash(req, 'err', 'Unknown setting key.'); return res.redirect('/admin/settings'); }
   const now = Math.floor(Date.now() / 1000);
   const ex = db.prepare("SELECT key FROM settings WHERE key=?").get(key);
@@ -402,18 +402,18 @@ router.post('/settings/single', (req, res) => {
   res.redirect('/admin/settings');
 });
 
-router.post('/settings/store-partners', (req, res) => {
-  const raw = (req.body.store_partners || '').trim();
+router.post('/settings/partners', (req, res) => {
+  const raw = (req.body.partners || '').trim();
   const partners = raw.split('\n').map(l => l.trim()).filter(Boolean).map(l => {
     const [name, ...rest] = l.split('|').map(s => s.trim());
     return rest.length ? { name, address: rest.join(' | ').trim() } : { name };
   }).filter(p => p.name);
   const now = Math.floor(Date.now() / 1000);
-  const ex = db.prepare("SELECT key FROM settings WHERE key='store_partners'").get();
-  if (ex) db.prepare("UPDATE settings SET value=?,updated_at=? WHERE key='store_partners'").run(JSON.stringify(partners), now);
-  else     db.prepare("INSERT INTO settings(key,value,updated_at) VALUES('store_partners',?,?)").run(JSON.stringify(partners), now);
-  audit(req.admin.id, 'store_partners_updated', `count=${partners.length}`, req.clientIp);
-  flash(req, 'ok', `Store partners saved (${partners.length} store${partners.length !== 1 ? 's' : ''}).`);
+  const ex = db.prepare("SELECT key FROM settings WHERE key='partners'").get();
+  if (ex) db.prepare("UPDATE settings SET value=?,updated_at=? WHERE key='partners'").run(JSON.stringify(partners), now);
+  else     db.prepare("INSERT INTO settings(key,value,updated_at) VALUES('partners',?,?)").run(JSON.stringify(partners), now);
+  audit(req.admin.id, 'partners_updated', `count=${partners.length}`, req.clientIp);
+  flash(req, 'ok', `Partners saved (${partners.length} store${partners.length !== 1 ? 's' : ''}).`);
   res.redirect('/admin/settings');
 });
 

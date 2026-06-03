@@ -1,17 +1,17 @@
-<%# PAYWIFI-OPERATOR-ADMIN-2026-06-02 — create/edit page %>
+<%# PAYWIFI-PARTNER-ADMIN-2026-06-02 — create/edit page %>
 <div class="space-y-6">
   <div class="flex items-center justify-between">
     <div>
       <h1 class="text-2xl font-bold" style="color: var(--foreground)">
-        <%= isNew ? 'New operator' : op.store_name %>
+        <%= isNew ? 'New operator' : op.partner_name %>
       </h1>
       <p class="text-sm" style="color: var(--muted-foreground)">
-        <% if (isNew) { %>Create a store partner who confirms cash payments and earns commission.
-        <% } else { %>mobile <code><%= op.mobile %></code> · store slug <code><%= op.store_slug %></code>
+        <% if (isNew) { %>Create a partner who confirms cash payments and earns commission.
+        <% } else { %>mobile <code><%= op.mobile %></code> · store slug <code><%= op.partner_slug %></code>
         <% } %>
       </p>
     </div>
-    <a href="/admin/operators" style="color: var(--primary)" class="text-sm">&larr; Back to list</a>
+    <a href="/admin/partners" style="color: var(--primary)" class="text-sm">&larr; Back to list</a>
   </div>
 
   <% if (typeof flash !== 'undefined' && flash) { %>
@@ -64,7 +64,7 @@
         </div>
       </div>
       <% if (isLocked) { %>
-        <form method="POST" action="/admin/operators/<%= op.id %>/unlock" class="mt-3">
+        <form method="POST" action="/admin/partners/<%= op.id %>/unlock" class="mt-3">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
           <button type="submit" class="px-3 py-1.5 rounded text-xs font-semibold border" style="border-color: var(--border); color: var(--foreground); background: var(--card)">Unlock account</button>
         </form>
@@ -74,7 +74,7 @@
 
   <!-- Edit form -->
   <form method="POST"
-    action="<%= isNew ? '/admin/operators/create' : '/admin/operators/' + op.id + '/update' %>"
+    action="<%= isNew ? '/admin/partners/create' : '/admin/partners/' + op.id + '/update' %>"
     class="rounded-lg border p-5 space-y-4" style="background: var(--card); border-color: var(--border)">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
 
@@ -82,15 +82,15 @@
 
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
       <div>
-        <label class="block text-xs uppercase tracking-wider mb-1" style="color: var(--muted-foreground)">Store name</label>
-        <input name="store_name" required maxlength="80" value="<%= op.store_name || '' %>"
+        <label class="block text-xs uppercase tracking-wider mb-1" style="color: var(--muted-foreground)">Partner name</label>
+        <input name="partner_name" required maxlength="80" value="<%= op.partner_name || '' %>"
           class="w-full text-sm px-3 py-2 rounded border"
           style="background: var(--background); border-color: var(--border); color: var(--foreground)" />
       </div>
       <% if (isNew) { %>
         <div>
           <label class="block text-xs uppercase tracking-wider mb-1" style="color: var(--muted-foreground)">Store slug (auto-generated)</label>
-          <input name="store_slug" pattern="[a-z0-9-]{2,32}" placeholder="auto from store name"
+          <input name="partner_slug" pattern="[a-z0-9-]{2,32}" placeholder="auto from partner name"
             class="w-full text-sm px-3 py-2 rounded border font-mono"
             style="background: var(--background); border-color: var(--border); color: var(--foreground)" />
         </div>
@@ -155,7 +155,7 @@
              if (s === op.status) return;
              var clr = ({active:'var(--success)', pending:'var(--primary)', suspended:'var(--destructive)', archived:'var(--muted-foreground)'})[s];
         %>
-          <form method="POST" action="/admin/operators/<%= op.id %>/status"
+          <form method="POST" action="/admin/partners/<%= op.id %>/status"
             onsubmit="return confirm('Change status to <%= s %>?')">
             <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
             <input type="hidden" name="status" value="<%= s %>" />

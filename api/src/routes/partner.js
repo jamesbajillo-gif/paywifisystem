@@ -1,11 +1,11 @@
 'use strict';
 // ─────────────────────────────────────────────────────────────────────────────
-// OPERATOR-ROUTE-2026-06-01 — Store-partner / cashier surface.
+// PARTNER-ROUTE-2026-06-01 — Store-partner / cashier surface.
 // Username+password auth against the `operators` table. Each operator
-// owns a single store (immutable `store_slug`, editable `store_name`).
-// Scope: /operator/* only. Operators have NO admin access.
+// owns a single store (immutable `partner_slug`, editable `partner_name`).
+// Scope: /partner/* only. Operators have NO admin access.
 //
-// Cash payments routed to this operator's store (pending_payments.store_id)
+// Cash payments routed to this operator's store (pending_payments.partner_id)
 // appear on their dashboard. The operator confirms cash → mints voucher → SMS.
 // ─────────────────────────────────────────────────────────────────────────────
 const express = require('express');
@@ -16,11 +16,11 @@ const voucherSvc = require('../services/voucher');
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 function render(res, view, locals = {}) {
-  res.render('operator/' + view, {
+  res.render('partner/' + view, {
     title:   locals.title  || 'PAYWIFI Operator',
     active:  locals.active || '',
     error:   null,
-    operator: locals.operator || (res.locals && res.locals.operator) || null,
+    operator: locals.operator || (res.locals && res.locals.partner) || null,
     fmtPHP:  (n) => '₱' + Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 2 }),
     fmtVoucherCode: (s) => (s || '').replace(/(.{4})(?=.)/g, '$1-'),
     relTime: (ts) => {
@@ -35,82 +35,82 @@ function render(res, view, locals = {}) {
   });
 }
 
-// OPERATOR-SECHARDEN-2026-06-02 — write a real operator_id column instead of
+// PARTNER-SECHARDEN-2026-06-02 — write a real partner_id column instead of
 // the legacy 'operator#<id>:<action>' string hack. Falls back to NULL when id missing.
 function audit(opId, action, details, ip) {
   try {
     db.prepare(
-      'INSERT INTO audit_log (admin_id, operator_id, action, details, ip_address, created_at) VALUES (NULL, ?, ?, ?, ?, ?)'
+      'INSERT INTO audit_log (admin_id, partner_id, action, details, ip_address, created_at) VALUES (NULL, ?, ?, ?, ?, ?)'
     ).run(opId || null, action, details || null, ip || null, Math.floor(Date.now()/1000));
   } catch (e) {}
 }
 
 function loadOperatorIntoReq(req, res, next) {
-  if (req.session && req.session.operatorId) {
-    // OPERATOR-OTP-2026-06-03 — mobile is identity (no username column anymore).
+  if (req.session && req.session.partnerId) {
+    // PARTNER-OTP-2026-06-03 — mobile is identity (no username column anymore).
     const op = db.prepare(
-      "SELECT id, store_name, store_slug, is_active, status, mobile, email, " +
+      "SELECT id, partner_name, partner_slug, is_active, status, mobile, email, " +
       "       commission_pct, last_login_ip, last_login_at " +
-      "FROM operators WHERE id=? AND status='active'"
-    ).get(req.session.operatorId);
-    if (op) { req.operator = op; res.locals.operator = op; }
-    else { delete req.session.operatorId; }
+      "FROM partners WHERE id=? AND status='active'"
+    ).get(req.session.partnerId);
+    if (op) { req.partner = op; res.locals.partner = op; }
+    else { delete req.session.partnerId; }
   }
   next();
 }
 
 function requireOperator(req, res, next) {
-  if (req.operator) return next();
+  if (req.partner) return next();
   if (req.path && req.path.startsWith('/api/')) return res.status(401).json({ ok: false, error: 'auth_required' });
-  return res.redirect('/operator/login');
+  return res.redirect('/partner/login');
 }
 
 router.use(loadOperatorIntoReq);
 
 // OTP-DELEGATION-2026-06-03 — /login, /register, /verify, /cancel now live
 // in routes/operator-otp.js. Logout stays here.
-router.use('/', require('./operator-otp'));
+router.use('/', require('./partner-otp'));
 
 router.post('/logout', (req, res) => {
-  if (req.session) req.session.destroy(() => res.redirect('/operator/login'));
-  else res.redirect('/operator/login');
+  if (req.session) req.session.destroy(() => res.redirect('/partner/login'));
+  else res.redirect('/partner/login');
 });
 
-// ─── everything below requires the operator session ─────────────────────────
+// ─── everything below requires the partner session ─────────────────────────
 router.use(requireOperator);
 
 // ─── dashboard ──────────────────────────────────────────────────────────────
 router.get('/', (req, res) => {
-  // OPERATOR-COMMISSION-UI-2026-06-02 — show outstanding balance on dashboard.
+  // PARTNER-COMMISSION-UI-2026-06-02 — show outstanding balance on dashboard.
   const now = Math.floor(Date.now()/1000);
-  const sid = req.operator.id;
+  const sid = req.partner.id;
 
   const pending = db.prepare(
     "SELECT pp.id, pp.amount, pp.buyer_phone, pp.created_at, pp.expires_at, " +
     "  pp.client_mac, pp.client_ip, vp.id AS plan_id, vp.name AS plan_name, vp.price AS plan_price " +
     "FROM pending_payments pp JOIN voucher_plans vp ON vp.id = pp.plan_id " +
-    "WHERE pp.status = 'manual' AND pp.expires_at > ? AND pp.store_id = ? " +
+    "WHERE pp.status = 'manual' AND pp.expires_at > ? AND pp.partner_id = ? " +
     "ORDER BY pp.created_at DESC LIMIT 50"
   ).all(now, sid);
 
   const todayStart = (() => { const d = new Date(); d.setHours(0,0,0,0); return Math.floor(d.getTime()/1000); })();
   const todayRev = db.prepare(
-    "SELECT COALESCE(SUM(amount), 0) AS n FROM pending_payments WHERE status='paid' AND paid_at >= ? AND store_id = ?"
+    "SELECT COALESCE(SUM(amount), 0) AS n FROM pending_payments WHERE status='paid' AND paid_at >= ? AND partner_id = ?"
   ).get(todayStart, sid).n;
   const todayCount = db.prepare(
-    "SELECT COUNT(*) AS n FROM pending_payments WHERE status='paid' AND paid_at >= ? AND store_id = ?"
+    "SELECT COUNT(*) AS n FROM pending_payments WHERE status='paid' AND paid_at >= ? AND partner_id = ?"
   ).get(todayStart, sid).n;
 
-  const balance = computeOwed(req.operator.id);
+  const balance = computeOwed(req.partner.id);
   render(res, 'dashboard', { balance,
-    title: 'Operator · Dashboard',
+    title: 'Partner · Dashboard',
     active: 'dash',
     pending, todayRev, todayCount,
   });
 });
 
 // ─── sales ──────────────────────────────────────────────────────────────────
-// OPERATOR-COMMISSION-UI-2026-06-02 — date range + commission + CSV export.
+// PARTNER-COMMISSION-UI-2026-06-02 — date range + commission + CSV export.
 function parseDateRange(req) {
   const q = req.query || {};
   const now = Math.floor(Date.now()/1000);
@@ -139,26 +139,26 @@ function parseDateRange(req) {
 }
 
 router.get('/sales', (req, res) => {
-  const sid = req.operator.id;
+  const sid = req.partner.id;
   const range = parseDateRange(req);
 
   const rangeRev = db.prepare(
     "SELECT COALESCE(SUM(amount), 0) AS n, COUNT(*) AS c FROM pending_payments " +
-    " WHERE status='paid' AND paid_at >= ? AND paid_at <= ? AND store_id = ?"
+    " WHERE status='paid' AND paid_at >= ? AND paid_at <= ? AND partner_id = ?"
   ).get(range.from, range.to, sid);
 
   const todayStart = (() => { const d = new Date(); d.setHours(0,0,0,0); return Math.floor(d.getTime()/1000); })();
   const todayRev = db.prepare(
-    "SELECT COALESCE(SUM(amount), 0) AS n FROM pending_payments WHERE status='paid' AND paid_at >= ? AND store_id = ?"
+    "SELECT COALESCE(SUM(amount), 0) AS n FROM pending_payments WHERE status='paid' AND paid_at >= ? AND partner_id = ?"
   ).get(todayStart, sid).n;
   const todayCount = db.prepare(
-    "SELECT COUNT(*) AS n FROM pending_payments WHERE status='paid' AND paid_at >= ? AND store_id = ?"
+    "SELECT COUNT(*) AS n FROM pending_payments WHERE status='paid' AND paid_at >= ? AND partner_id = ?"
   ).get(todayStart, sid).n;
   const lifetimeRev = db.prepare(
-    "SELECT COALESCE(SUM(amount), 0) AS n FROM pending_payments WHERE status='paid' AND store_id = ?"
+    "SELECT COALESCE(SUM(amount), 0) AS n FROM pending_payments WHERE status='paid' AND partner_id = ?"
   ).get(sid).n;
   const lifetimeRefunds = db.prepare(
-    "SELECT COALESCE(SUM(refund_amount), 0) AS n FROM pending_payments WHERE status='refunded' AND refund_amount IS NOT NULL AND store_id = ?"
+    "SELECT COALESCE(SUM(refund_amount), 0) AS n FROM pending_payments WHERE status='refunded' AND refund_amount IS NOT NULL AND partner_id = ?"
   ).get(sid).n;
 
   const recent = db.prepare(
@@ -168,7 +168,7 @@ router.get('/sales', (req, res) => {
     "FROM pending_payments pp " +
     "JOIN vouchers v ON v.id = pp.voucher_id " +
     "LEFT JOIN voucher_plans vp ON vp.id = pp.plan_id " +
-    "WHERE pp.store_id = ? AND pp.paid_at >= ? AND pp.paid_at <= ? " +
+    "WHERE pp.partner_id = ? AND pp.paid_at >= ? AND pp.paid_at <= ? " +
     "ORDER BY pp.paid_at DESC LIMIT 200"
   ).all(sid, range.from, range.to);
 
@@ -176,7 +176,7 @@ router.get('/sales', (req, res) => {
   const rangeCommission = (rangeRev.n || 0) * (balance.commission_pct || 0) / 100;
 
   render(res, 'sales', {
-    title: 'Operator · Sales',
+    title: 'Partner · Sales',
     active: 'sales',
     todayRev, todayCount, lifetimeRev, lifetimeRefunds, recent,
     range, rangeRev: rangeRev.n, rangeCount: rangeRev.c, rangeCommission,
@@ -185,14 +185,14 @@ router.get('/sales', (req, res) => {
 });
 
 router.get('/sales.csv', (req, res) => {
-  const sid = req.operator.id;
+  const sid = req.partner.id;
   const range = parseDateRange(req);
   const rows = db.prepare(
     "SELECT pp.paid_at, pp.amount, pp.channel_name, vp.name AS plan_name, v.code " +
     "FROM pending_payments pp " +
     "LEFT JOIN voucher_plans vp ON vp.id = pp.plan_id " +
     "LEFT JOIN vouchers v ON v.id = pp.voucher_id " +
-    "WHERE pp.status='paid' AND pp.store_id = ? AND pp.paid_at >= ? AND pp.paid_at <= ? " +
+    "WHERE pp.status='paid' AND pp.partner_id = ? AND pp.paid_at >= ? AND pp.paid_at <= ? " +
     "ORDER BY pp.paid_at ASC"
   ).all(sid, range.from, range.to);
   const balance = computeOwed(sid);
@@ -206,22 +206,22 @@ router.get('/sales.csv', (req, res) => {
   res.send(csv);
 });
 
-// ─── settings: edit store_name (NOT username) ──────────────────────────────
+// ─── settings: edit partner_name (NOT username) ──────────────────────────────
 router.get('/settings', (req, res) => {
   render(res, 'settings', {
-    title: 'Operator · Settings',
+    title: 'Partner · Settings',
     active: 'settings',
     saved: req.query.saved === '1',
   });
 });
 
 router.post('/settings/store-name', (req, res) => {
-  const name = String((req.body || {}).store_name || '').trim().slice(0, 80);
-  if (!name) return res.redirect('/operator/settings?err=1');
-  db.prepare('UPDATE operators SET store_name=?, updated_at=? WHERE id=?')
-    .run(name, Math.floor(Date.now()/1000), req.operator.id);
-  audit(req.operator.id, 'rename_store', 'new=' + name, req.clientIp);
-  res.redirect('/operator/settings?saved=1');
+  const name = String((req.body || {}).partner_name || '').trim().slice(0, 80);
+  if (!name) return res.redirect('/partner/settings?err=1');
+  db.prepare('UPDATE partners SET partner_name=?, updated_at=? WHERE id=?')
+    .run(name, Math.floor(Date.now()/1000), req.partner.id);
+  audit(req.partner.id, 'rename_store', 'new=' + name, req.clientIp);
+  res.redirect('/partner/settings?saved=1');
 });
 
 // settings/password removed — operator login is OTP-only.
@@ -229,12 +229,12 @@ router.post('/settings/store-name', (req, res) => {
 // ─── JSON API ───────────────────────────────────────────────────────────────
 router.get('/api/pending', (req, res) => {
   const now = Math.floor(Date.now()/1000);
-  const sid = req.operator.id;
+  const sid = req.partner.id;
   const items = db.prepare(
     "SELECT pp.id, pp.amount, pp.buyer_phone, pp.created_at, pp.expires_at, " +
     "  vp.id AS plan_id, vp.name AS plan_name " +
     "FROM pending_payments pp JOIN voucher_plans vp ON vp.id = pp.plan_id " +
-    "WHERE pp.status='manual' AND pp.expires_at > ? AND pp.store_id = ? " +
+    "WHERE pp.status='manual' AND pp.expires_at > ? AND pp.partner_id = ? " +
     "ORDER BY pp.created_at DESC LIMIT 50"
   ).all(now, sid);
   res.json({ ok: true, items, server_time: now });
@@ -251,7 +251,7 @@ router.post('/api/confirm/:id', async (req, res) => {
   ).get(id);
   if (!row)                              return res.status(404).json({ ok: false, error: 'not_found' });
   // Store-ownership: an operator can ONLY confirm payments routed to their store.
-  if (row.store_id !== req.operator.id)  return res.status(403).json({ ok: false, code: 'not_your_store', error: 'This payment was routed to a different store.' });
+  if (row.partner_id !== req.partner.id)  return res.status(403).json({ ok: false, code: 'not_your_store', error: 'This payment was routed to a different store.' });
   if (row.status === 'paid')             return res.json({ ok: false, error: 'already_confirmed', voucher_id: row.voucher_id });
   if (row.status === 'cancelled')        return res.json({ ok: false, error: 'cancelled' });
   if (row.status === 'expired')          return res.json({ ok: false, error: 'expired' });
@@ -308,10 +308,10 @@ router.post('/api/confirm/:id', async (req, res) => {
     db.prepare(
       "INSERT INTO payment_events (pending_payment_id, event_type, event_source, event_name, status_before, status_after, payload, ip_address, created_at) " +
       "VALUES (?, 'manual_confirm', 'operator', 'voucher_generated', 'manual', 'paid', ?, ?, ?)"
-    ).run(id, JSON.stringify({ voucher_code: issuedCode, issued_via: 'operator_ui', operator_id: req.operator.id, store_slug: req.operator.store_slug }), req.clientIp || null, now);
+    ).run(id, JSON.stringify({ voucher_code: issuedCode, issued_via: 'operator_ui', partner_id: req.partner.id, partner_slug: req.partner.partner_slug }), req.clientIp || null, now);
   } catch (e) {}
 
-  audit(req.operator.id, 'payment_confirmed', 'pp=' + id + ' code=' + issuedCode + ' amount=' + row.amount, req.clientIp);
+  audit(req.partner.id, 'payment_confirmed', 'pp=' + id + ' code=' + issuedCode + ' amount=' + row.amount, req.clientIp);
 
   // QUEUE-EVERYWHERE-2026-06-01 — if the device already has an active
   // session, queue this freshly-minted voucher (so cash mirrors what
@@ -366,14 +366,14 @@ router.post('/api/confirm/:id', async (req, res) => {
 
 // APPLY-CANCEL-RECS-2026-06-01-OPCAN — operator can DECLINE a stale cash
 // pending payment for their store. Race-safe atomic flip from 'manual' →
-// 'cancelled'. Only affects rows where store_id matches this operator.
+// 'cancelled'. Only affects rows where partner_id matches this operator.
 router.post('/api/cancel/:id', (req, res) => {
   const id  = parseInt(req.params.id, 10);
   if (!id) return res.status(400).json({ ok: false, error: 'bad_id' });
   const now = Math.floor(Date.now() / 1000);
-  const row = db.prepare('SELECT id, status, store_id, channel_name, amount FROM pending_payments WHERE id=?').get(id);
+  const row = db.prepare('SELECT id, status, partner_id, channel_name, amount FROM pending_payments WHERE id=?').get(id);
   if (!row)                              return res.status(404).json({ ok: false, error: 'not_found' });
-  if (row.store_id !== req.operator.id)  return res.status(403).json({ ok: false, error: 'not_your_store' });
+  if (row.partner_id !== req.partner.id)  return res.status(403).json({ ok: false, error: 'not_your_store' });
   if (row.status === 'paid')             return res.json({ ok: false, code: 'already_paid', error: 'This payment was already confirmed and a voucher was issued.' });
   if (row.status === 'cancelled')        return res.json({ ok: true, already: true });
   if (!['pending','manual','reserving'].includes(row.status))
@@ -387,10 +387,10 @@ router.post('/api/cancel/:id', (req, res) => {
     db.prepare(
       "INSERT INTO payment_events (pending_payment_id, event_type, event_source, event_name, status_before, status_after, payload, ip_address, created_at) " +
       "VALUES (?, 'cancelled', 'operator', 'payment_declined', ?, 'cancelled', ?, ?, ?)"
-    ).run(id, row.status, JSON.stringify({ reason: 'operator_declined', operator_id: req.operator.id, store_slug: req.operator.store_slug }), req.clientIp || null, now);
+    ).run(id, row.status, JSON.stringify({ reason: 'operator_declined', partner_id: req.partner.id, partner_slug: req.partner.partner_slug }), req.clientIp || null, now);
   } catch (e) {}
 
-  audit(req.operator.id, 'payment_declined', 'pp=' + id + ' amount=' + row.amount + ' channel=' + (row.channel_name || ''), req.clientIp);
+  audit(req.partner.id, 'payment_declined', 'pp=' + id + ' amount=' + row.amount + ' channel=' + (row.channel_name || ''), req.clientIp);
 
   res.json({ ok: true, id, amount: row.amount, channel_name: row.channel_name });
 });
@@ -419,19 +419,19 @@ router.get('/api/sms-status/:msgId', (req, res) => {
 const { computeOwed } = require('../services/remittance');
 
 router.get('/remit', (req, res) => {
-  const opId = req.operator.id;
+  const opId = req.partner.id;
   const balance = computeOwed(opId);
   const history = db.prepare(
     "SELECT id, amount, method, reference_no, notes, status, created_at, approved_at, rejected_at, rejected_reason " +
-    "  FROM remittances WHERE operator_id=? ORDER BY id DESC LIMIT 30"
+    "  FROM remittances WHERE partner_id=? ORDER BY id DESC LIMIT 30"
   ).all(opId);
   render(res, 'remit', {
-    title:  'Operator · Remit',
+    title:  'Partner · Remit',
     active: 'remit',
     balance, history,
-    flash: req.session.opRemitFlash || null,
+    flash: req.session.prRemitFlash || null,
   });
-  delete req.session.opRemitFlash;
+  delete req.session.prRemitFlash;
 });
 
 router.post('/remit/submit', (req, res) => {
@@ -442,26 +442,26 @@ router.post('/remit/submit', (req, res) => {
   const notes = String(body.notes || '').trim().slice(0, 500) || null;
 
   if (!amount || amount <= 0) {
-    req.session.opRemitFlash = { kind: 'err', message: 'Amount must be greater than 0.' };
-    return res.redirect('/operator/remit');
+    req.session.prRemitFlash = { kind: 'err', message: 'Amount must be greater than 0.' };
+    return res.redirect('/partner/remit');
   }
   if (!method) {
-    req.session.opRemitFlash = { kind: 'err', message: 'Choose a remittance method.' };
-    return res.redirect('/operator/remit');
+    req.session.prRemitFlash = { kind: 'err', message: 'Choose a remittance method.' };
+    return res.redirect('/partner/remit');
   }
   if (!reference_no) {
-    req.session.opRemitFlash = { kind: 'err', message: 'Reference number is required.' };
-    return res.redirect('/operator/remit');
+    req.session.prRemitFlash = { kind: 'err', message: 'Reference number is required.' };
+    return res.redirect('/partner/remit');
   }
 
   const now = Math.floor(Date.now() / 1000);
   const r = db.prepare(
-    "INSERT INTO remittances (operator_id, amount, reference_no, method, notes, status, created_at) " +
+    "INSERT INTO remittances (partner_id, amount, reference_no, method, notes, status, created_at) " +
     "VALUES (?,?,?,?,?, 'pending', ?)"
-  ).run(req.operator.id, amount, reference_no, method, notes, now);
-  audit(req.operator.id, 'remittance_submit', 'remit_id=' + r.lastInsertRowid + ' amount=' + amount + ' method=' + method, req.clientIp);
-  req.session.opRemitFlash = { kind: 'ok', message: 'Submitted for admin approval. You\'ll see it in the list below.' };
-  res.redirect('/operator/remit');
+  ).run(req.partner.id, amount, reference_no, method, notes, now);
+  audit(req.partner.id, 'remittance_submit', 'remit_id=' + r.lastInsertRowid + ' amount=' + amount + ' method=' + method, req.clientIp);
+  req.session.prRemitFlash = { kind: 'ok', message: 'Submitted for admin approval. You\'ll see it in the list below.' };
+  res.redirect('/partner/remit');
 });
 
 module.exports = router;

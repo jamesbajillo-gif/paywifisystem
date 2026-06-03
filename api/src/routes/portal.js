@@ -135,16 +135,16 @@ router.get('/config', (req, res) => {
   const settings = Object.fromEntries(rows.map(r => [r.key, r.value]));
   let widgets = DEFAULT_WIDGETS;
   try { if (settings.portal_widgets) widgets = JSON.parse(settings.portal_widgets); } catch (e) {}
-  // STORE-WIRE-2026-06-01 — derive store_partners from active operators
-  // (cash payments are routed by store_id → operator).
+  // STORE-WIRE-2026-06-01 — derive partners from active operators
+  // (cash payments are routed by partner_id → operator).
   let storePartners = [];
   try {
     storePartners = db.prepare(
-      "SELECT id, store_slug AS slug, store_name AS name FROM operators WHERE is_active=1 ORDER BY id ASC"
+      "SELECT id, partner_slug AS slug, partner_name AS name FROM partners WHERE is_active=1 ORDER BY id ASC"
     ).all();
   } catch (e) {}
   if (!storePartners.length) {
-    try { if (settings.store_partners) storePartners = JSON.parse(settings.store_partners); } catch (e) {}
+    try { if (settings.partners) storePartners = JSON.parse(settings.partners); } catch (e) {}
   }
   res.json({
     ok: true,
@@ -173,7 +173,7 @@ router.get('/config', (req, res) => {
       contact_messenger:settings.maintenance_contact_messenger || '',
     },
     widgets: widgets.filter(w => w.enabled || w.type==='status_bar' || w.type==='available_plans').sort((a, b) => (a.order||0) - (b.order||0)),
-    store_partners: storePartners,
+    partners: storePartners,
     partner: {
       contact_number:      settings.partner_contact_number      || '',
       contact_email:       settings.partner_contact_email       || '',
@@ -290,9 +290,9 @@ router.get('/payment/pending', async (req, res) => {
     created_at: row.created_at,
     reference_no: String(row.id).padStart(6, '0').slice(-6),
     reference: row.external_id || ('PW-' + row.id),
-    // STORE-RESTORE-FIX-2026-06-01 — surface store_id so the captive
+    // STORE-RESTORE-FIX-2026-06-01 — surface partner_id so the captive
     // portal can re-bind state.selectedStoreId on refresh / resume.
-    store_id: row.store_id || null,
+    partner_id: row.partner_id || null,
     plan: { id: row.plan_id, name: row.vp_name, price: row.vp_price, speed, duration_label: durLabel }
   });
 });
@@ -507,15 +507,15 @@ router.post('/payment/create', async (req, res) => {
            option.name || 'Manual', 'Manual', now, expiresAt, now);
     if (buyerPhone) db.prepare('UPDATE pending_payments SET buyer_phone=? WHERE id=?').run(buyerPhone, row.lastInsertRowid);
     // STORE-WIRE-2026-06-01 — persist the store the customer picked in the
-    // captive-portal dropdown. Only operators with this store_id will see
-    // the row on their /operator dashboard.
-    const _storeId = parseInt((req.body || {}).store_id, 10);
+    // captive-portal dropdown. Only operators with this partner_id will see
+    // the row on their /partner dashboard.
+    const _storeId = parseInt((req.body || {}).partner_id, 10);
     if (Number.isFinite(_storeId) && _storeId > 0) {
-      try { db.prepare('UPDATE pending_payments SET store_id=? WHERE id=?').run(_storeId, row.lastInsertRowid); } catch (e) {}
+      try { db.prepare('UPDATE pending_payments SET partner_id=? WHERE id=?').run(_storeId, row.lastInsertRowid); } catch (e) {}
     }
     db.prepare('UPDATE pending_payments SET base_amount=?,fee_amount=?,net_amount=?,fee_mode=?,channel_code=? WHERE id=?').run(feeInfo.base, feeInfo.fee, feeInfo.net, feeInfo.mode, option.module_action||null, row.lastInsertRowid);
     logEvent(row.lastInsertRowid, 'created', 'system', 'manual_payment_created',
-             null, 'manual', { plan_id: plan.id, amount, store_id: _storeId || null }, clientIp, now);
+             null, 'manual', { plan_id: plan.id, amount, partner_id: _storeId || null }, clientIp, now);
     // MULTI-FIX-CASH-2026-06-01 — cash response also needs reference_no.
     return res.json({ ok: true, payment_id: row.lastInsertRowid, type: 'manual', amount, base_amount: feeInfo.base, fee_amount: feeInfo.fee, fee_mode: feeInfo.mode,
       created_at: now,
@@ -728,12 +728,12 @@ router.post('/payment/create', async (req, res) => {
     WHERE id=?
   `).run(gatewayPaymentId, JSON.stringify(body), qrString, now, reservedRowId);
   if (buyerPhone) db.prepare('UPDATE pending_payments SET buyer_phone=? WHERE id=?').run(buyerPhone, reservedRowId);
-  // STORE-WIRE-2026-06-01 — persist store_id on the reserved row as well so
+  // STORE-WIRE-2026-06-01 — persist partner_id on the reserved row as well so
   // digital flows associate with the store (operator can see digital sales).
   {
-    const _sid = parseInt((req.body || {}).store_id, 10);
+    const _sid = parseInt((req.body || {}).partner_id, 10);
     if (Number.isFinite(_sid) && _sid > 0) {
-      try { db.prepare('UPDATE pending_payments SET store_id=? WHERE id=?').run(_sid, reservedRowId); } catch (e) {}
+      try { db.prepare('UPDATE pending_payments SET partner_id=? WHERE id=?').run(_sid, reservedRowId); } catch (e) {}
     }
   }
   db.prepare('UPDATE pending_payments SET base_amount=?,fee_amount=?,net_amount=?,fee_mode=?,channel_code=? WHERE id=?').run(feeInfo.base, feeInfo.fee, feeInfo.net, feeInfo.mode, option.module_action||null, reservedRowId);

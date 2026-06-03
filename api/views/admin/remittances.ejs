@@ -25,7 +25,7 @@
       <table class="w-full text-sm">
         <thead>
           <tr class="text-xs uppercase tracking-wider text-left" style="color: var(--muted-foreground)">
-            <th class="pb-2">Operator</th>
+            <th class="pb-2">Partner</th>
             <th class="pb-2 text-right">Gross</th>
             <th class="pb-2 text-right">Commission</th>
             <th class="pb-2 text-right">Remitted</th>
@@ -35,7 +35,7 @@
         <tbody>
           <% balances.forEach(function(o){ var b=o.balance; var owed = b.outstanding; %>
             <tr class="border-t" style="border-color: var(--border)">
-              <td class="py-2"><a href="/admin/operators/<%= o.id %>" style="color: var(--primary)"><%= o.store_name %></a></td>
+              <td class="py-2"><a href="/admin/partners/<%= o.id %>" style="color: var(--primary)"><%= o.partner_name %></a></td>
               <td class="py-2 text-right tabular-nums">₱<%= b.gross.toLocaleString('en-PH', {minimumFractionDigits: 2}) %></td>
               <td class="py-2 text-right tabular-nums"><%= b.commission_pct.toFixed(0) %>% (₱<%= b.commission.toLocaleString('en-PH', {minimumFractionDigits: 2}) %>)</td>
               <td class="py-2 text-right tabular-nums">₱<%= b.remitted.toLocaleString('en-PH', {minimumFractionDigits: 2}) %></td>
@@ -72,7 +72,7 @@
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2 flex-wrap">
                 <span class="text-xs font-mono font-bold" style="color: var(--primary)">#<%= r.id %></span>
-                <span class="font-bold" style="color: var(--foreground)"><%= r.store_name %></span>
+                <span class="font-bold" style="color: var(--foreground)"><%= r.partner_name %></span>
                 <span class="text-xs font-mono" style="color: var(--muted-foreground)">@<%= r.username %></span>
                 <span class="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded"
                   style="background: color-mix(in oklab, <%= stColor %> 15%, var(--card)); color: <%= stColor %>; border: 1px solid color-mix(in oklab, <%= stColor %> 30%, var(--border))">
@@ -96,7 +96,7 @@
 
             <% if (r.status === 'pending') { %>
               <div class="flex flex-col gap-2 shrink-0">
-                <form method="POST" action="/admin/remittances/<%= r.id %>/approve" onsubmit="return confirm('Approve ₱<%= r.amount %> from <%= r.store_name %>?')">
+                <form method="POST" action="/admin/remittances/<%= r.id %>/approve" onsubmit="return confirm('Approve ₱<%= r.amount %> from <%= r.partner_name %>?')">
                   <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
                   <button type="submit" class="px-3 py-1.5 rounded text-xs font-bold"
                     style="background: var(--success); color: white">Approve</button>

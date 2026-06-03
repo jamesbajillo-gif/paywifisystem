@@ -5,23 +5,23 @@ const db = require('../db');
 // Outstanding balance owed by an operator =
 //   (gross paid Cash revenue for the store) × (1 − commission_pct / 100)
 //   − sum of approved remittances
-function computeOwed(operatorId) {
-  const op = db.prepare("SELECT commission_pct FROM operators WHERE id=?").get(operatorId);
+function computeOwed(partnerId) {
+  const op = db.prepare("SELECT commission_pct FROM partners WHERE id=?").get(partnerId);
   if (!op) return { gross: 0, commission: 0, owed_before_remit: 0, remitted: 0, outstanding: 0, commission_pct: 0 };
   const pct = op.commission_pct || 0;
 
   const r = db.prepare(
     "SELECT COALESCE(SUM(amount),0) AS gross, COUNT(*) AS paid_count " +
     "  FROM pending_payments " +
-    " WHERE status='paid' AND channel_name='Cash' AND store_id=?"
-  ).get(operatorId);
+    " WHERE status='paid' AND channel_name='Cash' AND partner_id=?"
+  ).get(partnerId);
 
   const commission        = (r.gross || 0) * pct / 100;
   const owed_before_remit = (r.gross || 0) - commission;
 
   const remitted = db.prepare(
-    "SELECT COALESCE(SUM(amount),0) AS s FROM remittances WHERE operator_id=? AND status='approved'"
-  ).get(operatorId).s;
+    "SELECT COALESCE(SUM(amount),0) AS s FROM remittances WHERE partner_id=? AND status='approved'"
+  ).get(partnerId).s;
 
   return {
     gross:             Number(r.gross || 0),
