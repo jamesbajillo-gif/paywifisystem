@@ -31,9 +31,12 @@ function settingValue(key, fallback) {
 
 // 09xxxxxxxxx → 639xxxxxxxxx; 639xxxxxxxxx passes through; otherwise null
 function normalizeMobile(input) {
+  // Accept 09xxxxxxxxx, 639xxxxxxxxx, +639xxxxxxxxx, or 9xxxxxxxxx (no leading 0)
+  // All normalize to 639xxxxxxxxx.
   const s = String(input || '').replace(/[^\d]/g, '');
   if (/^09\d{9}$/.test(s))   return '63' + s.slice(1);
   if (/^639\d{9}$/.test(s))  return s;
+  if (/^9\d{9}$/.test(s))    return '63' + s;        // user dropped the leading 0
   return null;
 }
 
