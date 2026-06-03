@@ -188,7 +188,12 @@ router.post('/media/upload', requireAdmin, upload.single('file'), (req, res) => 
     // Move into place. If it's already mp4, just rename; otherwise remux.
     const targetMp4 = path.join(MEDIA_VIDEO_DIR, vid + '.mp4');
     if (/\.mp4$/i.test(f.path)) {
-      fs.renameSync(f.path, targetMp4);
+      try { fs.renameSync(f.path, targetMp4); }
+      catch (renameErr) {
+        // Cross-device link (EXDEV) — fallback to copy+unlink.
+        fs.copyFileSync(f.path, targetMp4);
+        try { fs.unlinkSync(f.path); } catch (e) {}
+      }
     } else {
       try {
         execFileSync('ffmpeg', ['-y', '-i', f.path, '-c', 'copy', '-movflags', '+faststart', targetMp4], { timeout: 120000 });

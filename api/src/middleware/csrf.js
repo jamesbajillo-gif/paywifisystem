@@ -17,7 +17,7 @@ module.exports = function csrf(req, res, next) {
   const unsafe = ['POST','PUT','PATCH','DELETE'].includes(req.method);
   if (!unsafe) return next();
 
-  const sent = (req.body && req.body._csrf) || req.headers['x-csrf-token'];
+  const sent = (req.body && req.body._csrf) || req.headers['x-csrf-token'] || (req.query && req.query._csrf);
   if (!sent || sent !== token) {
     return res.status(403).send('CSRF token invalid. Reload the page and try again.');
   }

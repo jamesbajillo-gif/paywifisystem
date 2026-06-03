@@ -168,7 +168,7 @@ function buildForm(w){
         +'<button type="button" onclick="ytAddVideo()" class="px-4 py-2 rounded bg-brand-500 text-slate-900 text-sm font-bold hover:bg-brand-400">Queue</button>'
       +'</div>'
       // Upload row
-      +'<form data-src-pane="up" class="hidden" enctype="multipart/form-data" method="POST" action="/admin/media/upload">'
+      +'<form data-src-pane="up" class="hidden" enctype="multipart/form-data" method="POST" action="/admin/media/upload?_csrf="+encodeURIComponent(CSRF)+">'
         +'<input type="hidden" name="_csrf" value="'+CSRF+'">'
         +'<input type="file" name="file" accept=".mp4,.webm,.m4v,.mov,video/mp4,video/webm,video/x-m4v,video/quicktime" required class="block w-full text-xs text-slate-300 file:mr-2 file:px-3 file:py-1.5 file:rounded file:border-0 file:bg-slate-700 file:text-slate-100 file:text-xs file:font-semibold hover:file:bg-slate-600 mb-1.5">'
         +'<div class="flex gap-2">'
@@ -178,7 +178,7 @@ function buildForm(w){
         +'<p class="text-[10px] text-slate-500 mt-1">mp4 / webm / m4v / mov · up to 200 MB · processed immediately</p>'
       +'</form>'
       // External URL row
-      +'<form data-src-pane="url" class="hidden" method="POST" action="/admin/media/url-add">'
+      +'<form data-src-pane="url" class="hidden" method="POST" action="/admin/media/url-add?_csrf="+encodeURIComponent(CSRF)+">'
         +'<input type="hidden" name="_csrf" value="'+CSRF+'">'
         +'<div class="flex gap-2">'
           +'<input type="url" name="url" required placeholder="https://example.com/video.mp4" class="flex-1 px-2.5 py-2 rounded bg-slate-800 border border-slate-700 text-sm text-slate-200 outline-none focus:border-brand-500">'
