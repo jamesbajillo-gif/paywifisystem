@@ -82,6 +82,11 @@ server {
         add_header Cache-Control "max-age=86400, public";
     }
 
+    location = /partner-faq.html      { root /opt/paywifi/portal; }
+    location = /terms-partner.html    { root /opt/paywifi/portal; }
+    location = /privacy-partner.html  { root /opt/paywifi/portal; }
+    location = /op-auth.css           { root /opt/paywifi/portal; }
+
     location ^~ /hotspot-detect.html {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header Host $host;
