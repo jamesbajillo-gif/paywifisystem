@@ -556,6 +556,44 @@ function staleDeviceCleanup() {
   }
 }
 
+
+// LATE-PENDING-2026-06-03 — SMS the partner if a manual pending has been
+// sitting > partner_confirm_sla_min minutes. One-shot: each pending row is
+// flagged via pending_payments.late_alert_sent so we don't spam.
+function latePendingSweep() {
+  try {
+    const enabled = (db.prepare("SELECT value FROM settings WHERE key='partner_late_pending_sms_enabled'").get() || {}).value === '1';
+    if (!enabled) return;
+    const slaMin = parseInt((db.prepare("SELECT value FROM settings WHERE key='partner_confirm_sla_min'").get() || {}).value || '5', 10);
+    const now = Math.floor(Date.now() / 1000);
+    const cutoff = now - slaMin * 60;
+    const rows = db.prepare(
+      "SELECT pp.id, pp.amount, pp.partner_id, p.mobile, p.partner_name " +
+      "FROM pending_payments pp " +
+      "JOIN partners p ON p.id = pp.partner_id " +
+      "WHERE pp.status='manual' " +
+      "  AND pp.created_at <= ? " +
+      "  AND pp.expires_at > ? " +
+      "  AND p.status='active' " +
+      "  AND (pp.late_alert_sent IS NULL OR pp.late_alert_sent = 0) " +
+      "LIMIT 20"
+    ).all(cutoff, now);
+    if (!rows.length) return;
+    const apiKey = (db.prepare("SELECT value FROM settings WHERE key='semaphore_api_key'").get()    || {}).value || '';
+    const sender = (db.prepare("SELECT value FROM settings WHERE key='semaphore_sender_name'").get() || {}).value || 'PAYWIFI';
+    if (!apiKey) return;
+    rows.forEach(r => {
+      // Mark first to avoid duplicate sends in overlapping ticks
+      try { db.prepare("UPDATE pending_payments SET late_alert_sent=1 WHERE id=?").run(r.id); } catch (e) {}
+      const ref = String(r.id).padStart(6, '0').slice(-6);
+      const msg = 'PAYWIFI: Cash payment #' + ref + ' (₱' + r.amount + ') has been waiting more than ' + slaMin + ' min. Please confirm or decline.';
+      semaphore.sendSms(apiKey, sender, r.mobile, msg, { kind: 'partner_late_pending' })
+        .catch(e => console.error('[sessiond] late-pending SMS:', e.message));
+      console.log('[sessiond] late-pending alert -> partner ' + r.partner_id + ' pp=' + r.id);
+    });
+  } catch (e) { console.error('latePendingSweep:', e); }
+}
+
 function welcomeSmsSweep() {
   const t = now();
   const cfg = db.prepare("SELECT * FROM lead_nurturing_config WHERE phase='welcome_gift' AND enabled=1").get();
@@ -591,6 +629,7 @@ function tick() {
   try { idleSweep();                  } catch (e) { console.error('idleSweep:',                  e); }
   try { refreshNearExpirySessions();  } catch (e) { console.error('refreshNearExpirySessions:',  e); }
   try { welcomeSmsSweep();            } catch (e) { console.error('welcomeSmsSweep:',            e); }
+  try { latePendingSweep();           } catch (e) { console.error('latePendingSweep:',           e); }
   try { byteSweep();                  } catch (e) { console.error('byteSweep:',                  e); }
   try { leaseSweep();                 } catch (e) { console.error('leaseSweep:',                 e); }
   try { autoLinkAgingSweep();         } catch (e) { console.error('autoLinkAgingSweep:',         e); }

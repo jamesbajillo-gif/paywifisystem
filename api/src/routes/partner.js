@@ -15,8 +15,17 @@ const db      = require('../db');
 const voucherSvc = require('../services/voucher');
 
 // ─── helpers ────────────────────────────────────────────────────────────────
+// AUDIT-FIX-2026-06-03 — shared support-contact block for footer
+function supportContact() {
+  return {
+    phone: (db.prepare("SELECT value FROM settings WHERE key='partner_contact_number'").get() || {}).value || '',
+    email: (db.prepare("SELECT value FROM settings WHERE key='partner_contact_email'").get()  || {}).value || '',
+  };
+}
+
 function render(res, view, locals = {}) {
   res.render('partner/' + view, {
+    supportContact: supportContact(),
     title:   locals.title  || 'PAYWIFI Operator',
     active:  locals.active || '',
     error:   null,
@@ -81,6 +90,18 @@ router.use(requireOperator);
 
 // ─── dashboard ──────────────────────────────────────────────────────────────
 router.get('/', (req, res) => {
+  // AUDIT-FIX-DASH-2026-06-03 — track lifecycle milestones
+  try {
+    const now = Math.floor(Date.now()/1000);
+    db.prepare("UPDATE partners SET dashboard_visits=dashboard_visits+1 WHERE id=?").run(req.partner.id);
+    // first_payment_at backfill (any paid pending for this partner)
+    const fp = db.prepare(
+      "SELECT MIN(paid_at) AS first FROM pending_payments WHERE status='paid' AND partner_id=?"
+    ).get(req.partner.id);
+    if (fp && fp.first) {
+      db.prepare("UPDATE partners SET first_payment_at=COALESCE(first_payment_at, ?) WHERE id=?").run(fp.first, req.partner.id);
+    }
+  } catch (e) {}
   // PARTNER-COMMISSION-UI-2026-06-02 — show outstanding balance on dashboard.
   const now = Math.floor(Date.now()/1000);
   const sid = req.partner.id;
@@ -102,7 +123,9 @@ router.get('/', (req, res) => {
   ).get(todayStart, sid).n;
 
   const balance = computeOwed(req.partner.id);
-  render(res, 'dashboard', { balance,
+  const partnerLifecycle = db.prepare("SELECT dashboard_visits, onboarded_at, first_payment_at, first_remit_at FROM partners WHERE id=?").get(req.partner.id) || {};
+  const slaMin = parseInt((db.prepare("SELECT value FROM settings WHERE key='partner_confirm_sla_min'").get() || {}).value || '5', 10);
+  render(res, 'dashboard', { balance, partnerLifecycle, slaMin,
     title: 'Partner · Dashboard',
     active: 'dash',
     pending, todayRev, todayCount,
@@ -213,6 +236,18 @@ router.get('/settings', (req, res) => {
     active: 'settings',
     saved: req.query.saved === '1',
   });
+});
+
+// EMAIL-EDIT-2026-06-03 — partner self-serve email update
+router.post('/settings/email', (req, res) => {
+  const email = String((req.body || {}).email || '').trim().slice(0, 120) || null;
+  if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    return res.redirect('/partner/settings?err=email');
+  }
+  db.prepare('UPDATE partners SET email=?, updated_at=? WHERE id=?')
+    .run(email, Math.floor(Date.now()/1000), req.partner.id);
+  audit(req.partner.id, 'partner_email_update', email ? 'set' : 'cleared', req.clientIp);
+  res.redirect('/partner/settings?saved=1');
 });
 
 router.post('/settings/store-name', (req, res) => {
@@ -462,6 +497,14 @@ router.post('/remit/submit', (req, res) => {
   audit(req.partner.id, 'remittance_submit', 'remit_id=' + r.lastInsertRowid + ' amount=' + amount + ' method=' + method, req.clientIp);
   req.session.prRemitFlash = { kind: 'ok', message: 'Submitted for admin approval. You\'ll see it in the list below.' };
   res.redirect('/partner/remit');
+});
+
+// AUDIT-FIX-DASH-2026-06-03 — mark onboarding completed/dismissed
+router.post('/onboarded', (req, res) => {
+  const now = Math.floor(Date.now()/1000);
+  db.prepare("UPDATE partners SET onboarded_at=COALESCE(onboarded_at, ?), updated_at=? WHERE id=?").run(now, now, req.partner.id);
+  audit(req.partner.id, 'partner_onboarded', null, req.clientIp);
+  res.redirect('/partner/');
 });
 
 module.exports = router;

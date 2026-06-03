@@ -178,6 +178,15 @@ router.post('/partners/:id/update', requireAdmin, (req, res) => {
   }
 
   const now = Math.floor(Date.now() / 1000);
+  // COMMHIST-2026-06-03 — record commission rate changes for transparency
+  if (commission_pct !== op.commission_pct) {
+    try {
+      db.prepare(
+        "INSERT INTO commission_history (partner_id, pct, effective_from, set_by_admin_id, notes) VALUES (?, ?, ?, ?, ?)"
+      ).run(id, commission_pct, now, req.admin.id, 'admin update');
+    } catch (e) {}
+  }
+
   db.prepare(
     "UPDATE partners SET partner_name=?, mobile=?, email=?, commission_pct=?, notes=?, updated_at=? WHERE id=?"
   ).run(storeName, mobile, email, commission_pct, notes, now, id);
@@ -208,7 +217,27 @@ router.post('/partners/:id/status', requireAdmin, (req, res) => {
   ).run(wanted, isActive, suspendedAt, suspendedBy, now, id);
 
   audit(req.admin.id, 'partner_status', 'id=' + id + ' from=' + op.status + ' to=' + wanted, req.clientIp);
-  req.session.prFlash = { kind: 'ok', message: 'Status changed to ' + wanted + '.' };
+
+  // AUDIT-FIX-2026-06-03 — notify partner of status change
+  try {
+    const enabled = (db.prepare("SELECT value FROM settings WHERE key='partner_status_sms_enabled'").get() || {}).value === '1';
+    if (enabled && op.mobile) {
+      const sem = require('../services/semaphore');
+      const k  = (db.prepare("SELECT value FROM settings WHERE key='semaphore_api_key'").get()    || {}).value || '';
+      const sn = (db.prepare("SELECT value FROM settings WHERE key='semaphore_sender_name'").get() || {}).value || 'PAYWIFI';
+      const domain = (db.prepare("SELECT value FROM settings WHERE key='domain_name'").get() || {}).value || '';
+      const url    = (domain ? (domain.replace(/\/$/, '') + '/partner') : 'paywifi.net/partner');
+      const support= (db.prepare("SELECT value FROM settings WHERE key='partner_contact_number'").get() || {}).value || '';
+      let body;
+      if (wanted === 'active')         body = 'Your PAYWIFI partner account is now ACTIVE. Sign in: ' + url + (support ? '. Help: ' + support : '');
+      else if (wanted === 'suspended') body = 'Your PAYWIFI partner account has been suspended.' + (support ? ' Questions: ' + support : '');
+      else if (wanted === 'archived')  body = 'Your PAYWIFI partner account has been archived.'  + (support ? ' Questions: ' + support : '');
+      else                             body = 'Your PAYWIFI partner account status is now ' + wanted + '.' + (support ? ' Questions: ' + support : '');
+      if (k) sem.sendSms(k, sn, op.mobile, body, { kind: 'partner_status_change' }).catch(() => {});
+    }
+  } catch (e) { /* fire-and-forget */ }
+
+  req.session.prFlash = { kind: 'ok', message: 'Status changed to ' + wanted + '. SMS notification sent.' };
   res.redirect('/admin/partners/' + id);
 });
 

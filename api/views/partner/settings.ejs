@@ -1,5 +1,5 @@
 <header class="mb-6">
-  <p class="text-[11px] font-bold uppercase tracking-[0.2em]" style="color:var(--primary)">PAYWIFI · Operator</p>
+  <p class="text-[11px] font-bold uppercase tracking-[0.2em]" style="color:var(--primary)">PAYWIFI · Partner</p>
   <h1 class="text-3xl font-bold tracking-tight">Settings</h1>
   <p class="text-sm mt-1" style="color: var(--muted-foreground)">Rename your store. Your mobile number and store slug are permanent.</p>
 </header>
@@ -15,6 +15,17 @@
     <div><dt class="text-[11px] uppercase tracking-wider" style="color: var(--muted-foreground)">Store slug</dt><dd class="text-base font-bold font-mono mt-1"><%= partner.partner_slug %></dd></div>
   </dl>
 </section>
+<%# AUDIT-FIX-SETTINGS-2026-06-03 — profile + lifecycle %>
+<section class="rounded-2xl border-2 p-5 mb-5" style="background: var(--card); border-color: var(--border)">
+  <h2 class="text-base font-bold mb-1">Profile</h2>
+  <p class="text-xs mb-4" style="color: var(--muted-foreground)">Optional email for weekly statements and important account notices.</p>
+  <form method="POST" action="/partner/settings/email" class="flex flex-col sm:flex-row gap-3">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+    <input name="email" type="email" maxlength="120" value="<%= partner.email || '' %>" placeholder="you@example.com" class="flex-1" />
+    <button type="submit" class="rounded-xl px-4 h-12 text-base font-bold" style="background: var(--primary); color: var(--primary-foreground)">Save email</button>
+  </form>
+</section>
+
 <section class="rounded-2xl border-2 p-5 mb-5" style="background: var(--card); border-color: var(--border)">
   <h2 class="text-base font-bold mb-1">Partner name</h2>
   <p class="text-xs mb-4" style="color: var(--muted-foreground)">Shows in the customer's checkout dropdown. Rename anytime — username stays the same.</p>

@@ -13,7 +13,12 @@ const db      = require('../db');
 
 const OTP_TTL_SEC     = 5 * 60;     // 5 minutes
 const OTP_MAX_ATTEMPTS = 5;
-const SMS_TEMPLATE = 'PAYWIFI Operator code: {code}. Valid for 5 minutes. Do not share.';
+// AUDIT-FIX-2026-06-03 — partner-friendly OTP SMS with login link
+function buildOtpTemplate() {
+  const domain = (db.prepare("SELECT value FROM settings WHERE key='domain_name'").get() || {}).value || '';
+  const url = (domain ? (domain.replace(/\/$/,'') + '/partner') : 'paywifi.net/partner');
+  return 'PAYWIFI partner code: {code}. Valid 5 minutes. Sign in: ' + url + '. Do not share.';
+}
 
 // ─────────────────────────────────────────────────────────────
 function audit(opId, action, details, ip) {
@@ -65,13 +70,43 @@ function uniqueSlug(base) {
   return slug;
 }
 
+// AUDIT-FIX-2026-06-03 — send arbitrary SMS via Semaphore (reused by welcome/admin alerts)
+async function sendSmsRaw(mobile, body, meta) {
+  try {
+    const sem = require('../services/semaphore');
+    const k   = settingValue('semaphore_api_key', '');
+    const sn  = settingValue('semaphore_sender_name', 'PAYWIFI');
+    if (!k || !mobile) return { ok: false, error: 'sms_not_configured' };
+    return await sem.sendSms(k, sn, mobile, body, meta || { kind: 'partner_misc' });
+  } catch (e) {
+    return { ok: false, error: e.message || 'sms_failed' };
+  }
+}
+
+async function maybeWelcomeSms(partner) {
+  if (settingValue('partner_welcome_sms_enabled', '1') !== '1') return;
+  const domain = settingValue('domain_name', '');
+  const url = (domain ? (domain.replace(/\/$/,'') + '/partner') : 'paywifi.net/partner');
+  const support = settingValue('partner_contact_number', '');
+  const supportLine = support ? (' Help: ' + support) : '';
+  const body = 'Welcome to PAYWIFI, ' + partner.partner_name + '! Sign in any time at ' + url + '.' + supportLine;
+  return await sendSmsRaw(partner.mobile, body, { kind: 'partner_welcome' });
+}
+
+async function notifyAdminOfNewPartner(partner) {
+  const phone = settingValue('admin_alert_phone', '');
+  if (!phone) return;
+  const body = 'PAYWIFI: new partner registered — ' + partner.partner_name + ' (' + partner.mobile + ') status=' + partner.status + '.';
+  return await sendSmsRaw(phone, body, { kind: 'admin_partner_signup' });
+}
+
 async function sendOtpSms(mobile, code) {
   try {
     const sem = require('../services/semaphore');
     const k   = settingValue('semaphore_api_key', '');
     const sn  = settingValue('semaphore_sender_name', 'PAYWIFI');
     if (!k) return { ok: false, error: 'sms_not_configured' };
-    const msg = SMS_TEMPLATE.replace('{code}', code);
+    const msg = buildOtpTemplate().replace('{code}', code);
     return await sem.sendSms(k, sn, mobile, msg, { kind: 'partner_otp' });
   } catch (e) {
     return { ok: false, error: e.message || 'sms_failed' };
@@ -102,9 +137,18 @@ function findActiveOtp(mobile, purpose) {
 
 // ─────────────────────────────────────────────────────────────
 // Shared render helper (same view-engine convention as the rest of operator/)
+// AUDIT-FIX-2026-06-03-RENDER — pass support contact to layout
+function supportContact() {
+  return {
+    phone: (db.prepare("SELECT value FROM settings WHERE key='partner_contact_number'").get() || {}).value || '',
+    email: (db.prepare("SELECT value FROM settings WHERE key='partner_contact_email'").get()  || {}).value || '',
+  };
+}
+
 function render(res, view, locals = {}) {
   res.render('partner/' + view, {
-    title:  locals.title || 'PAYWIFI Operator',
+    supportContact: supportContact(),
+    title:  locals.title || 'PAYWIFI Partner',
     active: locals.active || '',
     error:  null,
     operator: locals.operator || (res.locals && res.locals.partner) || null,
@@ -163,7 +207,14 @@ router.post('/login', async (req, res) => {
 router.post('/register', async (req, res) => {
   const mobile    = normalizeMobile((req.body || {}).mobile);
   const storeName = String((req.body || {}).partner_name || '').trim().slice(0, 80);
+  // TERMS-EMAIL-2026-06-03 — optional email + required T&C agreement
+  const email     = String((req.body || {}).email || '').trim().slice(0, 120) || null;
+  const agreed    = (req.body || {}).agree_terms === '1' || (req.body || {}).agree_terms === 'on';
 
+  if (!agreed) {
+    req.session.prLoginFlash = { kind: 'err', message: 'You must agree to the Partner Terms to register.' };
+    return res.redirect('/partner/login');
+  }
   if (!mobile) {
     req.session.prLoginFlash = { kind: 'err', message: 'Please enter a valid Philippine mobile number (09xxxxxxxxx).' };
     return res.redirect('/partner/login');
@@ -247,10 +298,11 @@ router.post('/verify', (req, res) => {
 
     let opId;
     try {
+      const termsVer = (db.prepare("SELECT value FROM settings WHERE key='partner_terms_version'").get() || {}).value || '1.0';
       const r = db.prepare(
-        "INSERT INTO partners (mobile, partner_name, partner_slug, status, is_active, created_at, updated_at, registered_via) " +
-        "VALUES (?, ?, ?, ?, ?, ?, ?, 'self')"
-      ).run(mobile, storeName, slug, status, isActive, now, now);
+        "INSERT INTO partners (mobile, partner_name, partner_slug, email, status, is_active, created_at, updated_at, registered_via, agreed_terms_at, agreed_terms_ip, agreed_terms_version) " +
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'self', ?, ?, ?)"
+      ).run(mobile, storeName, slug, payload.email || null, status, isActive, now, now, payload.agreed_at || now, payload.agreed_ip || (req.clientIp || null), termsVer);
       opId = r.lastInsertRowid;
     } catch (e) {
       audit(null, 'register_fail', e.message.slice(0, 200), req.clientIp);
@@ -259,6 +311,11 @@ router.post('/verify', (req, res) => {
     }
 
     audit(opId, 'partner_self_register', 'store=' + storeName + ' status=' + status, req.clientIp);
+
+    // AUDIT-FIX-2026-06-03 — fire-and-forget welcome + admin notifications
+    const newPartner = { id: opId, partner_name: storeName, mobile, status };
+    maybeWelcomeSms(newPartner).catch(() => {});
+    notifyAdminOfNewPartner(newPartner).catch(() => {});
 
     if (status === 'pending') {
       req.session.prPendingMobile = null;
