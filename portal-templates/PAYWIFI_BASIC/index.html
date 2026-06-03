@@ -70,12 +70,33 @@
           <span id="partner-widget-chip" class="hidden shrink-0 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-primary/15 text-primary">Coming Soon</span>
         </button>
         <div id="youtube-widget" class="hidden w-full rounded-2xl border-2 border-border bg-card overflow-hidden min-w-0">
-          <div class="relative w-full bg-black aspect-video">
+          <div id="youtube-widget-frame" class="relative w-full bg-black aspect-video">
             <video id="youtube-widget-video"
               class="absolute inset-0 w-full h-full"
               preload="metadata"
-              playsinline
-              controls></video>
+              playsinline></video>
+            <!-- Click-to-play overlay (shown only when click_to_play is on AND video paused) -->
+            <button id="youtube-widget-play" type="button" aria-label="Play video"
+              class="hidden absolute inset-0 flex items-center justify-center bg-black/40 hover:bg-black/30 transition-colors group">
+              <span class="rounded-full bg-white/90 group-hover:bg-white text-black h-16 w-16 flex items-center justify-center shadow-2xl">
+                <svg viewBox="0 0 24 24" class="h-8 w-8 ml-1" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+              </span>
+            </button>
+            <!-- Skip button (top-right) -->
+            <button id="youtube-widget-skip" type="button" aria-label="Skip video"
+              class="hidden absolute top-2 right-2 z-10 bg-black/60 hover:bg-black/80 text-white text-xs font-bold px-3 py-1.5 rounded-full backdrop-blur transition-colors">
+              Skip <span aria-hidden="true">&rarr;</span>
+            </button>
+            <!-- Close button (top-left) -->
+            <button id="youtube-widget-close" type="button" aria-label="Hide this video"
+              class="hidden absolute top-2 left-2 z-10 bg-black/60 hover:bg-black/80 text-white h-7 w-7 rounded-full backdrop-blur flex items-center justify-center transition-colors">
+              <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 6l12 12M18 6L6 18"/></svg>
+            </button>
+            <!-- Error state -->
+            <div id="youtube-widget-error" class="hidden absolute inset-0 flex flex-col items-center justify-center bg-card text-muted-foreground text-sm gap-2 p-4 text-center">
+              <svg class="h-8 w-8 opacity-50" aria-hidden="true"><use href="#icon-circle-alert"/></svg>
+              <p>This video could not be played.</p>
+            </div>
           </div>
         </div>
       </div>

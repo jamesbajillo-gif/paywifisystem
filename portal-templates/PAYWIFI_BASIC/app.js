@@ -147,26 +147,117 @@ function hydratePortalSidebarWidgets() {
       }
     }
 
-    // YOUTUBE-WIDGET-2026-06-03 — chrome-less inline player on home view.
-    var yt = findWidget("youtube");
-    var ytCard = $("youtube-widget");
-    var ytVid  = $("youtube-widget-video");
+    // YOUTUBE-WIDGET-2026-06-03 — full playback surface (controls/fullscreen/
+    // volume/click-to-play/skip/close) + error fallback. Hidden if disabled,
+    // device-rule rejects, or media isn't resolved.
+    var yt    = findWidget("youtube");
+    var ytCard  = $("youtube-widget");
+    var ytVid   = $("youtube-widget-video");
+    var ytPlay  = $("youtube-widget-play");
+    var ytSkip  = $("youtube-widget-skip");
+    var ytClose = $("youtube-widget-close");
+    var ytErr   = $("youtube-widget-error");
+    var ytFrame = $("youtube-widget-frame");
     if (ytCard && ytVid) {
       var media = yt && yt.media;
-      if (yt && yt.enabled !== false && media && media.file_path) {
+      // Honour a per-session dismissal triggered by the close button.
+      var dismissedKey = "pw_yt_dismiss_" + (media && media.id ? media.id : "any");
+      var dismissed = false;
+      try { dismissed = sessionStorage.getItem(dismissedKey) === "1"; } catch (e) {}
+      // Device-rule check (mobile/desktop/any). UA-based — good enough for the
+      // captive-portal use case where we don't need pixel-perfect detection.
+      var isMobile = /Mobi|Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
+      var deviceOk = !yt || !yt.device_rule || yt.device_rule === "any"
+                     || (yt.device_rule === "mobile"  && isMobile)
+                     || (yt.device_rule === "desktop" && !isMobile);
+      var ok = yt && yt.enabled !== false && media && media.file_path && !dismissed && deviceOk;
+      if (ok) {
         ytCard.classList.remove("hidden");
         if (media.thumbnail_path) ytVid.setAttribute("poster", media.thumbnail_path);
         ytVid.setAttribute("src", media.file_path);
-        // Default: autoplay ON, muted (browsers require muted for autoplay) — admin can override.
-        var wantAutoplay = (yt.autoplay !== false);
-        var wantMuted    = (yt.muted    !== false) || wantAutoplay;
+        var wantClickToPlay = !!yt.click_to_play;
+        var wantAutoplay    = !wantClickToPlay && (yt.autoplay !== false);
+        // Browsers require muted for autoplay. If admin wants sound + autoplay,
+        // mute on first load and unmute on the first user interaction.
+        var wantMuted = (yt.muted === true) || (wantAutoplay && yt.muted !== false);
         ytVid.muted    = wantMuted;
         ytVid.loop     = !!yt.loop;
         ytVid.autoplay = wantAutoplay;
+        ytVid.controls = (yt.controls !== false);
+        if (yt.allow_fullscreen === false) {
+          ytVid.setAttribute("controlslist", "nofullscreen nodownload");
+          ytVid.setAttribute("disablepictureinpicture", "true");
+        } else {
+          ytVid.removeAttribute("controlslist");
+          ytVid.removeAttribute("disablepictureinpicture");
+        }
+        // Volume — clamp 0..1
+        var vol = (typeof yt.volume === "number") ? yt.volume : 1.0;
+        ytVid.volume = Math.max(0, Math.min(1, vol));
+        // Skip + Close overlay buttons
+        if (ytSkip)  ytSkip.classList.toggle("hidden",  !yt.skip_button);
+        if (ytClose) ytClose.classList.toggle("hidden", !yt.close_button);
+        // Click-to-play overlay
+        if (ytPlay) ytPlay.classList.toggle("hidden", !wantClickToPlay);
+        if (ytErr)  ytErr.classList.add("hidden");
+        // Autoplay kick
         if (wantAutoplay) {
           var tryPlay = function() { try { ytVid.play().catch(function(){}); } catch (e) {} };
           if (ytVid.readyState >= 2) tryPlay();
           else ytVid.addEventListener("loadedmetadata", tryPlay, { once: true });
+        }
+        // Click-to-play handler
+        if (ytPlay && wantClickToPlay) {
+          ytPlay.onclick = function() {
+            ytPlay.classList.add("hidden");
+            try { ytVid.muted = (yt.muted === true); ytVid.play().catch(function(){}); } catch (e) {}
+          };
+        }
+        // Skip = stop + collapse the player (keeps the card visible if anything else needs it)
+        if (ytSkip) ytSkip.onclick = function() {
+          try { ytVid.pause(); } catch (e) {}
+          ytCard.classList.add("hidden");
+          ytTrack("skip");
+        };
+        // Close = dismiss for the session
+        if (ytClose) ytClose.onclick = function() {
+          try { ytVid.pause(); } catch (e) {}
+          try { sessionStorage.setItem(dismissedKey, "1"); } catch (e) {}
+          ytCard.classList.add("hidden");
+          ytTrack("close");
+        };
+        // Sound-on-tap: if autoplay started muted but admin wants sound, unmute
+        // the moment the user taps anywhere in the frame.
+        if (wantAutoplay && yt.muted === false && wantMuted && ytFrame) {
+          var unmuteOnce = function() {
+            try { ytVid.muted = false; } catch (e) {}
+            ytFrame.removeEventListener("click",   unmuteOnce);
+            ytFrame.removeEventListener("touchstart", unmuteOnce);
+          };
+          ytFrame.addEventListener("click",      unmuteOnce, { once: true });
+          ytFrame.addEventListener("touchstart", unmuteOnce, { once: true });
+        }
+        // Analytics event hooks (sendBeacon-backed; defined below)
+        ytVid.addEventListener("playing", function() { ytTrack("view_start"); }, { once: true });
+        ytVid.addEventListener("ended",   function() { ytTrack("view_complete"); });
+        ytVid.addEventListener("error",   function() {
+          console.warn("[yt-widget] video error", (ytVid.error && ytVid.error.code), "media=", media && media.id);
+          if (ytErr) ytErr.classList.remove("hidden");
+          ytTrack("error");
+        });
+        function ytTrack(event) {
+          try {
+            var body = JSON.stringify({ media_id: media && media.id, widget_id: yt && yt.id, event: event });
+            if (navigator.sendBeacon) {
+              var blob = new Blob([body], { type: "application/json" });
+              navigator.sendBeacon("/api/portal/media/track", blob);
+            } else {
+              fetch("/api/portal/media/track", {
+                method: "POST", credentials: "same-origin",
+                headers: { "Content-Type": "application/json" }, body: body, keepalive: true
+              }).catch(function() {});
+            }
+          } catch (e) {}
         }
       } else {
         ytCard.classList.add("hidden");

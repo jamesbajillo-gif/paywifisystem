@@ -665,14 +665,37 @@ router.post('/widgets', (req, res) => {
   const widgets = req.body;
   if (!Array.isArray(widgets)) return res.status(400).json({ ok: false, error: 'Invalid widgets array' });
   const now = Math.floor(Date.now() / 1000);
+  // WIDGETS-META-2026-06-03 — preserve per-widget updated_at/updated_by, only
+  // stamping a fresh value when the widget body actually changed.
+  let prevList = [];
+  try {
+    const ex = db.prepare("SELECT value FROM settings WHERE key='portal_widgets'").get();
+    if (ex && ex.value) prevList = JSON.parse(ex.value);
+  } catch (e) {}
+  const prevById = Object.fromEntries((prevList || []).map(w => [w.id || w.type, w]));
+  const META_KEYS = new Set(['updated_at','updated_by','updated_by_name']);
+  const fingerprint = w => JSON.stringify(Object.fromEntries(Object.entries(w).filter(([k]) => !META_KEYS.has(k))));
+  const adminName = (db.prepare('SELECT username FROM admin_users WHERE id=?').get(req.admin.id) || {}).username || ('admin#' + req.admin.id);
+  const enriched = widgets.map(w => {
+    const prev = prevById[w.id || w.type];
+    const changed = !prev || fingerprint(w) !== fingerprint(prev);
+    if (changed) {
+      return Object.assign({}, w, { updated_at: now, updated_by: req.admin.id, updated_by_name: adminName });
+    }
+    return Object.assign({}, w, {
+      updated_at: prev.updated_at || now,
+      updated_by: prev.updated_by || req.admin.id,
+      updated_by_name: prev.updated_by_name || adminName
+    });
+  });
   const existing = db.prepare("SELECT key FROM settings WHERE key='portal_widgets'").get();
   if (existing) {
-    db.prepare("UPDATE settings SET value=?,updated_at=? WHERE key='portal_widgets'").run(JSON.stringify(widgets), now);
+    db.prepare("UPDATE settings SET value=?,updated_at=? WHERE key='portal_widgets'").run(JSON.stringify(enriched), now);
   } else {
-    db.prepare("INSERT INTO settings (key,value,updated_at) VALUES ('portal_widgets',?,?)").run(JSON.stringify(widgets), now);
+    db.prepare("INSERT INTO settings (key,value,updated_at) VALUES ('portal_widgets',?,?)").run(JSON.stringify(enriched), now);
   }
-  audit(req.admin.id, 'widgets_update', null, req.clientIp);
-  res.json({ ok: true });
+  audit(req.admin.id, 'widgets_update', 'count=' + enriched.length, req.clientIp);
+  res.json({ ok: true, saved_at: now, saved_by: adminName });
 });
 
 

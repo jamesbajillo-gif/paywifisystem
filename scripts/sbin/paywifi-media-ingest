@@ -8,12 +8,67 @@ mkdir -p "$(dirname "$LOG")"
 log() { printf '%s [%s] %s\n' "$(date '+%F %T')" "$ID" "$*" >> "$LOG"; }
 [ -z "$ID" ] && { echo "Usage: $0 <media_id>" >&2; exit 2; }
 
-ROW=$(sqlite3 -separator $'\t' "$DB" "SELECT source_url, video_id, status FROM media_assets WHERE id=$ID;")
+ROW=$(sqlite3 -separator $'\t' "$DB" "SELECT source_url, video_id, status, source_type FROM media_assets WHERE id=$ID;")
 [ -z "$ROW" ] && { log "no row"; exit 1; }
 URL=$(printf '%s' "$ROW" | cut -f1)
 EXISTING_VID=$(printf '%s' "$ROW" | cut -f2)
 STATUS=$(printf '%s' "$ROW" | cut -f3)
+SOURCE_TYPE=$(printf '%s' "$ROW" | cut -f4)
 [ "$STATUS" = "processed" ] && exit 0
+
+# ── URL-INGEST branch — raw mp4/webm via curl, no yt-dlp ───────────────────
+if [ "$SOURCE_TYPE" = "url" ]; then
+  sqlite3 "$DB" "UPDATE media_assets SET status='downloading', updated_at=$(date +%s) WHERE id=$ID;"
+  VID="$EXISTING_VID"
+  [ -z "$VID" ] && { sqlite3 "$DB" "UPDATE media_assets SET status='failed', error='no_video_id', updated_at=$(date +%s) WHERE id=$ID;"; exit 11; }
+  EXT=$(printf '%s' "$URL" | sed -E 's/.*\.(mp4|webm|m4v|mov)([?#].*)?$/\1/I' | tr '[:upper:]' '[:lower:]')
+  [ -z "$EXT" ] && EXT=mp4
+  DOWN=/opt/paywifi/portal/media/videos/${VID}.${EXT}
+  log "fetching $URL → $DOWN"
+  curl -L --max-filesize 209715200 --connect-timeout 15 --max-time 600 -o "$DOWN" "$URL" >>"$LOG" 2>&1 || {
+    sqlite3 "$DB" "UPDATE media_assets SET status='failed', error='download_failed', updated_at=$(date +%s) WHERE id=$ID;"; rm -f "$DOWN"; exit 12;
+  }
+  VIDEO_OUT=/opt/paywifi/portal/media/videos/${VID}.mp4
+  THUMB_OUT=/opt/paywifi/portal/media/thumbs/${VID}.jpg
+  # Probe via ffprobe; reject if no video stream
+  STREAM=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of csv=p=0 "$DOWN" 2>>"$LOG" | head -1)
+  [ -z "$STREAM" ] && { sqlite3 "$DB" "UPDATE media_assets SET status='failed', error='no_video_stream', updated_at=$(date +%s) WHERE id=$ID;"; rm -f "$DOWN"; exit 13; }
+  DUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$DOWN" 2>>"$LOG" | awk '{printf "%d", $1+0}')
+  MAX_DUR=$(sqlite3 "$DB" "SELECT value FROM settings WHERE key='media_max_duration_sec';"); MAX_DUR=${MAX_DUR:-1800}
+  [ "$DUR" -gt "$MAX_DUR" ] && { sqlite3 "$DB" "UPDATE media_assets SET status='failed', error='exceeds_max_duration_${DUR}s', updated_at=$(date +%s) WHERE id=$ID;"; rm -f "$DOWN"; exit 14; }
+  # Remux to mp4 if needed
+  if [ "$EXT" != "mp4" ]; then
+    log "remuxing $EXT → mp4"
+    ffmpeg -y -i "$DOWN" -c copy -movflags +faststart "$VIDEO_OUT" >>"$LOG" 2>&1 || {
+      sqlite3 "$DB" "UPDATE media_assets SET status='failed', error='remux_failed', updated_at=$(date +%s) WHERE id=$ID;"; rm -f "$DOWN" "$VIDEO_OUT"; exit 15;
+    }
+    rm -f "$DOWN"
+  elif [ "$DOWN" != "$VIDEO_OUT" ]; then
+    mv "$DOWN" "$VIDEO_OUT"
+  fi
+  # Thumbnail at 1s
+  ffmpeg -y -ss 1 -i "$VIDEO_OUT" -vframes 1 -vf 'scale=320:-1' "$THUMB_OUT" >>"$LOG" 2>&1 || true
+  chown paywifi:paywifi "$VIDEO_OUT" "$THUMB_OUT" 2>/dev/null
+  chmod 644 "$VIDEO_OUT" "$THUMB_OUT" 2>/dev/null
+  SIZE=$(stat -c %s "$VIDEO_OUT")
+  SUM=$(sha256sum "$VIDEO_OUT" | cut -d' ' -f1)
+  RES=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "$VIDEO_OUT" 2>>"$LOG" | tr ',' 'x')
+  TITLE=$(printf '%s' "$URL" | sed -E 's|.*/||' | head -c 200 | sed "s/'/''/g")
+  THUMB_REL=""
+  [ -f "$THUMB_OUT" ] && THUMB_REL="/media/thumbs/${VID}.jpg"
+  sqlite3 "$DB" <<EOF
+UPDATE media_assets SET
+  status='processed', title=COALESCE(NULLIF(title,''), '$TITLE'),
+  duration_sec=$DUR, file_path='/media/videos/${VID}.mp4',
+  file_size=$SIZE, checksum='$SUM', resolution='$RES',
+  thumbnail_path='$THUMB_REL', processed_at=$(date +%s),
+  updated_at=$(date +%s), error=NULL
+WHERE id=$ID;
+EOF
+  log "URL-ingest OK: ${VID} ${RES} ${SIZE}b ${DUR}s"
+  exit 0
+fi
+# ── default: YouTube ingest path ──
 
 sqlite3 "$DB" "UPDATE media_assets SET status='downloading', updated_at=$(date +%s) WHERE id=$ID;"
 

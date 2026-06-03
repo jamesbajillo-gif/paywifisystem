@@ -1,8 +1,38 @@
 'use strict';
-// PAYWIFI-MEDIA-2026-06-03 — admin CRUD for media_assets (YouTube ingestion).
-const router    = require('express').Router();
-const db        = require('../db');
-const { spawn } = require('child_process');
+// PAYWIFI-MEDIA-2026-06-03 — admin CRUD for media_assets.
+const router      = require('express').Router();
+const db          = require('../db');
+const { spawn, execFileSync } = require('child_process');
+const multer      = require('multer');
+const fs          = require('fs');
+const path        = require('path');
+const crypto      = require('crypto');
+
+const MEDIA_VIDEO_DIR = '/opt/paywifi/portal/media/videos';
+const MEDIA_THUMB_DIR = '/opt/paywifi/portal/media/thumbs';
+try { fs.mkdirSync(MEDIA_VIDEO_DIR, { recursive: true }); } catch (e) {}
+try { fs.mkdirSync(MEDIA_THUMB_DIR, { recursive: true }); } catch (e) {}
+
+// Multer config — temp staging, then move into place after ffprobe.
+const uploadStaging = '/tmp/paywifi-upload';
+try { fs.mkdirSync(uploadStaging, { recursive: true }); } catch (e) {}
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: uploadStaging,
+    filename: function (_req, file, cb) {
+      const ext = (file.originalname || '').toLowerCase().match(/\.(mp4|webm|m4v|mov)$/) || ['.mp4'];
+      cb(null, 'pw-' + Date.now() + '-' + crypto.randomBytes(4).toString('hex') + ext[0]);
+    }
+  }),
+  limits: { fileSize: 200 * 1024 * 1024 }, // 200 MB cap
+  fileFilter: function (_req, file, cb) {
+    const okMime = /^(video\/(mp4|webm|x-m4v|quicktime))$/.test(file.mimetype || '');
+    const okExt  = /\.(mp4|webm|m4v|mov)$/i.test(file.originalname || '');
+    if (okMime || okExt) cb(null, true);
+    else cb(new Error('Unsupported video format. Use mp4, webm, m4v, or mov.'));
+  }
+});
+
 
 function requireAdmin(req, res, next) {
   if (!req.admin) return res.redirect('/admin/login');
@@ -115,6 +145,122 @@ router.post('/media/:id/delete', requireAdmin, (req, res) => {
   audit(req.admin.id, 'media_delete', 'id=' + id + ' video_id=' + (row && row.video_id), req.clientIp);
   req.session.mediaFlash = { kind: 'ok', message: 'Deleted.' };
   res.redirect('/admin/media');
+});
+
+// ── POST /admin/media/upload ─ direct file upload ──────────────────────────
+router.post('/media/upload', requireAdmin, upload.single('file'), (req, res) => {
+  // multer landed the file in /tmp; now probe with ffprobe, move into place,
+  // generate a thumbnail, write the row.
+  const f = req.file;
+  if (!f) {
+    req.session.mediaFlash = { kind: 'err', message: 'No file uploaded.' };
+    return res.redirect('/admin/widgets');
+  }
+  try {
+    // ffprobe for metadata
+    const ffp = JSON.parse(execFileSync('ffprobe', [
+      '-v', 'error', '-print_format', 'json',
+      '-show_format', '-show_streams', f.path
+    ], { timeout: 60000 }).toString());
+    const vstream = (ffp.streams || []).find(x => x.codec_type === 'video');
+    if (!vstream) throw new Error('No video stream found in file.');
+    const dur = Math.round(parseFloat(ffp.format && ffp.format.duration || 0)) || 0;
+    const maxDur = parseInt((db.prepare("SELECT value FROM settings WHERE key='media_max_duration_sec'").get() || {}).value || '1800', 10);
+    if (dur > maxDur) {
+      try { fs.unlinkSync(f.path); } catch (e) {}
+      req.session.mediaFlash = { kind: 'err', message: 'Video is ' + dur + 's; max ' + maxDur + 's.' };
+      return res.redirect('/admin/widgets');
+    }
+    const width  = vstream.width  || 0;
+    const height = vstream.height || 0;
+    const resolution = (width && height) ? (width + 'x' + height) : null;
+    // Build a stable id (sha256 prefix) — used as the on-disk filename so
+    // duplicates collide on the UNIQUE(video_id) constraint.
+    const buf = fs.readFileSync(f.path);
+    const sha = crypto.createHash('sha256').update(buf).digest('hex');
+    const vid = 'up_' + sha.slice(0, 16);
+    const dup = db.prepare('SELECT id, status FROM media_assets WHERE video_id=?').get(vid);
+    if (dup) {
+      try { fs.unlinkSync(f.path); } catch (e) {}
+      req.session.mediaFlash = { kind: 'err', message: 'Already uploaded (id=' + dup.id + ').' };
+      return res.redirect('/admin/widgets');
+    }
+    // Move into place. If it's already mp4, just rename; otherwise remux.
+    const targetMp4 = path.join(MEDIA_VIDEO_DIR, vid + '.mp4');
+    if (/\.mp4$/i.test(f.path)) {
+      fs.renameSync(f.path, targetMp4);
+    } else {
+      try {
+        execFileSync('ffmpeg', ['-y', '-i', f.path, '-c', 'copy', '-movflags', '+faststart', targetMp4], { timeout: 120000 });
+        try { fs.unlinkSync(f.path); } catch (e) {}
+      } catch (e) {
+        // Couldn't remux — re-encode minimally
+        execFileSync('ffmpeg', ['-y', '-i', f.path, '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '24', '-c:a', 'aac', targetMp4], { timeout: 600000 });
+        try { fs.unlinkSync(f.path); } catch (e) {}
+      }
+    }
+    // Generate thumbnail at 1s
+    const targetThumb = path.join(MEDIA_THUMB_DIR, vid + '.jpg');
+    try {
+      execFileSync('ffmpeg', ['-y', '-ss', '1', '-i', targetMp4, '-vframes', '1', '-vf', 'scale=320:-1', targetThumb], { timeout: 30000 });
+    } catch (e) {}
+    // Stats
+    const stat = fs.statSync(targetMp4);
+    const fileSha = crypto.createHash('sha256').update(fs.readFileSync(targetMp4)).digest('hex');
+    try { fs.chownSync(targetMp4, 998, 998); } catch (e) {} // paywifi user — best-effort
+    try { fs.chmodSync(targetMp4, 0o644); } catch (e) {}
+    try { fs.chmodSync(targetThumb, 0o644); } catch (e) {}
+    const now = Math.floor(Date.now() / 1000);
+    const title = (req.body.title || f.originalname || 'Uploaded video').slice(0, 200);
+    const ins = db.prepare(
+      "INSERT INTO media_assets " +
+      "(source_url, source_type, video_id, title, duration_sec, file_path, thumbnail_path, file_size, checksum, resolution, status, visibility, created_by, created_at, updated_at, processed_at) " +
+      "VALUES (?, 'upload', ?, ?, ?, ?, ?, ?, ?, ?, 'processed', 1, ?, ?, ?, ?)"
+    ).run(
+      'upload://' + f.originalname,
+      vid, title, dur,
+      '/media/videos/' + vid + '.mp4',
+      fs.existsSync(targetThumb) ? '/media/thumbs/' + vid + '.jpg' : null,
+      stat.size, fileSha, resolution,
+      req.admin.id, now, now, now
+    );
+    audit(req.admin.id, 'media_upload', 'id=' + ins.lastInsertRowid + ' size=' + stat.size + ' dur=' + dur, req.clientIp);
+    req.session.mediaFlash = { kind: 'ok', message: 'Uploaded — ready to feature.' };
+    res.redirect('/admin/widgets');
+  } catch (e) {
+    try { fs.unlinkSync(f.path); } catch (er) {}
+    req.session.mediaFlash = { kind: 'err', message: 'Upload failed: ' + e.message.slice(0, 200) };
+    res.redirect('/admin/widgets');
+  }
+});
+
+// ── POST /admin/media/url-add ─ external MP4 URL ingest ────────────────────
+router.post('/media/url-add', requireAdmin, (req, res) => {
+  const url = String((req.body || {}).url || '').trim();
+  if (!/^https?:\/\//.test(url) || !/\.(mp4|webm|m4v|mov)(\?|#|$)/i.test(url)) {
+    req.session.mediaFlash = { kind: 'err', message: 'URL must be http(s) and end with .mp4/.webm/.m4v/.mov' };
+    return res.redirect('/admin/widgets');
+  }
+  const vid = 'ext_' + crypto.createHash('sha256').update(url).digest('hex').slice(0, 16);
+  const dup = db.prepare('SELECT id, status FROM media_assets WHERE video_id=?').get(vid);
+  if (dup) {
+    req.session.mediaFlash = { kind: 'err', message: 'That URL is already in the library (id=' + dup.id + ').' };
+    return res.redirect('/admin/widgets');
+  }
+  const now = Math.floor(Date.now() / 1000);
+  const ins = db.prepare(
+    "INSERT INTO media_assets (source_url, source_type, video_id, title, status, created_by, created_at, updated_at) " +
+    "VALUES (?, 'url', ?, ?, 'pending', ?, ?, ?)"
+  ).run(url, vid, url.split('/').pop().slice(0, 200), req.admin.id, now, now);
+  const id = ins.lastInsertRowid;
+  audit(req.admin.id, 'media_url_add', 'id=' + id + ' url=' + url.slice(0, 150), req.clientIp);
+  // Fire-and-forget the ingestor
+  try {
+    const child = spawn('sudo', ['-n', '/usr/local/sbin/paywifi-media-ingest', String(id)], { detached: true, stdio: 'ignore' });
+    child.unref();
+  } catch (e) {}
+  req.session.mediaFlash = { kind: 'ok', message: 'Queued from URL — refresh in 30–60 seconds.' };
+  res.redirect('/admin/widgets');
 });
 
 module.exports = router;

@@ -1,6 +1,7 @@
 'use strict';
 // PATCHED: M1-INSERT-FIRST-2026-05-30, REMAINING-FIXES-2026-05-30, M1-M2-RETURN-QR-2026-05-30 (insert-first + partial UNIQUE)
-const router = require('express').Router();
+const express = require('express');
+const router = express.Router();
 const crypto  = require('crypto');
 function hashPhone(p) { return crypto.createHash('sha256').update(p).digest('hex'); }
 const db        = require('../db');
@@ -130,7 +131,7 @@ const DEFAULT_WIDGETS = [
   // PORTAL-WIDGET-2026-06-03 — captive-portal sidebar tiles
   { id:'ads_card',        type:'ads_card',        enabled:true,  order:8, title:'Your Ads Here',    subtitle:'Submit to inquire', contact_email:'ads@example.com' },
   { id:'partner_cta',     type:'partner_cta',     enabled:true,  order:9, title:'Partner with Us',  subtitle:'',                  chip:'',                       rollout:'', contact_number:'', contact_email:'' },
-  { id:'youtube',         type:'youtube',         enabled:true,  order:10, title:'Featured Video',  media_id:'auto', playlist_mode:'auto', playlist_ids:[], autoplay:true,  muted:true, loop:false },
+  { id:'youtube',         type:'youtube',         enabled:true,  order:10, title:'Featured Video',  media_id:'auto', playlist_mode:'auto', playlist_ids:[], autoplay:true,  muted:false, loop:true, controls:true, allow_fullscreen:true, volume:1.0, click_to_play:false, skip_button:false, close_button:false, device_rule:'any' },
 ];
 
 // ── Portal config ────────────────────────────────────────────────────────────
@@ -157,11 +158,23 @@ router.get('/config', (req, res) => {
     // render directly from cfg.widgets without a second fetch.
     const ytw = widgets.find(w => w.type === 'youtube');
     if (ytw) {
-      // PORTAL-WIDGET-YT-2026-06-03 — three modes: auto (newest), single
-      // (one id), playlist (random pick from a chosen set). The mode is
-      // 'playlist_mode'; legacy widgets without it fall back to media_id.
+      // PORTAL-WIDGET-YT-2026-06-03 — modes (auto/single/playlist) + scheduling
+      // + per-partner scoping. The resolved media row is injected as ytw.media
+      // for the portal to play back without a second fetch.
       let media = null;
       const mode = ytw.playlist_mode || ((ytw.media_id && ytw.media_id !== 'auto') ? 'single' : 'auto');
+      const now = Math.floor(Date.now() / 1000);
+      // Optional per-partner scope (the captive portal's gateway IP doesn't
+      // identify a partner — partner_id widget field future-proofs this for
+      // multi-tenant deployments).
+      const scopePartnerId = ytw.partner_id ? parseInt(ytw.partner_id, 10) : null;
+      const ScopeClause = scopePartnerId
+        ? " AND (partner_id IS NULL OR partner_id=" + scopePartnerId + ")"
+        : "";
+      const ScheduleClause =
+        " AND (start_at IS NULL OR start_at<=" + now + ")" +
+        " AND (end_at   IS NULL OR end_at  >=" + now + ")";
+      const ReadyClause = " AND status='processed' AND visibility=1";
       try {
         if (mode === 'playlist' && Array.isArray(ytw.playlist_ids) && ytw.playlist_ids.length) {
           const ids = ytw.playlist_ids.map(x => parseInt(x, 10)).filter(Boolean);
@@ -169,7 +182,7 @@ router.get('/config', (req, res) => {
             const placeholders = ids.map(() => '?').join(',');
             const candidates = db.prepare(
               "SELECT id, video_id, title, duration_sec, file_path, thumbnail_path, resolution " +
-              "FROM media_assets WHERE id IN (" + placeholders + ") AND status='processed' AND visibility=1"
+              "FROM media_assets WHERE id IN (" + placeholders + ")" + ReadyClause + ScheduleClause + ScopeClause
             ).all(...ids);
             if (candidates.length) media = candidates[Math.floor(Math.random() * candidates.length)];
           }
@@ -177,13 +190,14 @@ router.get('/config', (req, res) => {
           const mid = parseInt(ytw.media_id, 10);
           if (mid) media = db.prepare(
             "SELECT id, video_id, title, duration_sec, file_path, thumbnail_path, resolution " +
-            "FROM media_assets WHERE id=? AND status='processed' AND visibility=1"
+            "FROM media_assets WHERE id=?" + ReadyClause + ScheduleClause + ScopeClause
           ).get(mid);
         } else {
-          // auto
+          // auto — newest eligible
           media = db.prepare(
             "SELECT id, video_id, title, duration_sec, file_path, thumbnail_path, resolution " +
-            "FROM media_assets WHERE status='processed' AND visibility=1 ORDER BY id DESC LIMIT 1"
+            "FROM media_assets WHERE 1=1" + ReadyClause + ScheduleClause + ScopeClause +
+            " ORDER BY id DESC LIMIT 1"
           ).get();
         }
       } catch (e) {}
@@ -1524,6 +1538,29 @@ router.get('/media', (req, res) => {
     "FROM media_assets WHERE status='processed' AND visibility=1 ORDER BY id DESC LIMIT 100"
   ).all();
   res.json({ ok: true, items: rows, source: 'paywifi_local' });
+});
+
+// PORTAL-MEDIA-TRACK-2026-06-03 — analytics events from the captive portal.
+// Accepts beacons of shape { media_id, widget_id, event } and writes to media_events.
+router.post('/media/track', express.json({ limit: '2kb' }), (req, res) => {
+  try {
+    const b = req.body || {};
+    const mid = parseInt(b.media_id, 10);
+    if (!mid) return res.status(400).json({ ok: false, error: 'media_id required' });
+    const event = String(b.event || '').slice(0, 32);
+    if (!/^(view_start|view_complete|skip|close|error|click)$/.test(event)) {
+      return res.status(400).json({ ok: false, error: 'unknown event' });
+    }
+    const ua = String(req.headers['user-agent'] || '').slice(0, 200);
+    const isMobile = /Mobi|Android|iPhone|iPad|iPod|Mobile/i.test(ua);
+    db.prepare(
+      "INSERT INTO media_events (media_id, widget_id, event, client_ip, client_mac, user_agent, device_kind, created_at) " +
+      "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+    ).run(mid, String(b.widget_id || '').slice(0, 32), event, req.clientIp || null, req.clientMac || null, ua, isMobile ? 'mobile' : 'desktop', Math.floor(Date.now() / 1000));
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: 'track failed' });
+  }
 });
 
 module.exports = router;
