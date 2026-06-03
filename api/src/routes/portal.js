@@ -1461,4 +1461,13 @@ router.get('/cp', (req, res) => {
   res.type('text/html'); return res.send('<HTML><HEAD><TITLE>Success</TITLE></HEAD><BODY>Success</BODY></HTML>\n');
 });
 
+// PAYWIFI-MEDIA-2026-06-03 — captive portal lists locally-cached videos.
+router.get('/media', (req, res) => {
+  const rows = db.prepare(
+    "SELECT id, video_id, title, description, duration_sec, file_path, thumbnail_path, resolution, file_size " +
+    "FROM media_assets WHERE status='processed' AND visibility=1 ORDER BY id DESC LIMIT 100"
+  ).all();
+  res.json({ ok: true, items: rows, source: 'paywifi_local' });
+});
+
 module.exports = router;

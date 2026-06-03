@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+# PAYWIFI-MEDIA-INGEST-2026-06-03 v2 — fast path, no transcode
+set -uo pipefail
+DB=/var/lib/paywifi/paywifi.db
+LOG=/var/log/paywifi/media-ingest.log
+ID=${1:-}
+mkdir -p "$(dirname "$LOG")"
+log() { printf '%s [%s] %s\n' "$(date '+%F %T')" "$ID" "$*" >> "$LOG"; }
+[ -z "$ID" ] && { echo "Usage: $0 <media_id>" >&2; exit 2; }
+
+ROW=$(sqlite3 -separator $'\t' "$DB" "SELECT source_url, video_id, status FROM media_assets WHERE id=$ID;")
+[ -z "$ROW" ] && { log "no row"; exit 1; }
+URL=$(printf '%s' "$ROW" | cut -f1)
+EXISTING_VID=$(printf '%s' "$ROW" | cut -f2)
+STATUS=$(printf '%s' "$ROW" | cut -f3)
+[ "$STATUS" = "processed" ] && exit 0
+
+sqlite3 "$DB" "UPDATE media_assets SET status='downloading', updated_at=$(date +%s) WHERE id=$ID;"
+
+if [ -z "$EXISTING_VID" ]; then
+  VID=$(yt-dlp --get-id "$URL" 2>>"$LOG" | head -1 | tr -d '\r')
+  [ -z "$VID" ] && { sqlite3 "$DB" "UPDATE media_assets SET status='failed', error='id_extract_failed', updated_at=$(date +%s) WHERE id=$ID;"; exit 3; }
+  DUP=$(sqlite3 "$DB" "SELECT id FROM media_assets WHERE video_id='$VID' AND id != $ID LIMIT 1;")
+  [ -n "$DUP" ] && { sqlite3 "$DB" "UPDATE media_assets SET status='failed', error='duplicate_of_id_$DUP', updated_at=$(date +%s) WHERE id=$ID;"; exit 4; }
+  sqlite3 "$DB" "UPDATE media_assets SET video_id='$VID', updated_at=$(date +%s) WHERE id=$ID;"
+else
+  VID=$EXISTING_VID
+fi
+
+VIDEO_OUT=/opt/paywifi/portal/media/videos/${VID}.mp4
+THUMB_OUT=/opt/paywifi/portal/media/thumbs/${VID}.jpg
+META_TMP=/tmp/paywifi-media-${VID}.json
+
+MAX_DUR=$(sqlite3 "$DB" "SELECT value FROM settings WHERE key='media_max_duration_sec';"); MAX_DUR=${MAX_DUR:-1800}
+yt-dlp -J --no-warnings --no-playlist "$URL" > "$META_TMP" 2>>"$LOG" || { sqlite3 "$DB" "UPDATE media_assets SET status='failed', error='metadata_failed', updated_at=$(date +%s) WHERE id=$ID;"; exit 5; }
+DUR=$(python3 -c "import json; d=json.load(open('$META_TMP')); print(int(d.get('duration', 0)))")
+TITLE=$(python3 -c "import json; d=json.load(open('$META_TMP')); print(d.get('title','')[:300])" | sed "s/'/''/g")
+DESC=$(python3  -c "import json; d=json.load(open('$META_TMP')); print((d.get('description','') or '')[:2000])" | sed "s/'/''/g")
+[ "$DUR" -gt "$MAX_DUR" ] && { sqlite3 "$DB" "UPDATE media_assets SET status='failed', error='exceeds_max_duration_${DUR}s', updated_at=$(date +%s) WHERE id=$ID;"; rm -f "$META_TMP"; exit 6; }
+
+# Pull the best progressive (single-file) mp4 ≤480p — avoids muxing or transcoding
+# This trades quality for speed/CPU; if no progressive ≤480p, falls back to a single mp4 file
+log "downloading single-file mp4 ≤480p..."
+yt-dlp \
+  --no-warnings --no-playlist \
+  --format 'best[height<=480][ext=mp4][protocol*=https]/best[ext=mp4]/best' \
+  -o "/opt/paywifi/portal/media/videos/${VID}.%(ext)s" \
+  "$URL" >>"$LOG" 2>&1 || { sqlite3 "$DB" "UPDATE media_assets SET status='failed', error='download_failed', updated_at=$(date +%s) WHERE id=$ID;"; rm -f "$META_TMP"; exit 7; }
+
+# Locate the downloaded file (yt-dlp may produce non-mp4 extension if fallback)
+DOWNLOADED=$(ls /opt/paywifi/portal/media/videos/${VID}.* 2>/dev/null | head -1)
+[ -z "$DOWNLOADED" ] && { sqlite3 "$DB" "UPDATE media_assets SET status='failed', error='output_missing', updated_at=$(date +%s) WHERE id=$ID;"; rm -f "$META_TMP"; exit 8; }
+
+# If not mp4, remux to mp4 (faster than transcode). Otherwise rename.
+EXT="${DOWNLOADED##*.}"
+if [ "$EXT" != "mp4" ]; then
+  log "remuxing $EXT → mp4"
+  ffmpeg -y -i "$DOWNLOADED" -c copy -movflags +faststart "$VIDEO_OUT" >>"$LOG" 2>&1
+  rm -f "$DOWNLOADED"
+elif [ "$DOWNLOADED" != "$VIDEO_OUT" ]; then
+  mv "$DOWNLOADED" "$VIDEO_OUT"
+fi
+
+# Thumbnail — use ffmpeg snapshot at 1s instead of yt-dlp webp conversion (more reliable)
+ffmpeg -y -ss 1 -i "$VIDEO_OUT" -vframes 1 -vf 'scale=320:-1' "$THUMB_OUT" >>"$LOG" 2>&1
+
+chown paywifi:paywifi "$VIDEO_OUT" "$THUMB_OUT" 2>/dev/null
+chmod 644 "$VIDEO_OUT" "$THUMB_OUT" 2>/dev/null
+
+SIZE=$(stat -c %s "$VIDEO_OUT")
+SUM=$(sha256sum "$VIDEO_OUT" | cut -d' ' -f1)
+RES=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "$VIDEO_OUT" | tr ',' 'x')
+VIDEO_REL="/media/videos/${VID}.mp4"
+THUMB_REL=""; [ -f "$THUMB_OUT" ] && THUMB_REL="/media/thumbs/${VID}.jpg"
+
+sqlite3 "$DB" <<EOF
+UPDATE media_assets SET status='processed', title='$TITLE', description='$DESC',
+  duration_sec=$DUR, file_path='$VIDEO_REL', file_size=$SIZE, checksum='$SUM',
+  resolution='$RES', thumbnail_path='$THUMB_REL', processed_at=$(date +%s),
+  updated_at=$(date +%s), error=NULL WHERE id=$ID;
+EOF
+
+rm -f "$META_TMP"
+log "ok: $VID $RES ${SIZE}b ${DUR}s"
+echo "ok: $ID $VID $SIZE"
