@@ -29,19 +29,11 @@ function extractYouTubeId(input) {
 }
 
 // ── GET /admin/media ────────────────────────────────────────────────────────
+// MEDIA-MERGED-2026-06-03 — standalone page deprecated; library lives inside
+// the YouTube widget edit panel in /admin/widgets. POST endpoints below stay
+// (the widget edit panel calls them via fetch).
 router.get('/media', requireAdmin, (req, res) => {
-  const filter = String(req.query.status || '').toLowerCase();
-  const rows = filter
-    ? db.prepare("SELECT * FROM media_assets WHERE status=? ORDER BY id DESC LIMIT 200").all(filter)
-    : db.prepare("SELECT * FROM media_assets ORDER BY id DESC LIMIT 200").all();
-  res.render('admin/media', {
-    title:  'Media · PAYWIFI',
-    active: 'media',
-    rows,
-    filter,
-    flash: req.session.mediaFlash || null,
-  });
-  delete req.session.mediaFlash;
+  return res.redirect('/admin/widgets');
 });
 
 // ── POST /admin/media/add ───────────────────────────────────────────────────

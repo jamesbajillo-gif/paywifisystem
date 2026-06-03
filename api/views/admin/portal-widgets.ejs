@@ -220,7 +220,6 @@ function buildForm(w){
       +'<button type="button" class="yt-filter px-2 py-0.5 rounded bg-slate-800 text-slate-300" data-flt="processed">Ready</button>'
       +'<button type="button" class="yt-filter px-2 py-0.5 rounded bg-slate-800 text-slate-300" data-flt="progress">In progress</button>'
       +'<button type="button" class="yt-filter px-2 py-0.5 rounded bg-slate-800 text-slate-300" data-flt="failed">Failed</button>'
-      +'<a href="/admin/media" class="ml-auto px-2 py-0.5 rounded bg-slate-800 text-slate-400 hover:text-slate-200" target="_blank" rel="noopener">Open full library &rarr;</a>'
     +'</div>';
     h+='<div id="yt-library" class="space-y-1.5 max-h-[28rem] overflow-y-auto pr-1 mb-2">'
       +(MEDIA_ASSETS.length?MEDIA_ASSETS.map(function(m){return renderMediaRow(m,plist,mode);}).join(''):'<p class="text-xs text-slate-500 px-2 py-3 text-center">No videos yet — paste a YouTube URL above to add one.</p>')
