@@ -24,13 +24,13 @@ router.get('/remittances', requireAdmin, (req, res) => {
   let rows;
   if (where === 'all') {
     rows = db.prepare(
-      "SELECT r.*, o.partner_name, o.username FROM remittances r " +
+      "SELECT r.*, o.partner_name, o.mobile FROM remittances r " +
       "  JOIN partners o ON o.id = r.partner_id " +
       " ORDER BY r.created_at DESC LIMIT 200"
     ).all();
   } else {
     rows = db.prepare(
-      "SELECT r.*, o.partner_name, o.username FROM remittances r " +
+      "SELECT r.*, o.partner_name, o.mobile FROM remittances r " +
       "  JOIN partners o ON o.id = r.partner_id " +
       " WHERE r.status=? ORDER BY r.created_at DESC LIMIT 200"
     ).all(where);
