@@ -32,11 +32,18 @@ module.exports = function blockPublicPayments(req, res, next) {
 
   const hosts = loadHosts();
   if (hosts.has(host)) {
+    const friendly = "You're on the public PAYWIFI site — payments can only be processed " +
+                     "while you're connected to our hotspot WiFi. " +
+                     "This is for your security and transaction protection: connecting through " +
+                     "PAYWIFI lets us authorize, validate, and route your payment safely. " +
+                     "Please join the PAYWIFI WiFi and try again.";
     return res.status(403).json({
       ok: false,
       code: 'NON_LAN_HOST',
-      error: 'Connect to the PAYWIFI hotspot WiFi first — payments can\'t be made from outside the network.',
-      message: 'Connect to the PAYWIFI hotspot WiFi first — payments can\'t be made from outside the network.'
+      error: friendly,
+      message: friendly,
+      help: 'Look for the PAYWIFI network in your phone\'s WiFi settings, connect, then re-open this page.',
+      action: { label: 'How to connect', url: '/partner-faq.html' }
     });
   }
   next();

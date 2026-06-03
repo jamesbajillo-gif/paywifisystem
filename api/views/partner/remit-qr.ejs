@@ -1,0 +1,87 @@
+<%# GCASH-ONLY-2026-06-03 — partner remit QR view %>
+<style>
+  .qr-wrap { max-width: 480px; margin: 0 auto; padding: 24px 20px 48px; }
+  .qr-card { background: var(--card); border: 2px solid var(--border); border-radius: 20px; padding: 24px; text-align: center; }
+  .qr-amount { font-size: 36px; font-weight: 800; color: var(--primary); margin: 0 0 4px; }
+  .qr-sub { font-size: 13px; color: var(--muted-foreground); margin: 0 0 18px; }
+  .qr-box { background: white; border: 1px solid var(--border); border-radius: 16px; padding: 16px; display: inline-block; margin: 0 0 16px; }
+  .qr-box img, .qr-box canvas { display: block; width: 280px; height: 280px; }
+  .qr-ref { font-family: ui-monospace, Menlo, monospace; font-size: 13px; background: var(--background); padding: 8px 12px; border-radius: 8px; display: inline-block; margin: 8px 0 0; }
+  .qr-status { margin-top: 18px; padding: 12px 16px; border-radius: 12px; font-size: 14px; font-weight: 600; }
+  .qr-status.pending { background: color-mix(in oklab, var(--primary) 10%, var(--card)); color: var(--primary); border: 1px solid color-mix(in oklab, var(--primary) 30%, var(--border)); }
+  .qr-status.paid    { background: color-mix(in oklab, var(--success)  10%, var(--card)); color: var(--success);  border: 1px solid color-mix(in oklab, var(--success)  30%, var(--border)); }
+  .qr-status.expired { background: color-mix(in oklab, var(--muted-foreground) 10%, var(--card)); color: var(--muted-foreground); }
+  .qr-help { margin-top: 16px; font-size: 13px; color: var(--muted-foreground); text-align: left; }
+  .qr-help li { margin: 4px 0; }
+  .qr-actions { display: flex; gap: 10px; margin-top: 20px; }
+  .qr-actions a, .qr-actions button { flex: 1; height: 48px; border-radius: 12px; font-weight: 600; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+</style>
+<script src="/qr.js"></script>
+
+<div class="qr-wrap">
+  <div class="qr-card">
+    <p class="qr-sub" style="text-transform: uppercase; letter-spacing: 0.16em; font-weight: 700; color: var(--primary); margin-bottom: 6px">Remit via GCash</p>
+    <p class="qr-amount">₱<%= row.amount.toLocaleString('en-PH', { minimumFractionDigits: 2 }) %></p>
+    <p class="qr-sub">Open GCash, tap <strong>Scan QR</strong>, point at this code</p>
+
+    <% if (row.status === 'approved') { %>
+      <div class="qr-status paid">✓ Payment received — your balance has been updated.</div>
+    <% } else if (expiresIn <= 0 && row.status === 'pending') { %>
+      <div class="qr-status expired">QR expired. Go back and create a new one.</div>
+    <% } else if (row.qr_string) { %>
+      <div class="qr-box">
+        <canvas id="qr-canvas" width="280" height="280"></canvas>
+      </div>
+      <p class="qr-ref">ref <%= row.reference_no %></p>
+      <div class="qr-status pending" id="qr-status-text">Waiting for payment — refreshes every 5 seconds…</div>
+      <p class="qr-sub" style="margin-top: 12px">Expires in <span id="qr-countdown"><%= Math.ceil(expiresIn/60) %></span> minutes</p>
+    <% } else { %>
+      <div class="qr-status expired">QR code unavailable. Try again from the Remit page.</div>
+    <% } %>
+
+    <ul class="qr-help">
+      <li>1. Open the GCash app on your phone</li>
+      <li>2. Tap Scan QR (or Pay → Scan)</li>
+      <li>3. Aim at this code — amount auto-fills</li>
+      <li>4. Approve in GCash. We confirm automatically.</li>
+    </ul>
+
+    <div class="qr-actions">
+      <a href="/partner/remit" style="background: var(--card); color: var(--muted-foreground); border: 1.5px solid var(--border)">Back to Remit</a>
+    </div>
+  </div>
+</div>
+
+<% if (row.status === 'pending' && row.qr_string && expiresIn > 0) { %>
+<script>
+(function() {
+  // Render QR code
+  try {
+    var ctx = document.getElementById('qr-canvas');
+    if (window.QRious) new QRious({ element: ctx, value: <%- JSON.stringify(row.qr_string) %>, size: 280, level: 'H' });
+  } catch (e) { console.error('QR render failed:', e); }
+
+  // Countdown
+  var remaining = <%= expiresIn %>;
+  var cd = document.getElementById('qr-countdown');
+  setInterval(function() {
+    remaining = Math.max(0, remaining - 1);
+    if (cd) cd.textContent = Math.ceil(remaining / 60);
+  }, 1000);
+
+  // Poll status every 5s
+  var statusText = document.getElementById('qr-status-text');
+  setInterval(async function() {
+    try {
+      var r = await fetch('/partner/remit/qr/<%= row.id %>/status', { credentials: 'same-origin' });
+      var j = await r.json();
+      if (j.ok && j.status === 'approved') {
+        location.reload();
+      } else if (j.ok && j.xendit_status && j.xendit_status !== 'pending') {
+        if (statusText) statusText.textContent = 'Xendit status: ' + j.xendit_status;
+      }
+    } catch (e) {}
+  }, 5000);
+})();
+</script>
+<% } %>

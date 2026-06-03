@@ -487,34 +487,91 @@ router.get('/remit', (req, res) => {
   delete req.session.prRemitFlash;
 });
 
-router.post('/remit/submit', (req, res) => {
-  const body = req.body || {};
-  const amount = parseFloat(body.amount);
-  const method = ['cash','gcash','bank','other'].includes(body.method) ? body.method : null;
-  const reference_no = String(body.reference_no || '').trim().slice(0, 64);
-  const notes = String(body.notes || '').trim().slice(0, 500) || null;
-
-  if (!amount || amount <= 0) {
-    req.session.prRemitFlash = { kind: 'err', message: 'Amount must be greater than 0.' };
-    return res.redirect('/partner/remit');
-  }
-  if (!method) {
-    req.session.prRemitFlash = { kind: 'err', message: 'Choose a remittance method.' };
-    return res.redirect('/partner/remit');
-  }
-  if (!reference_no) {
-    req.session.prRemitFlash = { kind: 'err', message: 'Reference number is required.' };
-    return res.redirect('/partner/remit');
-  }
-
+// GCASH-ONLY-2026-06-03 — partner generates a GCash QR via Xendit; no admin approval.
+// Xendit webhook /api/webhooks/xendit confirms payment → flips remittance to 'approved'.
+router.post('/remit/qr-create', async (req, res) => {
   const now = Math.floor(Date.now() / 1000);
-  const r = db.prepare(
-    "INSERT INTO remittances (partner_id, amount, reference_no, method, notes, status, created_at) " +
-    "VALUES (?,?,?,?,?, 'pending', ?)"
-  ).run(req.partner.id, amount, reference_no, method, notes, now);
-  audit(req.partner.id, 'remittance_submit', 'remit_id=' + r.lastInsertRowid + ' amount=' + amount + ' method=' + method, req.clientIp);
-  req.session.prRemitFlash = { kind: 'ok', message: 'Submitted for admin approval. You\'ll see it in the list below.' };
-  res.redirect('/partner/remit');
+  const amount = parseFloat((req.body || {}).amount);
+  if (!amount || amount <= 0 || amount > 1000000) {
+    req.session.prRemitFlash = { kind: 'err', message: 'Enter a valid amount.' };
+    return res.redirect('/partner/remit');
+  }
+
+  // Sanity: refuse if partner already has a pending remit < 15 min old
+  const cutoff = now - parseInt((db.prepare("SELECT value FROM settings WHERE key='remit_qr_ttl_min'").get() || {}).value || '15', 10) * 60;
+  const existing = db.prepare(
+    "SELECT id FROM remittances WHERE partner_id=? AND status='pending' AND created_at > ? ORDER BY id DESC LIMIT 1"
+  ).get(req.partner.id, cutoff);
+  if (existing) {
+    req.session.prRemitFlash = { kind: 'err', message: 'You already have an open GCash QR. Pay it or wait for it to expire (15 min) before creating a new one.' };
+    return res.redirect('/partner/remit');
+  }
+
+  const ttlMin = parseInt((db.prepare("SELECT value FROM settings WHERE key='remit_qr_ttl_min'").get() || {}).value || '15', 10);
+  const refNo  = 'REMIT-' + req.partner.id + '-' + now + '-' + Math.floor(Math.random()*9000+1000);
+
+  // Insert pending row first (so we have a stable internal id)
+  const ins = db.prepare(
+    "INSERT INTO remittances (partner_id, amount, reference_no, method, status, created_at, expires_at) " +
+    "VALUES (?, ?, ?, 'gcash', 'pending', ?, ?)"
+  ).run(req.partner.id, amount, refNo, now, now + ttlMin * 60);
+  const remitId = ins.lastInsertRowid;
+
+  // Build Xendit GCash QR via QR_CODE (QRPH). Pass our webhook URL.
+  try {
+    const xendit = require('../modules/xendit');
+    const m = db.prepare("SELECT config_json FROM payment_modules WHERE slug='xendit'").get();
+    if (!m) throw new Error('Xendit not configured');
+    const cfg = JSON.parse(m.config_json || '{}');
+    const callbackUrl = (db.cfg.api.base_url || 'http://localhost') + '/webhooks/xendit?kind=remit&remit_id=' + remitId;
+    const result = await xendit.createPayment(cfg, 'qr_code', {
+      external_id: refNo,
+      amount,
+      callback_url: callbackUrl,
+      metadata: { kind: 'partner_remit', partner_id: req.partner.id, remit_id: remitId },
+    });
+    if (!result || result.status >= 400) {
+      const errMsg = (result && result.body && (result.body.message || result.body.error_code)) || 'xendit_unavailable';
+      db.prepare("UPDATE remittances SET status='cancelled', updated_at=? WHERE id=?").run(now, remitId);
+      req.session.prRemitFlash = { kind: 'err', message: 'GCash QR generation failed: ' + errMsg };
+      return res.redirect('/partner/remit');
+    }
+    const body = result.body || {};
+    // Extract QR string + payment id from the response
+    const qrString = body.actions && body.actions[0] && (body.actions[0].qr_code || body.actions[0].url) ||
+                     body.qr_string || (body.payment_method && body.payment_method.qr_code && body.payment_method.qr_code.channel_properties && body.payment_method.qr_code.channel_properties.qr_string) || '';
+    const xPaymentId = body.id || body.payment_request_id || '';
+    db.prepare(
+      "UPDATE remittances SET xendit_payment_id=?, xendit_reference=?, xendit_status='pending', qr_string=?, updated_at=? WHERE id=?"
+    ).run(xPaymentId, refNo, qrString, now, remitId);
+    audit(req.partner.id, 'remittance_qr_create', 'remit_id=' + remitId + ' amount=' + amount + ' xendit_id=' + xPaymentId, req.clientIp);
+  } catch (e) {
+    db.prepare("UPDATE remittances SET status='cancelled', updated_at=? WHERE id=?").run(now, remitId);
+    req.session.prRemitFlash = { kind: 'err', message: 'GCash QR generation failed: ' + (e.message || 'unknown').slice(0, 200) };
+    return res.redirect('/partner/remit');
+  }
+
+  res.redirect('/partner/remit/qr/' + remitId);
+});
+
+// GCASH-ONLY-2026-06-03 — view a pending QR (with refresh poll)
+router.get('/remit/qr/:id', (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const row = db.prepare("SELECT * FROM remittances WHERE id=? AND partner_id=?").get(id, req.partner.id);
+  if (!row) return res.redirect('/partner/remit');
+  render(res, 'remit-qr', {
+    title: 'Remittance · Partner', active: 'remit',
+    row,
+    expiresIn: Math.max(0, (row.expires_at || 0) - Math.floor(Date.now()/1000)),
+  });
+});
+
+// AJAX status poll
+router.get('/remit/qr/:id/status', (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const row = db.prepare("SELECT id, status, xendit_status, confirmed_at FROM remittances WHERE id=? AND partner_id=?").get(id, req.partner.id);
+  if (!row) return res.json({ ok: false });
+  res.json({ ok: true, status: row.status, confirmed_at: row.confirmed_at, xendit_status: row.xendit_status });
 });
 
 // AUDIT-FIX-DASH-2026-06-03 — mark onboarding completed/dismissed

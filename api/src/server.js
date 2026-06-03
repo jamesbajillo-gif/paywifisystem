@@ -54,6 +54,12 @@ const blockPublicPayments = require('./middleware/blockPublicPayments');
 app.use('/portal/payment/create',  blockPublicPayments);
 app.use('/auth/voucher',           blockPublicPayments);
 app.use('/portal/auth/voucher',    blockPublicPayments);
+// Audit extension 2026-06-03 — cover every payment-mutating endpoint
+app.use('/portal/payment/cancel',  blockPublicPayments);
+app.use('/portal/payment/status',  blockPublicPayments);
+app.use('/portal/payment/pending', blockPublicPayments);
+app.use('/portal/set-phone',       blockPublicPayments);
+app.use('/portal/free-trial',      blockPublicPayments);
 app.use('/auth/voucher',     rateLimit({ windowMs: 60*1000,     max: 20,  keyGenerator: rlKeyByIp, message: 'Too many voucher attempts.' }));
 app.use('/portal/free-trial',rateLimit({ windowMs: 10*60*1000,  max: 5,   keyGenerator: rlKeyByIp, standardHeaders: true, message: JSON.stringify({ ok: false, error: 'Too many attempts. Try again in 10 minutes.' }) }));
 app.use('/portal/payment/status', rateLimit({ windowMs: 60*1000, max: 60, keyGenerator: rlKeyByIp, message: JSON.stringify({ ok: false, error: 'Too many status requests.' }) }));

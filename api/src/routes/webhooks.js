@@ -123,6 +123,43 @@ router.post('/:slug', (req, res) => {
                 || status === 'PAID'
                 || status === 'COMPLETED';
 
+    // REMIT-WEBHOOK-2026-06-03 — partner remittance branch
+    // Recognize via external_id prefix REMIT- or query param kind=remit
+    const isRemit = (extId && extId.startsWith('REMIT-')) || req.query.kind === 'remit';
+    if (isRemit) {
+      const remitId = parseInt(req.query.remit_id || 0, 10) ||
+                      (db.prepare("SELECT id FROM remittances WHERE xendit_reference=?").get(extId) || {}).id;
+      if (remitId) {
+        const remit = db.prepare("SELECT * FROM remittances WHERE id=?").get(remitId);
+        if (remit && remit.status !== 'approved') {
+          if (isPaid) {
+            db.prepare(
+              "UPDATE remittances SET status='approved', confirmed_at=?, xendit_status='SUCCEEDED', webhook_payload=?, approved_at=? WHERE id=?"
+            ).run(now, JSON.stringify(body).slice(0, 4096), now, remitId);
+            db.prepare("INSERT INTO audit_log (admin_id, partner_id, action, details, created_at) VALUES (NULL, ?, 'remittance_auto_confirm', ?, ?)")
+              .run(remit.partner_id, 'remit_id=' + remitId + ' amount=' + remit.amount + ' xendit_id=' + (body.id || ''), now);
+            // Send confirmation SMS
+            try {
+              const partner = db.prepare("SELECT mobile, partner_name FROM partners WHERE id=?").get(remit.partner_id);
+              if (partner && partner.mobile) {
+                const sem = require('../services/semaphore');
+                const k  = (db.prepare("SELECT value FROM settings WHERE key='semaphore_api_key'").get() || {}).value || '';
+                const sn = (db.prepare("SELECT value FROM settings WHERE key='semaphore_sender_name'").get() || {}).value || 'PAYWIFI';
+                if (k) {
+                  const msg = 'PAYWIFI: Remittance of P' + remit.amount + ' received. Your balance has been updated. Thank you!';
+                  sem.sendSms(k, sn, partner.mobile, msg, { kind: 'remit_confirmed' }).catch(() => {});
+                }
+              }
+            } catch (e) {}
+          } else {
+            db.prepare("UPDATE remittances SET xendit_status=?, webhook_payload=? WHERE id=?")
+              .run(status || eventType || 'updated', JSON.stringify(body).slice(0, 4096), remitId);
+          }
+        }
+      }
+      return res.json({ ok: true, kind: 'remit', remit_id: remitId, paid: isPaid });
+    }
+
     // Find the matching pending payment
     const pending = extId
       ? db.prepare("SELECT * FROM pending_payments WHERE external_id=?").get(extId)
