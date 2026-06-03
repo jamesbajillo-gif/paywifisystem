@@ -134,22 +134,26 @@
   line-height: 1.4;
 }
 
+/* OTP-LAYOUT-2026-06-03 — compact-but-large cells that wrap to 3+3 on narrow screens. */
 .otp-row {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 8px;
-  margin: 16px 0 6px;
-}
-@media (max-width: 360px) {
-  .otp-row { gap: 6px; }
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin: 18px auto 8px;
+  max-width: 380px;
 }
 .otp-cell {
-  height: 60px;
+  /* Default — 6 cells in one row */
+  flex: 0 0 calc((100% - 50px) / 6);
+  min-width: 44px;
+  max-width: 60px;
+  height: 68px;
   text-align: center;
-  font-size: 24px;
-  font-weight: 700;
-  border-radius: 12px;
-  border: 1.5px solid var(--border);
+  font-size: 28px;
+  font-weight: 800;
+  border-radius: 14px;
+  border: 2px solid var(--border);
   background: var(--background);
   color: var(--foreground);
   appearance: none;
@@ -157,16 +161,38 @@
   font-variant-numeric: tabular-nums;
   transition: all 150ms ease;
   padding: 0;
+  box-sizing: border-box;
 }
 .otp-cell:focus {
   outline: none;
   border-color: var(--primary);
-  box-shadow: 0 0 0 4px color-mix(in oklab, var(--primary) 12%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--primary) 14%, transparent);
   transform: translateY(-1px);
 }
 .otp-cell:not(:placeholder-shown) {
   border-color: color-mix(in oklab, var(--primary) 35%, var(--border));
-  background: color-mix(in oklab, var(--primary) 4%, var(--background));
+  background: color-mix(in oklab, var(--primary) 5%, var(--background));
+}
+/* Narrow screens — wrap to 3 per row, even bigger cells. */
+@media (max-width: 400px) {
+  .otp-row { gap: 12px; max-width: 320px; }
+  .otp-cell {
+    flex: 0 0 calc((100% - 24px) / 3);
+    min-width: 0;
+    max-width: none;
+    height: 76px;
+    font-size: 32px;
+    border-radius: 16px;
+  }
+}
+/* Extra-narrow — keep 3 per row but tighter gap so they don't overflow. */
+@media (max-width: 320px) {
+  .otp-row { gap: 8px; }
+  .otp-cell {
+    flex: 0 0 calc((100% - 16px) / 3);
+    height: 68px;
+    font-size: 28px;
+  }
 }
 
 .btn-primary {

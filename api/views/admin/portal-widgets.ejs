@@ -188,20 +188,42 @@ function buildForm(w){
       +'<label class="text-xs text-slate-400 w-24 shrink-0">Video</label>'
       +'<select name="media_id" class="flex-1 px-2 py-1 rounded bg-slate-800 border border-slate-700 text-sm text-slate-200 outline-none focus:border-brand-500">'+sopts+'</select></div>';
     // Add-video row
-    h+='<div class="mb-2 rounded border border-slate-700 bg-slate-950 p-2.5">'
-      +'<label class="block text-[11px] uppercase tracking-wider text-slate-500 mb-1">Add YouTube video</label>'
+    h+='<div class="mb-2 rounded-lg border border-slate-700 bg-slate-950 p-3">'
+      +'<div class="flex items-center justify-between mb-1.5">'
+        +'<label class="text-xs font-semibold text-slate-300 flex items-center gap-1.5"><span>\u{1F4E5}</span> Add a video</label>'
+        +'<span class="text-[10px] text-slate-500">downloaded + cached locally</span>'
+      +'</div>'
       +'<div class="flex gap-2">'
-        +'<input type="text" id="yt-add-url" placeholder="https://youtube.com/watch?v=..." class="flex-1 px-2 py-1.5 rounded bg-slate-800 border border-slate-700 text-sm text-slate-200 outline-none focus:border-brand-500">'
-        +'<button type="button" onclick="ytAddVideo()" class="px-3 py-1.5 rounded bg-brand-500 text-slate-900 text-sm font-semibold hover:bg-brand-400">Queue</button>'
+        +'<input type="text" id="yt-add-url" placeholder="Paste YouTube URL — watch / youtu.be / shorts / embed" class="flex-1 px-2.5 py-2 rounded bg-slate-800 border border-slate-700 text-sm text-slate-200 outline-none focus:border-brand-500">'
+        +'<button type="button" onclick="ytAddVideo()" class="px-4 py-2 rounded bg-brand-500 text-slate-900 text-sm font-bold hover:bg-brand-400">Queue</button>'
       +'</div>'
       +'<p id="yt-add-msg" class="text-[11px] mt-1.5 hidden"></p>'
+      +'<p class="text-[10px] text-slate-500 mt-1">Max 30 min @ 480p. Duplicates rejected automatically.</p>'
     +'</div>';
-    // Library list
-    h+='<div class="mb-2">'
-      +'<div class="flex items-center justify-between mb-1.5"><label class="text-xs text-slate-400">Library</label><span class="text-[10px] text-slate-500">'+MEDIA_ASSETS.length+' total</span></div>'
-      +'<div id="yt-library" class="space-y-1.5 max-h-96 overflow-y-auto pr-1">'
-        +(MEDIA_ASSETS.length?MEDIA_ASSETS.map(function(m){return renderMediaRow(m,plist,mode);}).join(''):'<p class="text-xs text-slate-500 px-2 py-3 text-center">No videos yet — add one above.</p>')
+    // Library counters + filter pills + list
+    var cAvail=0,cProg=0,cFail=0;
+    MEDIA_ASSETS.forEach(function(m){
+      if(m.status==='processed') cAvail++;
+      else if(m.status==='failed') cFail++;
+      else cProg++; // pending or downloading
+    });
+    h+='<div class="mb-1.5 flex items-center justify-between">'
+      +'<label class="text-xs text-slate-400">Library</label>'
+      +'<div class="flex gap-1.5 text-[10px]">'
+        +'<span class="px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-900" title="Processed and ready">'+cAvail+' ready</span>'
+        +'<span class="px-1.5 py-0.5 rounded bg-sky-950 text-sky-300 border border-sky-900" title="Pending or downloading">'+cProg+' in progress</span>'
+        +'<span class="px-1.5 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-900" title="Failed — click Retry">'+cFail+' failed</span>'
       +'</div>'
+    +'</div>';
+    h+='<div class="flex gap-1 mb-1.5 text-[10px]">'
+      +'<button type="button" class="yt-filter px-2 py-0.5 rounded bg-brand-500 text-slate-900 font-semibold" data-flt="all">All</button>'
+      +'<button type="button" class="yt-filter px-2 py-0.5 rounded bg-slate-800 text-slate-300" data-flt="processed">Ready</button>'
+      +'<button type="button" class="yt-filter px-2 py-0.5 rounded bg-slate-800 text-slate-300" data-flt="progress">In progress</button>'
+      +'<button type="button" class="yt-filter px-2 py-0.5 rounded bg-slate-800 text-slate-300" data-flt="failed">Failed</button>'
+      +'<a href="/admin/media" class="ml-auto px-2 py-0.5 rounded bg-slate-800 text-slate-400 hover:text-slate-200" target="_blank" rel="noopener">Open full library &rarr;</a>'
+    +'</div>';
+    h+='<div id="yt-library" class="space-y-1.5 max-h-[28rem] overflow-y-auto pr-1 mb-2">'
+      +(MEDIA_ASSETS.length?MEDIA_ASSETS.map(function(m){return renderMediaRow(m,plist,mode);}).join(''):'<p class="text-xs text-slate-500 px-2 py-3 text-center">No videos yet — paste a YouTube URL above to add one.</p>')
     +'</div>';
     h+='<div class="flex items-center gap-3 mt-2"><input type="checkbox" name="autoplay" id="yt-autoplay" class="w-4 h-4 accent-brand-500"'+(w.autoplay!==false?' checked':'')+'><label for="yt-autoplay" class="text-sm text-slate-200 cursor-pointer">Autoplay <span class="text-slate-500 text-xs">(muted required on mobile)</span></label></div>';
     h+='<div class="flex items-center gap-3 mt-1"><input type="checkbox" name="muted" id="yt-muted" class="w-4 h-4 accent-brand-500"'+(w.muted!==false?' checked':'')+'><label for="yt-muted" class="text-sm text-slate-200 cursor-pointer">Muted by default</label></div>';
@@ -212,6 +234,21 @@ function buildForm(w){
         var sr=document.getElementById('yt-single-row'); if(sr) sr.style.display=(r.value==='single'&&r.checked)?'flex':'none';
         document.querySelectorAll('#yt-library .yt-pl-row').forEach(function(el){
           el.style.display=(document.querySelector('#wef [name="playlist_mode"]:checked').value==='playlist')?'flex':'none';
+        });
+      });});
+      // Filter pills — show/hide library rows by status group
+      var pills=document.querySelectorAll('#wef .yt-filter');
+      pills.forEach(function(b){b.addEventListener('click',function(){
+        pills.forEach(function(x){x.classList.remove('bg-brand-500','text-slate-900','font-semibold'); x.classList.add('bg-slate-800','text-slate-300');});
+        b.classList.remove('bg-slate-800','text-slate-300'); b.classList.add('bg-brand-500','text-slate-900','font-semibold');
+        var flt=b.getAttribute('data-flt');
+        document.querySelectorAll('#yt-library [data-mid]').forEach(function(row){
+          var st=row.getAttribute('data-status')||'';
+          var keep=(flt==='all')
+            || (flt==='processed' && st==='processed')
+            || (flt==='failed'    && st==='failed')
+            || (flt==='progress'  && (st==='pending'||st==='downloading'));
+          row.style.display=keep?'':'none';
         });
       });});
     },0);
@@ -318,7 +355,7 @@ function renderMediaRow(m, plist, mode){
   if(m.status==='processed') actions+='<button type="button" onclick="ytToggleVis('+m.id+','+(m.visibility?0:1)+',this)" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-[10px] text-slate-300" title="'+(m.visibility?'Hide':'Show')+'">'+(m.visibility?'Hide':'Show')+'</button>';
   if(m.status==='failed') actions+='<button type="button" onclick="ytRetry('+m.id+',this)" class="px-2 py-0.5 rounded bg-amber-900 hover:bg-amber-800 text-[10px] text-amber-200" title="Retry">Retry</button>';
   actions+='<button type="button" onclick="ytDelete('+m.id+',this)" class="px-2 py-0.5 rounded bg-rose-900 hover:bg-rose-800 text-[10px] text-rose-200" title="Delete">Delete</button>';
-  return '<div class="flex items-center gap-2 px-2 py-1.5 rounded bg-slate-900 border border-slate-800" data-mid="'+m.id+'">'
+  return '<div class="flex items-center gap-2 px-2 py-1.5 rounded bg-slate-900 border border-slate-800" data-mid="'+m.id+'" data-status="'+m.status+'">'
     +thumb
     +'<div class="flex-1 min-w-0">'
       +'<div class="text-xs text-slate-200 font-medium truncate" title="'+esc(m.title||m.video_id)+'">#'+m.id+' '+esc(m.title||m.video_id||'(no title)')+'</div>'
