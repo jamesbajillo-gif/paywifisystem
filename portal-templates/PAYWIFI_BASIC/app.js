@@ -147,34 +147,27 @@ function hydratePortalSidebarWidgets() {
       }
     }
 
-    // YOUTUBE-WIDGET-2026-06-03 — inline player on home view.
+    // YOUTUBE-WIDGET-2026-06-03 — chrome-less inline player on home view.
     var yt = findWidget("youtube");
-    var ytCard  = $("youtube-widget");
-    var ytVid   = $("youtube-widget-video");
-    var ytTitle = $("youtube-widget-title");
-    var ytDur   = $("youtube-widget-duration");
-    var ytCap   = $("youtube-widget-caption");
+    var ytCard = $("youtube-widget");
+    var ytVid  = $("youtube-widget-video");
     if (ytCard && ytVid) {
       var media = yt && yt.media;
       if (yt && yt.enabled !== false && media && media.file_path) {
         ytCard.classList.remove("hidden");
-        if (ytTitle) ytTitle.textContent = yt.title || "Featured Video";
-        // poster (thumbnail) + src (video)
         if (media.thumbnail_path) ytVid.setAttribute("poster", media.thumbnail_path);
         ytVid.setAttribute("src", media.file_path);
-        ytVid.muted    = (yt.muted !== false);
+        // Default: autoplay ON, muted (browsers require muted for autoplay) — admin can override.
+        var wantAutoplay = (yt.autoplay !== false);
+        var wantMuted    = (yt.muted    !== false) || wantAutoplay;
+        ytVid.muted    = wantMuted;
         ytVid.loop     = !!yt.loop;
-        ytVid.autoplay = !!yt.autoplay;
-        if (yt.autoplay) { try { ytVid.play(); } catch (e) {} }
-        if (ytDur && media.duration_sec) {
-          var mm = Math.floor(media.duration_sec / 60);
-          var ss = String(media.duration_sec % 60).padStart(2, "0");
-          ytDur.textContent = mm + ":" + ss;
-          ytDur.classList.remove("hidden");
-        } else if (ytDur) {
-          ytDur.classList.add("hidden");
+        ytVid.autoplay = wantAutoplay;
+        if (wantAutoplay) {
+          var tryPlay = function() { try { ytVid.play().catch(function(){}); } catch (e) {} };
+          if (ytVid.readyState >= 2) tryPlay();
+          else ytVid.addEventListener("loadedmetadata", tryPlay, { once: true });
         }
-        if (ytCap) ytCap.textContent = media.title || "";
       } else {
         ytCard.classList.add("hidden");
       }

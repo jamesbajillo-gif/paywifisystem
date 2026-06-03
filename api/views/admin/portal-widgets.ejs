@@ -4,7 +4,7 @@
 %>
 
 <h1 class="text-2xl font-bold mb-2">Portal Widgets</h1>
-<p class="text-sm text-slate-400 mb-6">Toggle, reorder, and edit the info cards shown to guests on the captive portal. Changes are saved to the database and reflected immediately.</p>
+<p class="text-sm text-slate-400 mb-6">Toggle, reorder, and edit every widget shown to guests on the captive portal. Every widget can be edited via the pencil button. Changes are saved to the database and reflected immediately.</p>
 
 <div class="bg-slate-800 rounded-lg p-4 max-w-3xl">
   <div class="flex items-center justify-between mb-1">
@@ -59,7 +59,7 @@ var DEFAULT = [
   {id:'custom_html',type:'html',enabled:false,order:9,title:'Custom',html:''},
   {id:'ads_card',type:'ads_card',enabled:true,order:10,title:'Your Ads Here',subtitle:'Submit to inquire',contact_email:'ads@example.com'},
   {id:'partner_cta',type:'partner_cta',enabled:true,order:11,title:'Partner with Us',subtitle:'',chip:'',rollout:'',contact_number:'',contact_email:''},
-  {id:'youtube',type:'youtube',enabled:true,order:12,title:'Featured Video',media_id:'auto',autoplay:false,muted:true,loop:false}
+  {id:'youtube',type:'youtube',enabled:true,order:12,title:'Featured Video',media_id:'auto',autoplay:true,muted:true,loop:false}
 ];
 var raw = <%- widgetsInitJson %>;
 var widgets = Array.isArray(raw) ? raw : DEFAULT;
@@ -81,7 +81,6 @@ function render(){
   var sorted = widgets.slice().sort(function(a,b){return (a.order||0)-(b.order||0);});
   document.getElementById('wl').innerHTML = sorted.map(function(w){
     var ri = widgets.indexOf(w);
-    var dis = w.type==='payment_options';
     return '<div class="flex items-center gap-2 px-3 py-2 rounded bg-slate-900 border border-slate-700'+(w.enabled?'':' opacity-50')+'" draggable="true" data-idx="'+ri+'">'
       +'<span class="text-slate-600 cursor-grab select-none text-lg" title="Drag to reorder">⠇</span>'
       +'<span class="text-base leading-none">'+(TYPE_ICONS[w.type]||'\u{1F4E6}')+'</span>'
@@ -90,7 +89,7 @@ function render(){
       +'<div class="flex gap-1 shrink-0">'
         +'<button class="w-6 h-6 rounded bg-slate-800 text-slate-400 hover:text-white text-xs leading-none" onclick="wUp('+ri+')" title="Move up">▲</button>'
         +'<button class="w-6 h-6 rounded bg-slate-800 text-slate-400 hover:text-white text-xs leading-none" onclick="wDown('+ri+')" title="Move down">▼</button>'
-        +'<button class="w-6 h-6 rounded bg-slate-800 text-slate-400 hover:text-white text-xs leading-none'+(dis?' opacity-30 cursor-not-allowed':'')+'" '+(dis?'':'onclick="wEdit('+ri+')" ')+'title="Edit">✏</button>'
+        +'<button class="w-6 h-6 rounded bg-slate-800 text-slate-400 hover:text-white text-xs leading-none" onclick="wEdit('+ri+')" title="Edit">✏</button>'
       +'</div>'
       +'<label class="relative inline-flex items-center cursor-pointer shrink-0">'
         +'<input type="checkbox" class="sr-only" '+(w.enabled?'checked':'')+' onchange="wToggle('+ri+',this.checked)">'
@@ -184,7 +183,7 @@ function buildForm(w){
       h+='<p class="text-xs text-amber-400 mb-2 -mt-1">No processed videos yet. Add one in <a href="/admin/media" class="underline">Media library</a> first.</p>';
     }
     h+='<div class="flex items-center gap-3 mt-2">'
-      +'<input type="checkbox" name="autoplay" id="yt-autoplay" class="w-4 h-4 accent-brand-500"'+(w.autoplay?' checked':'')+'>'
+      +'<input type="checkbox" name="autoplay" id="yt-autoplay" class="w-4 h-4 accent-brand-500"'+(w.autoplay!==false?' checked':'')+'>'
       +'<label for="yt-autoplay" class="text-sm text-slate-200 cursor-pointer">Autoplay <span class="text-slate-500 text-xs">(muted required on mobile)</span></label>'
       +'</div>';
     h+='<div class="flex items-center gap-3 mt-1">'

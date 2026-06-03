@@ -70,19 +70,13 @@
           <span id="partner-widget-chip" class="hidden shrink-0 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-primary/15 text-primary">Coming Soon</span>
         </button>
         <div id="youtube-widget" class="hidden w-full rounded-2xl border-2 border-border bg-card overflow-hidden min-w-0">
-          <div class="px-5 pt-4 pb-2 flex items-center gap-2 min-w-0">
-            <svg class="h-5 w-5 text-primary shrink-0" aria-hidden="true"><use href="#icon-zap"/></svg>
-            <p class="text-base font-bold truncate" id="youtube-widget-title">Featured Video</p>
-            <span id="youtube-widget-duration" class="hidden shrink-0 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-primary/15 text-primary"></span>
-          </div>
           <div class="relative w-full bg-black aspect-video">
             <video id="youtube-widget-video"
               class="absolute inset-0 w-full h-full"
-              preload="none"
+              preload="metadata"
               playsinline
               controls></video>
           </div>
-          <p class="px-5 py-2 text-xs text-muted-foreground truncate" id="youtube-widget-caption"></p>
         </div>
       </div>
     </section>

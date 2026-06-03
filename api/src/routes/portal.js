@@ -130,7 +130,7 @@ const DEFAULT_WIDGETS = [
   // PORTAL-WIDGET-2026-06-03 — captive-portal sidebar tiles
   { id:'ads_card',        type:'ads_card',        enabled:true,  order:8, title:'Your Ads Here',    subtitle:'Submit to inquire', contact_email:'ads@example.com' },
   { id:'partner_cta',     type:'partner_cta',     enabled:true,  order:9, title:'Partner with Us',  subtitle:'',                  chip:'',                       rollout:'', contact_number:'', contact_email:'' },
-  { id:'youtube',         type:'youtube',         enabled:true,  order:10, title:'Featured Video',  media_id:'auto', autoplay:false, muted:true, loop:false },
+  { id:'youtube',         type:'youtube',         enabled:true,  order:10, title:'Featured Video',  media_id:'auto', autoplay:true,  muted:true, loop:false },
 ];
 
 // ── Portal config ────────────────────────────────────────────────────────────
