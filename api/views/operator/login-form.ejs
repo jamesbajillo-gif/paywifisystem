@@ -1,0 +1,63 @@
+<%# Sign-in + Register tabbed form %>
+<div class="seg" role="tablist" aria-label="Choose action">
+  <button type="button" id="seg-signin" class="seg-btn" role="tab" aria-pressed="true"
+    onclick="document.querySelectorAll('.panel').forEach(function(p){p.dataset.active='false'});document.getElementById('panel-signin').dataset.active='true';this.setAttribute('aria-pressed','true');document.getElementById('seg-register').setAttribute('aria-pressed','false');">Sign in</button>
+  <button type="button" id="seg-register" class="seg-btn" role="tab" aria-pressed="false"
+    onclick="document.querySelectorAll('.panel').forEach(function(p){p.dataset.active='false'});document.getElementById('panel-register').dataset.active='true';this.setAttribute('aria-pressed','true');document.getElementById('seg-signin').setAttribute('aria-pressed','false');">Register</button>
+</div>
+
+<div class="panel" id="panel-signin" data-active="true" role="tabpanel" aria-labelledby="seg-signin">
+  <form method="POST" action="/operator/login" autocomplete="on" novalidate>
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+    <div class="field">
+      <label for="signin-mobile" class="field-label">Mobile number</label>
+      <span class="field-prefix">+63</span>
+      <input id="signin-mobile" class="field-input with-prefix"
+        name="mobile" required pattern="(09\d{9}|639\d{9}|9\d{9})"
+        inputmode="tel" autocomplete="tel" placeholder="9XX XXX XXXX" />
+    </div>
+    <button type="submit" class="btn-primary">Send sign-in code</button>
+    <p class="field-hint">If your mobile is registered and active, we'll text you a 6-digit code.</p>
+  </form>
+</div>
+
+<div class="panel" id="panel-register" data-active="false" role="tabpanel" aria-labelledby="seg-register">
+  <form method="POST" action="/operator/register" autocomplete="on" novalidate>
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+    <div class="field">
+      <label for="register-store" class="field-label">Store name</label>
+      <input id="register-store" class="field-input"
+        name="store_name" required maxlength="80"
+        placeholder="e.g. Mytch Store" autocomplete="organization" />
+    </div>
+    <div class="field">
+      <label for="register-mobile" class="field-label">Mobile number</label>
+      <span class="field-prefix">+63</span>
+      <input id="register-mobile" class="field-input with-prefix"
+        name="mobile" required pattern="(09\d{9}|639\d{9}|9\d{9})"
+        inputmode="tel" autocomplete="tel" placeholder="9XX XXX XXXX" />
+    </div>
+    <button type="submit" class="btn-primary">Send registration code</button>
+    <p class="field-hint">
+      <% if (autoApprove) { %>New accounts auto-approve. You'll be signed in right after verifying the code.
+      <% } else { %>New accounts need admin approval before sign-in is possible.<% } %>
+    </p>
+  </form>
+</div>
+
+<script>
+['signin-mobile', 'register-mobile'].forEach(function (id) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  el.addEventListener('input', function () {
+    var raw = el.value.replace(/[^\d]/g, '').slice(0, 12);
+    if (raw.startsWith('63') && raw.length > 11) raw = raw.slice(2);
+    el.value = raw;
+  });
+  var form = el.closest('form');
+  if (form) form.addEventListener('submit', function () {
+    var v = (el.value || '').replace(/[^\d]/g, '');
+    if (/^9\d{9}$/.test(v)) el.value = '0' + v;
+  });
+});
+</script>

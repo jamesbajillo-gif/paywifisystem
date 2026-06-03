@@ -1,0 +1,81 @@
+<%# OTP verify step — 6-cell auto-advance entry %>
+<div class="verify-meta">
+  <span class="verify-meta-phone">
+    <% if (pendingMobile) { %>+<%= pendingMobile.slice(0,2) %> <%= pendingMobile.slice(2,5) %> <%= pendingMobile.slice(5,8) %> <%= pendingMobile.slice(8,12) %>
+    <% } else { %>your phone<% } %>
+  </span>
+</div>
+
+<form id="verify-form" method="POST" action="/operator/verify" autocomplete="off" novalidate>
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+  <input type="hidden" name="code" id="code-aggregate" />
+  <div class="otp-row" id="otp-row">
+    <input class="otp-cell" inputmode="numeric" autocomplete="one-time-code" pattern="\d" maxlength="1" placeholder="•" aria-label="Digit 1" autofocus />
+    <input class="otp-cell" inputmode="numeric" autocomplete="one-time-code" pattern="\d" maxlength="1" placeholder="•" aria-label="Digit 2" />
+    <input class="otp-cell" inputmode="numeric" autocomplete="one-time-code" pattern="\d" maxlength="1" placeholder="•" aria-label="Digit 3" />
+    <input class="otp-cell" inputmode="numeric" autocomplete="one-time-code" pattern="\d" maxlength="1" placeholder="•" aria-label="Digit 4" />
+    <input class="otp-cell" inputmode="numeric" autocomplete="one-time-code" pattern="\d" maxlength="1" placeholder="•" aria-label="Digit 5" />
+    <input class="otp-cell" inputmode="numeric" autocomplete="one-time-code" pattern="\d" maxlength="1" placeholder="•" aria-label="Digit 6" />
+  </div>
+  <button type="submit" id="verify-submit" class="btn-primary" disabled style="margin-top: 18px">
+    Verify and <%= pendingPurpose === 'register' ? 'finish registration' : 'sign in' %>
+  </button>
+</form>
+
+<div style="display:flex; align-items:center; justify-content:space-between; margin-top: 18px; gap: 8px">
+  <form method="POST" action="/operator/<%= pendingPurpose %>" style="margin:0">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+    <input type="hidden" name="mobile" value="<%= pendingMobile %>" />
+    <% if (pendingPurpose === 'register' && typeof opPendingStoreName !== 'undefined' && opPendingStoreName) { %>
+      <input type="hidden" name="store_name" value="<%= opPendingStoreName %>" />
+    <% } %>
+    <button type="submit" class="btn-ghost">Resend code</button>
+  </form>
+  <form method="POST" action="/operator/cancel" style="margin:0">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+    <button type="submit" class="btn-ghost-muted">Use a different number</button>
+  </form>
+</div>
+
+<script>
+(function () {
+  var row = document.getElementById('otp-row');
+  var cells = row.querySelectorAll('.otp-cell');
+  var aggregate = document.getElementById('code-aggregate');
+  var submit = document.getElementById('verify-submit');
+  var form = document.getElementById('verify-form');
+  function sync () {
+    var v = '';
+    cells.forEach(function (c) { v += (c.value || '').replace(/[^\d]/g, ''); });
+    aggregate.value = v;
+    submit.disabled = v.length !== 6;
+  }
+  cells.forEach(function (cell, idx) {
+    cell.addEventListener('input', function () {
+      cell.value = (cell.value || '').replace(/[^\d]/g, '').slice(0, 1);
+      sync();
+      if (cell.value && idx < cells.length - 1) cells[idx + 1].focus();
+      if (idx === cells.length - 1 && aggregate.value.length === 6) form.requestSubmit();
+    });
+    cell.addEventListener('keydown', function (e) {
+      if (e.key === 'Backspace' && !cell.value && idx > 0) {
+        cells[idx - 1].focus(); cells[idx - 1].value = ''; sync(); e.preventDefault();
+      }
+      if (e.key === 'ArrowLeft'  && idx > 0)              cells[idx - 1].focus();
+      if (e.key === 'ArrowRight' && idx < cells.length-1) cells[idx + 1].focus();
+    });
+    cell.addEventListener('paste', function (e) {
+      var data = (e.clipboardData || window.clipboardData).getData('text');
+      if (!data) return;
+      var digits = data.replace(/[^\d]/g, '').slice(0, 6);
+      if (!digits) return;
+      e.preventDefault();
+      for (var i = 0; i < 6; i++) cells[i].value = digits[i] || '';
+      sync();
+      (cells[Math.min(digits.length, 5)] || cells[5]).focus();
+      if (digits.length === 6) form.requestSubmit();
+    });
+    cell.addEventListener('focus', function () { cell.select(); });
+  });
+})();
+</script>
