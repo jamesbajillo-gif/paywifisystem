@@ -43,6 +43,7 @@
 
 <script>
 var CSRF = '<%= csrfToken %>';
+var MEDIA_ASSETS = <%- JSON.stringify(typeof mediaAssets !== 'undefined' ? mediaAssets : []) %>;
 
 (function(){
 var DEFAULT = [
@@ -57,7 +58,8 @@ var DEFAULT = [
   {id:'promo',type:'promo',enabled:false,order:8,title:'Promotion',image_url:'',caption:''},
   {id:'custom_html',type:'html',enabled:false,order:9,title:'Custom',html:''},
   {id:'ads_card',type:'ads_card',enabled:true,order:10,title:'Your Ads Here',subtitle:'Submit to inquire',contact_email:'ads@example.com'},
-  {id:'partner_cta',type:'partner_cta',enabled:true,order:11,title:'Partner with Us',subtitle:'',chip:'',rollout:'',contact_number:'',contact_email:''}
+  {id:'partner_cta',type:'partner_cta',enabled:true,order:11,title:'Partner with Us',subtitle:'',chip:'',rollout:'',contact_number:'',contact_email:''},
+  {id:'youtube',type:'youtube',enabled:true,order:12,title:'Featured Video',media_id:'auto',autoplay:false,muted:true,loop:false}
 ];
 var raw = <%- widgetsInitJson %>;
 var widgets = Array.isArray(raw) ? raw : DEFAULT;
@@ -72,8 +74,8 @@ if(Array.isArray(raw)){
 var editIdx = null, dragSrc = null;
 
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
-var TYPE_ICONS = {text:'\u{1F4DD}',announcement:'\u{1F4E2}',hours:'\u{1F550}',contact:'\u{1F4DE}',promo:'\u{1F5BC}\uFE0F',html:'</>',payment_options:'\u{1F4B3}',available_plans:'\u{1F4F6}',status_bar:'\u{1F4CA}',ads_card:'\u{1F4E3}',partner_cta:'\u{1F91D}'};
-var TYPE_LABELS = {text:'text',announcement:'announcement',hours:'hours',contact:'contact',promo:'promo',html:'html',payment_options:'payment options',available_plans:'available plans',status_bar:'status bar',ads_card:'ads card',partner_cta:'partner CTA'};
+var TYPE_ICONS = {text:'\u{1F4DD}',announcement:'\u{1F4E2}',hours:'\u{1F550}',contact:'\u{1F4DE}',promo:'\u{1F5BC}\uFE0F',html:'</>',payment_options:'\u{1F4B3}',available_plans:'\u{1F4F6}',status_bar:'\u{1F4CA}',ads_card:'\u{1F4E3}',partner_cta:'\u{1F91D}',youtube:'\u{1F3AC}'};
+var TYPE_LABELS = {text:'text',announcement:'announcement',hours:'hours',contact:'contact',promo:'promo',html:'html',payment_options:'payment options',available_plans:'available plans',status_bar:'status bar',ads_card:'ads card',partner_cta:'partner CTA',youtube:'YouTube'};
 
 function render(){
   var sorted = widgets.slice().sort(function(a,b){return (a.order||0)-(b.order||0);});
@@ -119,7 +121,7 @@ function render(){
     document.getElementById('wep-title').textContent='Editing: '+esc(widgets[editIdx].title||widgets[editIdx].type);
     document.getElementById('wef').innerHTML=buildForm(widgets[editIdx]);
     document.getElementById('btn-wep-delete').style.display=widgets[editIdx].id&&
-      ['location','reminder','payment_options','available_plans','status_bar','ads_card','partner_cta'].includes(widgets[editIdx].id)?'none':'';
+      ['location','reminder','payment_options','available_plans','status_bar','ads_card','partner_cta','youtube'].includes(widgets[editIdx].id)?'none':'';
   } else {
     ep.classList.add('hidden');
     editIdx=null;
@@ -168,6 +170,31 @@ function buildForm(w){
     h+=ta('rollout',w.rollout,'Rollout message (accessibility / future use)');
     h+=inp('contact_number',w.contact_number,'Contact phone','09xx xxx xxxx');
     h+=inp('contact_email',w.contact_email,'Contact email','hello@example.com');
+  } else if(w.type==='youtube'){
+    var opts = '<option value="auto"'+(String(w.media_id||'auto')==='auto'?' selected':'')+'>Auto - latest visible video</option>';
+    for (var ii=0; ii<MEDIA_ASSETS.length; ii++) {
+      var ma = MEDIA_ASSETS[ii];
+      var dur = ma.duration_sec ? ' ('+Math.floor(ma.duration_sec/60)+':'+String(ma.duration_sec%60).padStart(2,'0')+')' : '';
+      opts += '<option value="'+ma.id+'"'+(String(w.media_id)===String(ma.id)?' selected':'')+'>#'+ma.id+' '+esc(ma.title||ma.video_id)+dur+'</option>';
+    }
+    h+='<div class="flex items-center gap-2 mb-2"><label class="text-xs text-slate-400 w-24 shrink-0">Video</label>'
+      +'<select name="media_id" class="flex-1 px-2 py-1 rounded bg-slate-800 border border-slate-700 text-sm text-slate-200 outline-none focus:border-brand-500">'
+      +opts+'</select></div>';
+    if (MEDIA_ASSETS.length === 0) {
+      h+='<p class="text-xs text-amber-400 mb-2 -mt-1">No processed videos yet. Add one in <a href="/admin/media" class="underline">Media library</a> first.</p>';
+    }
+    h+='<div class="flex items-center gap-3 mt-2">'
+      +'<input type="checkbox" name="autoplay" id="yt-autoplay" class="w-4 h-4 accent-brand-500"'+(w.autoplay?' checked':'')+'>'
+      +'<label for="yt-autoplay" class="text-sm text-slate-200 cursor-pointer">Autoplay <span class="text-slate-500 text-xs">(muted required on mobile)</span></label>'
+      +'</div>';
+    h+='<div class="flex items-center gap-3 mt-1">'
+      +'<input type="checkbox" name="muted" id="yt-muted" class="w-4 h-4 accent-brand-500"'+(w.muted!==false?' checked':'')+'>'
+      +'<label for="yt-muted" class="text-sm text-slate-200 cursor-pointer">Muted by default</label>'
+      +'</div>';
+    h+='<div class="flex items-center gap-3 mt-1">'
+      +'<input type="checkbox" name="loop" id="yt-loop" class="w-4 h-4 accent-brand-500"'+(w.loop?' checked':'')+'>'
+      +'<label for="yt-loop" class="text-sm text-slate-200 cursor-pointer">Loop</label>'
+      +'</div>';
   }
   if(w.type==='available_plans'||w.type==='status_bar'){
     h+='<div class="flex items-center gap-3 mt-1">'
@@ -195,6 +222,12 @@ function applyEdit(){
   else if(w.type==='html'){w.html=g('html');}
   else if(w.type==='ads_card'){w.subtitle=g('subtitle');w.contact_email=g('contact_email');}
   else if(w.type==='partner_cta'){w.subtitle=g('subtitle');w.chip=g('chip');w.rollout=g('rollout');w.contact_number=g('contact_number');w.contact_email=g('contact_email');}
+  else if(w.type==='youtube'){
+    w.media_id=g('media_id')||'auto';
+    var apCb=document.querySelector('#wef [name="autoplay"]');w.autoplay=apCb?apCb.checked:false;
+    var muCb=document.querySelector('#wef [name="muted"]');   w.muted   =muCb?muCb.checked:true;
+    var loCb=document.querySelector('#wef [name="loop"]');    w.loop    =loCb?loCb.checked:false;
+  }
   editIdx=null; render();
 }
 window.wUp=function(i){

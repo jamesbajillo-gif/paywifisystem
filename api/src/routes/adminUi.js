@@ -645,10 +645,18 @@ router.get('/reports', (req, res) => {
 // ── Widget config ────────────────────────────────────────────────────────────
 router.get('/widgets', (req, res) => {
   const settings = db.prepare('SELECT key, value FROM settings').all();
+  // YOUTUBE-WIDGET-2026-06-03 — feed the edit dropdown with processed visible media.
+  let mediaAssets = [];
+  try {
+    mediaAssets = db.prepare(
+      "SELECT id, video_id, title, duration_sec FROM media_assets WHERE status='processed' AND visibility=1 ORDER BY id DESC"
+    ).all();
+  } catch (e) {}
   render(res, 'portal-widgets', {
     title: 'Portal Widgets · PAYWIFI',
     active: 'widgets',
-    settings
+    settings,
+    mediaAssets
   });
 });
 

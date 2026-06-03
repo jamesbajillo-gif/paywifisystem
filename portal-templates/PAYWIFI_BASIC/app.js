@@ -146,6 +146,39 @@ function hydratePortalSidebarWidgets() {
         if (rollout) pBtn.setAttribute("aria-label", "Partner with us — " + rollout);
       }
     }
+
+    // YOUTUBE-WIDGET-2026-06-03 — inline player on home view.
+    var yt = findWidget("youtube");
+    var ytCard  = $("youtube-widget");
+    var ytVid   = $("youtube-widget-video");
+    var ytTitle = $("youtube-widget-title");
+    var ytDur   = $("youtube-widget-duration");
+    var ytCap   = $("youtube-widget-caption");
+    if (ytCard && ytVid) {
+      var media = yt && yt.media;
+      if (yt && yt.enabled !== false && media && media.file_path) {
+        ytCard.classList.remove("hidden");
+        if (ytTitle) ytTitle.textContent = yt.title || "Featured Video";
+        // poster (thumbnail) + src (video)
+        if (media.thumbnail_path) ytVid.setAttribute("poster", media.thumbnail_path);
+        ytVid.setAttribute("src", media.file_path);
+        ytVid.muted    = (yt.muted !== false);
+        ytVid.loop     = !!yt.loop;
+        ytVid.autoplay = !!yt.autoplay;
+        if (yt.autoplay) { try { ytVid.play(); } catch (e) {} }
+        if (ytDur && media.duration_sec) {
+          var mm = Math.floor(media.duration_sec / 60);
+          var ss = String(media.duration_sec % 60).padStart(2, "0");
+          ytDur.textContent = mm + ":" + ss;
+          ytDur.classList.remove("hidden");
+        } else if (ytDur) {
+          ytDur.classList.add("hidden");
+        }
+        if (ytCap) ytCap.textContent = media.title || "";
+      } else {
+        ytCard.classList.add("hidden");
+      }
+    }
   } catch (e) { /* non-critical */ }
 }
 

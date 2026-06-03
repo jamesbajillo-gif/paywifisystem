@@ -130,6 +130,7 @@ const DEFAULT_WIDGETS = [
   // PORTAL-WIDGET-2026-06-03 — captive-portal sidebar tiles
   { id:'ads_card',        type:'ads_card',        enabled:true,  order:8, title:'Your Ads Here',    subtitle:'Submit to inquire', contact_email:'ads@example.com' },
   { id:'partner_cta',     type:'partner_cta',     enabled:true,  order:9, title:'Partner with Us',  subtitle:'',                  chip:'',                       rollout:'', contact_number:'', contact_email:'' },
+  { id:'youtube',         type:'youtube',         enabled:true,  order:10, title:'Featured Video',  media_id:'auto', autoplay:false, muted:true, loop:false },
 ];
 
 // ── Portal config ────────────────────────────────────────────────────────────
@@ -143,6 +144,7 @@ router.get('/config', (req, res) => {
     const have = new Set(widgets.map(w => w.type));
     if (!have.has('ads_card'))    widgets.push(DEFAULT_WIDGETS.find(w => w.type === 'ads_card'));
     if (!have.has('partner_cta')) widgets.push(DEFAULT_WIDGETS.find(w => w.type === 'partner_cta'));
+    if (!have.has('youtube'))     widgets.push(DEFAULT_WIDGETS.find(w => w.type === 'youtube'));
     const pcw = widgets.find(w => w.type === 'partner_cta');
     if (pcw) {
       if (!pcw.subtitle)        pcw.subtitle        = settings.partner_cta_text             || '';
@@ -150,6 +152,27 @@ router.get('/config', (req, res) => {
       if (!pcw.rollout)         pcw.rollout         = settings.partner_rollout_message      || '';
       if (!pcw.contact_number)  pcw.contact_number  = settings.partner_contact_number       || '';
       if (!pcw.contact_email)   pcw.contact_email   = settings.partner_contact_email        || '';
+    }
+    // YOUTUBE-WIDGET-2026-06-03 — resolve media_id → media row so the portal can
+    // render directly from cfg.widgets without a second fetch.
+    const ytw = widgets.find(w => w.type === 'youtube');
+    if (ytw) {
+      let media = null;
+      try {
+        if (!ytw.media_id || ytw.media_id === 'auto') {
+          media = db.prepare(
+            "SELECT id, video_id, title, duration_sec, file_path, thumbnail_path, resolution " +
+            "FROM media_assets WHERE status='processed' AND visibility=1 ORDER BY id DESC LIMIT 1"
+          ).get();
+        } else {
+          const mid = parseInt(ytw.media_id, 10);
+          if (mid) media = db.prepare(
+            "SELECT id, video_id, title, duration_sec, file_path, thumbnail_path, resolution " +
+            "FROM media_assets WHERE id=? AND status='processed' AND visibility=1"
+          ).get(mid);
+        }
+      } catch (e) {}
+      ytw.media = media || null;
     }
   })();
   // STORE-WIRE-2026-06-01 — derive partners from active operators
@@ -190,7 +213,7 @@ router.get('/config', (req, res) => {
       contact_email:    settings.maintenance_contact_email     || '',
       contact_messenger:settings.maintenance_contact_messenger || '',
     },
-    widgets: widgets.filter(w => w.enabled || w.type==='status_bar' || w.type==='available_plans' || w.type==='ads_card' || w.type==='partner_cta').sort((a, b) => (a.order||0) - (b.order||0)),
+    widgets: widgets.filter(w => w.enabled || w.type==='status_bar' || w.type==='available_plans' || w.type==='ads_card' || w.type==='partner_cta' || w.type==='youtube').sort((a, b) => (a.order||0) - (b.order||0)),
     partners: storePartners,
     partner: {
       contact_number:      settings.partner_contact_number      || '',
