@@ -649,7 +649,8 @@ router.get('/widgets', (req, res) => {
   let mediaAssets = [];
   try {
     mediaAssets = db.prepare(
-      "SELECT id, video_id, title, duration_sec FROM media_assets WHERE status='processed' AND visibility=1 ORDER BY id DESC"
+      "SELECT id, video_id, title, duration_sec, status, visibility, thumbnail_path, file_size, error, created_at " +
+      "FROM media_assets ORDER BY id DESC"
     ).all();
   } catch (e) {}
   render(res, 'portal-widgets', {

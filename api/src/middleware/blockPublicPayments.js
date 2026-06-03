@@ -32,10 +32,7 @@ module.exports = function blockPublicPayments(req, res, next) {
 
   const hosts = loadHosts();
   if (hosts.has(host)) {
-    const friendly =
-      "Payments aren't available from this address. " +
-      "To buy a voucher, please connect to the PAYWIFI hotspot WiFi and open the captive portal. " +
-      "Connecting through PAYWIFI lets us authorize, validate, and route your payment safely.";
+    const friendly = "To buy a voucher, please connect to the PAYWIFI hotspot NETWORK and open the captive portal.";
     return res.status(403).json({
       ok: false,
       code: 'NON_LAN_HOST',

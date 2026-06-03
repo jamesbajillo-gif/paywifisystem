@@ -130,7 +130,7 @@ const DEFAULT_WIDGETS = [
   // PORTAL-WIDGET-2026-06-03 — captive-portal sidebar tiles
   { id:'ads_card',        type:'ads_card',        enabled:true,  order:8, title:'Your Ads Here',    subtitle:'Submit to inquire', contact_email:'ads@example.com' },
   { id:'partner_cta',     type:'partner_cta',     enabled:true,  order:9, title:'Partner with Us',  subtitle:'',                  chip:'',                       rollout:'', contact_number:'', contact_email:'' },
-  { id:'youtube',         type:'youtube',         enabled:true,  order:10, title:'Featured Video',  media_id:'auto', autoplay:true,  muted:true, loop:false },
+  { id:'youtube',         type:'youtube',         enabled:true,  order:10, title:'Featured Video',  media_id:'auto', playlist_mode:'auto', playlist_ids:[], autoplay:true,  muted:true, loop:false },
 ];
 
 // ── Portal config ────────────────────────────────────────────────────────────
@@ -157,22 +157,38 @@ router.get('/config', (req, res) => {
     // render directly from cfg.widgets without a second fetch.
     const ytw = widgets.find(w => w.type === 'youtube');
     if (ytw) {
+      // PORTAL-WIDGET-YT-2026-06-03 — three modes: auto (newest), single
+      // (one id), playlist (random pick from a chosen set). The mode is
+      // 'playlist_mode'; legacy widgets without it fall back to media_id.
       let media = null;
+      const mode = ytw.playlist_mode || ((ytw.media_id && ytw.media_id !== 'auto') ? 'single' : 'auto');
       try {
-        if (!ytw.media_id || ytw.media_id === 'auto') {
-          media = db.prepare(
-            "SELECT id, video_id, title, duration_sec, file_path, thumbnail_path, resolution " +
-            "FROM media_assets WHERE status='processed' AND visibility=1 ORDER BY id DESC LIMIT 1"
-          ).get();
-        } else {
+        if (mode === 'playlist' && Array.isArray(ytw.playlist_ids) && ytw.playlist_ids.length) {
+          const ids = ytw.playlist_ids.map(x => parseInt(x, 10)).filter(Boolean);
+          if (ids.length) {
+            const placeholders = ids.map(() => '?').join(',');
+            const candidates = db.prepare(
+              "SELECT id, video_id, title, duration_sec, file_path, thumbnail_path, resolution " +
+              "FROM media_assets WHERE id IN (" + placeholders + ") AND status='processed' AND visibility=1"
+            ).all(...ids);
+            if (candidates.length) media = candidates[Math.floor(Math.random() * candidates.length)];
+          }
+        } else if (mode === 'single') {
           const mid = parseInt(ytw.media_id, 10);
           if (mid) media = db.prepare(
             "SELECT id, video_id, title, duration_sec, file_path, thumbnail_path, resolution " +
             "FROM media_assets WHERE id=? AND status='processed' AND visibility=1"
           ).get(mid);
+        } else {
+          // auto
+          media = db.prepare(
+            "SELECT id, video_id, title, duration_sec, file_path, thumbnail_path, resolution " +
+            "FROM media_assets WHERE status='processed' AND visibility=1 ORDER BY id DESC LIMIT 1"
+          ).get();
         }
       } catch (e) {}
       ytw.media = media || null;
+      ytw.playlist_mode = mode;
     }
   })();
   // STORE-WIRE-2026-06-01 — derive partners from active operators

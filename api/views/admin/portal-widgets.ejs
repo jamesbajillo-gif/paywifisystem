@@ -59,7 +59,7 @@ var DEFAULT = [
   {id:'custom_html',type:'html',enabled:false,order:9,title:'Custom',html:''},
   {id:'ads_card',type:'ads_card',enabled:true,order:10,title:'Your Ads Here',subtitle:'Submit to inquire',contact_email:'ads@example.com'},
   {id:'partner_cta',type:'partner_cta',enabled:true,order:11,title:'Partner with Us',subtitle:'',chip:'',rollout:'',contact_number:'',contact_email:''},
-  {id:'youtube',type:'youtube',enabled:true,order:12,title:'Featured Video',media_id:'auto',autoplay:true,muted:true,loop:false}
+  {id:'youtube',type:'youtube',enabled:true,order:12,title:'Featured Video',media_id:'auto',playlist_mode:'auto',playlist_ids:[],autoplay:true,muted:true,loop:false}
 ];
 var raw = <%- widgetsInitJson %>;
 var widgets = Array.isArray(raw) ? raw : DEFAULT;
@@ -170,30 +170,51 @@ function buildForm(w){
     h+=inp('contact_number',w.contact_number,'Contact phone','09xx xxx xxxx');
     h+=inp('contact_email',w.contact_email,'Contact email','hello@example.com');
   } else if(w.type==='youtube'){
-    var opts = '<option value="auto"'+(String(w.media_id||'auto')==='auto'?' selected':'')+'>Auto - latest visible video</option>';
-    for (var ii=0; ii<MEDIA_ASSETS.length; ii++) {
-      var ma = MEDIA_ASSETS[ii];
-      var dur = ma.duration_sec ? ' ('+Math.floor(ma.duration_sec/60)+':'+String(ma.duration_sec%60).padStart(2,'0')+')' : '';
-      opts += '<option value="'+ma.id+'"'+(String(w.media_id)===String(ma.id)?' selected':'')+'>#'+ma.id+' '+esc(ma.title||ma.video_id)+dur+'</option>';
+    var mode=w.playlist_mode||((w.media_id&&w.media_id!=='auto')?'single':'auto');
+    var plist=Array.isArray(w.playlist_ids)?w.playlist_ids.map(String):[];
+    h+='<div class="mb-2"><label class="text-xs text-slate-400">Selection mode</label>'
+      +'<div class="flex gap-3 mt-1">'
+        +'<label class="flex items-center gap-1.5 text-sm"><input type="radio" name="playlist_mode" value="auto" class="accent-brand-500"'+(mode==='auto'?' checked':'')+'> Auto (newest)</label>'
+        +'<label class="flex items-center gap-1.5 text-sm"><input type="radio" name="playlist_mode" value="single" class="accent-brand-500"'+(mode==='single'?' checked':'')+'> Single video</label>'
+        +'<label class="flex items-center gap-1.5 text-sm"><input type="radio" name="playlist_mode" value="playlist" class="accent-brand-500"'+(mode==='playlist'?' checked':'')+'> Playlist</label>'
+      +'</div></div>';
+    var sopts='<option value="auto">Auto - newest visible</option>';
+    for(var ii=0;ii<MEDIA_ASSETS.length;ii++){
+      var ma=MEDIA_ASSETS[ii]; if(ma.status!=='processed'||!ma.visibility) continue;
+      var d=ma.duration_sec?' ('+Math.floor(ma.duration_sec/60)+':'+String(ma.duration_sec%60).padStart(2,'0')+')':'';
+      sopts+='<option value="'+ma.id+'"'+(String(w.media_id)===String(ma.id)?' selected':'')+'>#'+ma.id+' '+esc(ma.title||ma.video_id)+d+'</option>';
     }
-    h+='<div class="flex items-center gap-2 mb-2"><label class="text-xs text-slate-400 w-24 shrink-0">Video</label>'
-      +'<select name="media_id" class="flex-1 px-2 py-1 rounded bg-slate-800 border border-slate-700 text-sm text-slate-200 outline-none focus:border-brand-500">'
-      +opts+'</select></div>';
-    if (MEDIA_ASSETS.length === 0) {
-      h+='<p class="text-xs text-amber-400 mb-2 -mt-1">No processed videos yet. Add one in <a href="/admin/media" class="underline">Media library</a> first.</p>';
-    }
-    h+='<div class="flex items-center gap-3 mt-2">'
-      +'<input type="checkbox" name="autoplay" id="yt-autoplay" class="w-4 h-4 accent-brand-500"'+(w.autoplay!==false?' checked':'')+'>'
-      +'<label for="yt-autoplay" class="text-sm text-slate-200 cursor-pointer">Autoplay <span class="text-slate-500 text-xs">(muted required on mobile)</span></label>'
-      +'</div>';
-    h+='<div class="flex items-center gap-3 mt-1">'
-      +'<input type="checkbox" name="muted" id="yt-muted" class="w-4 h-4 accent-brand-500"'+(w.muted!==false?' checked':'')+'>'
-      +'<label for="yt-muted" class="text-sm text-slate-200 cursor-pointer">Muted by default</label>'
-      +'</div>';
-    h+='<div class="flex items-center gap-3 mt-1">'
-      +'<input type="checkbox" name="loop" id="yt-loop" class="w-4 h-4 accent-brand-500"'+(w.loop?' checked':'')+'>'
-      +'<label for="yt-loop" class="text-sm text-slate-200 cursor-pointer">Loop</label>'
-      +'</div>';
+    h+='<div id="yt-single-row" class="flex items-center gap-2 mb-2" style="display:'+(mode==='single'?'flex':'none')+'">'
+      +'<label class="text-xs text-slate-400 w-24 shrink-0">Video</label>'
+      +'<select name="media_id" class="flex-1 px-2 py-1 rounded bg-slate-800 border border-slate-700 text-sm text-slate-200 outline-none focus:border-brand-500">'+sopts+'</select></div>';
+    // Add-video row
+    h+='<div class="mb-2 rounded border border-slate-700 bg-slate-950 p-2.5">'
+      +'<label class="block text-[11px] uppercase tracking-wider text-slate-500 mb-1">Add YouTube video</label>'
+      +'<div class="flex gap-2">'
+        +'<input type="text" id="yt-add-url" placeholder="https://youtube.com/watch?v=..." class="flex-1 px-2 py-1.5 rounded bg-slate-800 border border-slate-700 text-sm text-slate-200 outline-none focus:border-brand-500">'
+        +'<button type="button" onclick="ytAddVideo()" class="px-3 py-1.5 rounded bg-brand-500 text-slate-900 text-sm font-semibold hover:bg-brand-400">Queue</button>'
+      +'</div>'
+      +'<p id="yt-add-msg" class="text-[11px] mt-1.5 hidden"></p>'
+    +'</div>';
+    // Library list
+    h+='<div class="mb-2">'
+      +'<div class="flex items-center justify-between mb-1.5"><label class="text-xs text-slate-400">Library</label><span class="text-[10px] text-slate-500">'+MEDIA_ASSETS.length+' total</span></div>'
+      +'<div id="yt-library" class="space-y-1.5 max-h-96 overflow-y-auto pr-1">'
+        +(MEDIA_ASSETS.length?MEDIA_ASSETS.map(function(m){return renderMediaRow(m,plist,mode);}).join(''):'<p class="text-xs text-slate-500 px-2 py-3 text-center">No videos yet — add one above.</p>')
+      +'</div>'
+    +'</div>';
+    h+='<div class="flex items-center gap-3 mt-2"><input type="checkbox" name="autoplay" id="yt-autoplay" class="w-4 h-4 accent-brand-500"'+(w.autoplay!==false?' checked':'')+'><label for="yt-autoplay" class="text-sm text-slate-200 cursor-pointer">Autoplay <span class="text-slate-500 text-xs">(muted required on mobile)</span></label></div>';
+    h+='<div class="flex items-center gap-3 mt-1"><input type="checkbox" name="muted" id="yt-muted" class="w-4 h-4 accent-brand-500"'+(w.muted!==false?' checked':'')+'><label for="yt-muted" class="text-sm text-slate-200 cursor-pointer">Muted by default</label></div>';
+    h+='<div class="flex items-center gap-3 mt-1"><input type="checkbox" name="loop" id="yt-loop" class="w-4 h-4 accent-brand-500"'+(w.loop?' checked':'')+'><label for="yt-loop" class="text-sm text-slate-200 cursor-pointer">Loop</label></div>';
+    setTimeout(function(){
+      var rs=document.querySelectorAll('#wef [name="playlist_mode"]');
+      rs.forEach(function(r){r.addEventListener('change',function(){
+        var sr=document.getElementById('yt-single-row'); if(sr) sr.style.display=(r.value==='single'&&r.checked)?'flex':'none';
+        document.querySelectorAll('#yt-library .yt-pl-row').forEach(function(el){
+          el.style.display=(document.querySelector('#wef [name="playlist_mode"]:checked').value==='playlist')?'flex':'none';
+        });
+      });});
+    },0);
   }
   if(w.type==='available_plans'||w.type==='status_bar'){
     h+='<div class="flex items-center gap-3 mt-1">'
@@ -222,10 +243,12 @@ function applyEdit(){
   else if(w.type==='ads_card'){w.subtitle=g('subtitle');w.contact_email=g('contact_email');}
   else if(w.type==='partner_cta'){w.subtitle=g('subtitle');w.chip=g('chip');w.rollout=g('rollout');w.contact_number=g('contact_number');w.contact_email=g('contact_email');}
   else if(w.type==='youtube'){
+    var pmRb=document.querySelector('#wef [name="playlist_mode"]:checked'); w.playlist_mode=pmRb?pmRb.value:'auto';
     w.media_id=g('media_id')||'auto';
-    var apCb=document.querySelector('#wef [name="autoplay"]');w.autoplay=apCb?apCb.checked:false;
-    var muCb=document.querySelector('#wef [name="muted"]');   w.muted   =muCb?muCb.checked:true;
-    var loCb=document.querySelector('#wef [name="loop"]');    w.loop    =loCb?loCb.checked:false;
+    var plCbs=document.querySelectorAll('#wef .yt-pl-cb:checked'); w.playlist_ids=[].map.call(plCbs,function(cb){return parseInt(cb.value,10);}).filter(Boolean);
+    var apCb=document.querySelector('#wef [name="autoplay"]'); w.autoplay=apCb?apCb.checked:false;
+    var muCb=document.querySelector('#wef [name="muted"]');    w.muted   =muCb?muCb.checked:true;
+    var loCb=document.querySelector('#wef [name="loop"]');     w.loop    =loCb?loCb.checked:false;
   }
   editIdx=null; render();
 }
@@ -281,6 +304,69 @@ document.getElementById('bsw').addEventListener('click',async function(){
   setTimeout(function(){st.classList.add('hidden');},4000);
   btn.disabled=false;btn.textContent='Save widget settings';
 });
+
+function renderMediaRow(m, plist, mode){
+  var stColor={pending:'#94a3b8',downloading:'#0ea5e9',processed:'#10b981',failed:'#f43f5e',disabled:'#64748b'}[m.status]||'#94a3b8';
+  var thumb=m.thumbnail_path?'<img src="'+esc(m.thumbnail_path)+'" alt="" style="width:64px;height:36px;object-fit:cover;border-radius:4px;flex-shrink:0;background:#0f172a">':'<div style="width:64px;height:36px;border-radius:4px;background:#0f172a;display:flex;align-items:center;justify-content:center;font-size:18px;color:#475569;flex-shrink:0">'+(m.status==='downloading'?'\u23F3':'\u2014')+'</div>';
+  var dur=m.duration_sec?Math.floor(m.duration_sec/60)+':'+String(m.duration_sec%60).padStart(2,'0'):'';
+  var sz=m.file_size?(m.file_size/1024/1024).toFixed(1)+'MB':'';
+  var meta=[m.status,dur,sz].filter(Boolean).join(' \u00B7 ');
+  var inPlist=plist.indexOf(String(m.id))>=0;
+  var canPlay=m.status==='processed'&&m.visibility;
+  var plCb='<label class="yt-pl-row flex items-center gap-1 text-[11px] text-slate-300" style="display:'+(mode==='playlist'?'flex':'none')+'"><input type="checkbox" class="yt-pl-cb w-3.5 h-3.5 accent-brand-500" value="'+m.id+'"'+(inPlist?' checked':'')+(canPlay?'':' disabled')+'>'+(canPlay?'in playlist':'not ready')+'</label>';
+  var actions='';
+  if(m.status==='processed') actions+='<button type="button" onclick="ytToggleVis('+m.id+','+(m.visibility?0:1)+',this)" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-[10px] text-slate-300" title="'+(m.visibility?'Hide':'Show')+'">'+(m.visibility?'Hide':'Show')+'</button>';
+  if(m.status==='failed') actions+='<button type="button" onclick="ytRetry('+m.id+',this)" class="px-2 py-0.5 rounded bg-amber-900 hover:bg-amber-800 text-[10px] text-amber-200" title="Retry">Retry</button>';
+  actions+='<button type="button" onclick="ytDelete('+m.id+',this)" class="px-2 py-0.5 rounded bg-rose-900 hover:bg-rose-800 text-[10px] text-rose-200" title="Delete">Delete</button>';
+  return '<div class="flex items-center gap-2 px-2 py-1.5 rounded bg-slate-900 border border-slate-800" data-mid="'+m.id+'">'
+    +thumb
+    +'<div class="flex-1 min-w-0">'
+      +'<div class="text-xs text-slate-200 font-medium truncate" title="'+esc(m.title||m.video_id)+'">#'+m.id+' '+esc(m.title||m.video_id||'(no title)')+'</div>'
+      +'<div class="text-[10px] flex items-center gap-1"><span style="color:'+stColor+'">'+esc(meta)+'</span>'+(m.error?'<span class="text-rose-400 truncate" title="'+esc(m.error)+'"> err</span>':'')+'</div>'
+    +'</div>'
+    +plCb
+    +'<div class="flex gap-1 shrink-0">'+actions+'</div>'
+  +'</div>';
+}
+async function ytAddVideo(){
+  var inp=document.getElementById('yt-add-url'), msg=document.getElementById('yt-add-msg');
+  var url=(inp&&inp.value||'').trim();
+  if(!url){ msg.className='text-[11px] mt-1.5 text-rose-400'; msg.textContent='Paste a YouTube URL first.'; msg.classList.remove('hidden'); return; }
+  msg.className='text-[11px] mt-1.5 text-slate-400'; msg.textContent='Queueing...'; msg.classList.remove('hidden');
+  try{
+    var fd=new FormData(); fd.append('url',url); fd.append('_csrf',CSRF);
+    var r=await fetch('/admin/media/add',{method:'POST',body:fd,credentials:'same-origin',redirect:'manual'});
+    msg.className='text-[11px] mt-1.5 text-emerald-400'; msg.textContent='\u2713 Queued. Refresh the page in 30-60 sec to see it processed.';
+    if(inp) inp.value='';
+  }catch(e){
+    msg.className='text-[11px] mt-1.5 text-rose-400'; msg.textContent='Network error: '+e.message;
+  }
+}
+async function ytToggleVis(id, want, btn){
+  try{
+    var fd=new FormData(); fd.append('value',String(want)); fd.append('_csrf',CSRF);
+    await fetch('/admin/media/'+id+'/visibility',{method:'POST',body:fd,credentials:'same-origin',redirect:'manual'});
+    btn.textContent=want?'Hide':'Show';
+    btn.setAttribute('onclick','ytToggleVis('+id+','+(want?0:1)+',this)');
+  }catch(e){}
+}
+async function ytRetry(id, btn){
+  try{
+    var fd=new FormData(); fd.append('_csrf',CSRF);
+    await fetch('/admin/media/'+id+'/retry',{method:'POST',body:fd,credentials:'same-origin',redirect:'manual'});
+    btn.textContent='Queued';
+    btn.disabled=true;
+  }catch(e){}
+}
+async function ytDelete(id, btn){
+  if(!confirm('Delete media #'+id+'? This removes the cached files too.'))return;
+  try{
+    var fd=new FormData(); fd.append('_csrf',CSRF);
+    await fetch('/admin/media/'+id+'/delete',{method:'POST',body:fd,credentials:'same-origin',redirect:'manual'});
+    var row=btn.closest('[data-mid]'); if(row) row.remove();
+  }catch(e){}
+}
+
 render();
 })();
 </script>
