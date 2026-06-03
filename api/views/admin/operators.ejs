@@ -1,0 +1,67 @@
+<%# PAYWIFI-OPERATOR-ADMIN-2026-06-02 — list page %>
+<div class="space-y-6">
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-bold" style="color: var(--foreground)">Operators</h1>
+      <p class="text-sm" style="color: var(--muted-foreground)">Store partners who confirm cash payments and earn commission.</p>
+    </div>
+    <a href="/admin/operators/new" class="px-4 py-2 rounded font-semibold text-sm"
+      style="background: var(--primary); color: var(--primary-foreground)">+ New operator</a>
+  </div>
+
+  <% if (flash) { %>
+    <div class="px-4 py-3 rounded-lg border text-sm"
+      style="border-color: color-mix(in oklab, <%= flash.kind==='ok' ? 'var(--success)' : 'var(--destructive)' %> 35%, var(--border));
+             background:    color-mix(in oklab, <%= flash.kind==='ok' ? 'var(--success)' : 'var(--destructive)' %> 12%, var(--card));
+             color:         <%= flash.kind==='ok' ? 'var(--success)' : 'var(--destructive)' %>;">
+      <%= flash.message %>
+    </div>
+  <% } %>
+
+  <% if (!operators.length) { %>
+    <div class="rounded-lg border p-8 text-center text-sm" style="background: var(--card); border-color: var(--border); color: var(--muted-foreground)">
+      No operators yet. <a href="/admin/operators/new" class="underline" style="color: var(--primary)">Add the first one</a>.
+    </div>
+  <% } else { %>
+    <div class="rounded-lg border overflow-hidden" style="background: var(--card); border-color: var(--border)">
+      <% operators.forEach(function(op, idx) {
+           var stColor = ({active:'var(--success)', pending:'var(--primary)', suspended:'var(--destructive)', archived:'var(--muted-foreground)'})[op.status] || 'var(--muted-foreground)';
+           var isLocked = op.locked_until && op.locked_until > Math.floor(Date.now()/1000);
+           var lastLogin = op.last_login_at ? new Date(op.last_login_at * 1000).toLocaleString() : '—';
+           var commission = (op.commission_pct || 0).toFixed(0);
+      %>
+        <a href="/admin/operators/<%= op.id %>"
+          class="block px-4 py-3 transition-colors <%= idx > 0 ? 'border-t' : '' %>"
+          style="border-color: var(--border); text-decoration: none; color: inherit">
+          <div class="flex items-center gap-3 min-w-0">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="font-bold" style="color: var(--foreground)"><%= op.store_name %></span>
+                <span class="text-xs font-mono" style="color: var(--muted-foreground)">@<%= op.username %></span>
+                <span class="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded"
+                  style="background: color-mix(in oklab, <%= stColor %> 15%, var(--card)); color: <%= stColor %>; border: 1px solid color-mix(in oklab, <%= stColor %> 30%, var(--border))">
+                  <%= op.status %>
+                </span>
+                <% if (isLocked) { %>
+                  <span class="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded"
+                    style="background: color-mix(in oklab, var(--destructive) 15%, var(--card)); color: var(--destructive); border: 1px solid color-mix(in oklab, var(--destructive) 30%, var(--border))">
+                    locked
+                  </span>
+                <% } %>
+              </div>
+              <div class="text-xs mt-1" style="color: var(--muted-foreground)">
+                <%= op.mobile || '—' %>
+                · commission <%= commission %>%
+                · gross ₱<%= (op.stats.gross || 0).toLocaleString('en-PH') %> (<%= op.stats.paid_count %> paid)
+                · last login <%= lastLogin %>
+              </div>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--muted-foreground)">
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+          </div>
+        </a>
+      <% }) %>
+    </div>
+  <% } %>
+</div>

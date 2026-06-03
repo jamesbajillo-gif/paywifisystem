@@ -35,10 +35,13 @@ app.set('trust proxy', 1);   // nginx sets X-Forwarded-For
 const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 const rlKeyByIp = ipKeyGenerator;  // handles IPv6-mapped IPv4 correctly
 // Admin login (UI + both API paths)
+// OPERATOR-LOGIN-RL-2026-06-02 — match adminLoginLimiter: 10 / 5 min per IP
+const operatorLoginLimiter = rateLimit({ windowMs: 5*60*1000, max: 10, standardHeaders: true, message: 'Too many sign-in attempts. Try again in 5 minutes.' });
 const adminLoginLimiter = rateLimit({ windowMs: 5*60*1000, max: 10, standardHeaders: true, keyGenerator: rlKeyByIp, message: 'Too many attempts.' });
 app.use('/admin/login',     adminLoginLimiter);
 app.use('/admin-api/login', adminLoginLimiter);
 app.use('/admin/api/login', adminLoginLimiter);   // was missing — primary JWT login path
+app.use('/operator/login', operatorLoginLimiter);
 // Portal endpoints
 // PAYWIFI-PUBLIC-HOST-BLOCK-2026-06-01 — refuse payment endpoints from paywifi.net (public host)
 const blockPublicPayments = require('./middleware/blockPublicPayments');
@@ -92,7 +95,9 @@ app.use('/admin', adminSession, csrf, require('./routes/adminUi-firewall'));
 app.use('/admin', adminSession, csrf, require('./routes/adminUi-queue'));   // STACK-14
 app.use('/admin', adminSession, csrf, require('./routes/adminUi-updates'));  // update logs
 app.use('/admin', adminSession, csrf, require('./routes/adminUi-infra'));     // infrastructure health
-app.use('/admin', adminSession, csrf, require('./routes/adminUi-devices'));   // device diagnostics
+app.use('/admin', adminSession, csrf, require('./routes/adminUi-devices'));
+app.use('/admin', adminSession, csrf, require('./routes/adminUi-operators'));
+app.use('/admin', adminSession, csrf, require('./routes/adminUi-remittances'));  // operator CRUD   // device diagnostics
 app.use('/admin', adminSession, csrf, require('./routes/adminUi-cloudflare')); // PAYWIFI-CLOUDFLARED-2026-06-01 — Cloudflare tunnel admin
 
 // OPERATOR-ROUTE-MOUNT-2026-06-01 — cashier surface, static-password auth,

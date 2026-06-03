@@ -19,6 +19,23 @@
   </div>
 </div>
 
+<!-- OPERATOR-COMMISSION-UI-2026-06-02 — outstanding balance card -->
+<% if (typeof balance !== 'undefined' && balance) { %>
+  <div class="rounded-2xl border-2 p-4 mb-6 flex items-center justify-between gap-3"
+    style="background: <%= balance.outstanding > 0 ? 'color-mix(in oklab, var(--destructive) 8%, var(--card))' : 'color-mix(in oklab, var(--success) 8%, var(--card))' %>;
+           border-color: <%= balance.outstanding > 0 ? 'color-mix(in oklab, var(--destructive) 30%, var(--border))' : 'color-mix(in oklab, var(--success) 30%, var(--border))' %>">
+    <div>
+      <p class="text-[11px] uppercase tracking-wider" style="color: var(--muted-foreground)">Owed to PAYWIFI</p>
+      <p class="text-2xl font-bold tabular-nums" style="color: <%= balance.outstanding > 0 ? 'var(--destructive)' : 'var(--success)' %>"><%= fmtPHP(balance.outstanding) %></p>
+      <p class="text-xs mt-0.5" style="color: var(--muted-foreground)">
+        <%= fmtPHP(balance.gross) %> gross − <%= balance.commission_pct.toFixed(0) %>% commission (<%= fmtPHP(balance.commission) %>) − <%= fmtPHP(balance.remitted) %> remitted
+      </p>
+    </div>
+    <a href="/operator/remit" class="rounded-xl px-4 h-12 text-sm font-bold inline-flex items-center shrink-0"
+      style="background: var(--primary); color: var(--primary-foreground)">Remit cash</a>
+  </div>
+<% } %>
+
 <section class="rounded-2xl border-2 p-4 mb-6" style="background: var(--card); border-color: var(--border)">
   <div class="flex items-center justify-between gap-3 mb-3">
     <h2 class="text-lg font-bold">Awaiting confirmation</h2>

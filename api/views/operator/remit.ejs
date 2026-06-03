@@ -1,0 +1,105 @@
+<%# PAYWIFI-REMITTANCE-2026-06-02 — operator submit + history %>
+<header class="mb-6">
+  <p class="text-[11px] font-bold uppercase tracking-[0.2em]" style="color:var(--primary)">PAYWIFI · Operator</p>
+  <h1 class="text-3xl font-bold tracking-tight"><%= operator.store_name %> · Remit cash</h1>
+  <p class="text-sm mt-1" style="color: var(--muted-foreground)">Submit cash you owe PAYWIFI after deducting your commission.</p>
+</header>
+
+<% if (typeof flash !== 'undefined' && flash) { %>
+  <div class="mb-4 rounded-xl px-4 py-3 text-sm border"
+    style="background-color: color-mix(in oklab, <%= flash.kind === 'ok' ? 'var(--success)' : 'var(--destructive)' %> 10%, var(--card));
+           color: <%= flash.kind === 'ok' ? 'var(--success)' : 'var(--destructive)' %>;
+           border-color: color-mix(in oklab, <%= flash.kind === 'ok' ? 'var(--success)' : 'var(--destructive)' %> 35%, transparent);">
+    <%= flash.message %>
+  </div>
+<% } %>
+
+<!-- Balance summary -->
+<div class="rounded-2xl border-2 p-5 mb-6" style="background: var(--card); border-color: var(--border)">
+  <h2 class="text-base font-bold mb-3">Your balance</h2>
+  <dl class="space-y-2 text-sm">
+    <div class="flex justify-between">
+      <dt style="color: var(--muted-foreground)">Gross cash collected (<%= balance.paid_count %> paid)</dt>
+      <dd class="font-bold tabular-nums"><%= fmtPHP(balance.gross) %></dd>
+    </div>
+    <div class="flex justify-between">
+      <dt style="color: var(--muted-foreground)">Your commission (<%= balance.commission_pct.toFixed(0) %>%)</dt>
+      <dd class="font-bold tabular-nums" style="color: var(--success)">− <%= fmtPHP(balance.commission) %></dd>
+    </div>
+    <div class="flex justify-between border-t pt-2" style="border-color: var(--border)">
+      <dt style="color: var(--muted-foreground)">Owed to PAYWIFI before remit</dt>
+      <dd class="font-bold tabular-nums"><%= fmtPHP(balance.owed_before_remit) %></dd>
+    </div>
+    <div class="flex justify-between">
+      <dt style="color: var(--muted-foreground)">Already remitted (approved)</dt>
+      <dd class="font-bold tabular-nums">− <%= fmtPHP(balance.remitted) %></dd>
+    </div>
+    <div class="flex justify-between border-t pt-2 text-lg" style="border-color: var(--border)">
+      <dt class="font-bold">Outstanding</dt>
+      <dd class="font-bold tabular-nums" style="color: <%= balance.outstanding > 0 ? 'var(--destructive)' : 'var(--success)' %>">
+        <%= fmtPHP(balance.outstanding) %>
+      </dd>
+    </div>
+  </dl>
+</div>
+
+<!-- Submit form -->
+<section class="rounded-2xl border-2 p-5 mb-6" style="background: var(--card); border-color: var(--border)">
+  <h2 class="text-base font-bold mb-3">Submit remittance</h2>
+  <form method="POST" action="/operator/remit/submit" class="flex flex-col gap-3">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+    <div>
+      <label class="text-xs font-semibold" style="color: var(--muted-foreground)">Amount remitted (₱)</label>
+      <input name="amount" type="number" step="0.01" min="1" required
+        placeholder="e.g. <%= balance.outstanding > 0 ? balance.outstanding.toFixed(2) : '500.00' %>" />
+    </div>
+    <div>
+      <label class="text-xs font-semibold" style="color: var(--muted-foreground)">Method</label>
+      <select name="method" required>
+        <option value="cash">Cash (handed to admin)</option>
+        <option value="gcash">GCash transfer</option>
+        <option value="bank">Bank transfer</option>
+        <option value="other">Other</option>
+      </select>
+    </div>
+    <div>
+      <label class="text-xs font-semibold" style="color: var(--muted-foreground)">Reference number / receipt no.</label>
+      <input name="reference_no" maxlength="64" required placeholder="GCash ref, deposit slip no., etc." />
+    </div>
+    <div>
+      <label class="text-xs font-semibold" style="color: var(--muted-foreground)">Notes (optional)</label>
+      <textarea name="notes" rows="2" maxlength="500" placeholder="Anything the admin should know"></textarea>
+    </div>
+    <button type="submit" class="rounded-xl px-4 h-12 text-base font-bold mt-2"
+      style="background: var(--primary); color: var(--primary-foreground)">
+      Submit for approval
+    </button>
+  </form>
+</section>
+
+<!-- History -->
+<section class="rounded-2xl border-2 p-5" style="background: var(--card); border-color: var(--border)">
+  <h2 class="text-base font-bold mb-3">Recent remittances</h2>
+  <% if (!history.length) { %>
+    <p class="text-sm text-center py-6" style="color: var(--muted-foreground)">You haven't submitted any remittances yet.</p>
+  <% } else { %>
+    <ul class="flex flex-col divide-y -mx-5" style="border-color: var(--border)">
+      <% history.forEach(function(r){
+           var stColor = ({pending:'var(--primary)', approved:'var(--success)', rejected:'var(--destructive)'})[r.status] || 'var(--muted-foreground)';
+      %>
+        <li class="px-5 py-3 flex items-center gap-3 min-w-0">
+          <div class="flex-1 min-w-0">
+            <p class="font-bold tabular-nums"><%= fmtPHP(r.amount) %> <span class="text-xs font-normal" style="color: var(--muted-foreground)">via <%= r.method %></span></p>
+            <p class="text-xs mt-0.5 truncate" style="color: var(--muted-foreground)">
+              ref <span class="font-mono"><%= r.reference_no %></span>
+              · submitted <%= relTime(r.created_at) %>
+              <% if (r.status === 'rejected' && r.rejected_reason) { %> · reason: <%= r.rejected_reason %><% } %>
+            </p>
+          </div>
+          <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-lg shrink-0"
+            style="background: color-mix(in oklab, <%= stColor %> 10%, var(--card)); color: <%= stColor %>"><%= r.status %></span>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
+</section>

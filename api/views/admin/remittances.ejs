@@ -1,0 +1,118 @@
+<%# PAYWIFI-REMITTANCE-2026-06-02 — admin list/approve/reject %>
+<div class="space-y-6">
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-bold" style="color: var(--foreground)">Remittances</h1>
+      <p class="text-sm" style="color: var(--muted-foreground)">Operator cash submissions awaiting your approval.</p>
+    </div>
+  </div>
+
+  <% if (flash) { %>
+    <div class="px-4 py-3 rounded-lg border text-sm"
+      style="border-color: color-mix(in oklab, <%= flash.kind==='ok' ? 'var(--success)' : 'var(--destructive)' %> 35%, var(--border));
+             background:    color-mix(in oklab, <%= flash.kind==='ok' ? 'var(--success)' : 'var(--destructive)' %> 12%, var(--card));
+             color:         <%= flash.kind==='ok' ? 'var(--success)' : 'var(--destructive)' %>;">
+      <%= flash.message %>
+    </div>
+  <% } %>
+
+  <!-- Outstanding balances per operator -->
+  <div class="rounded-lg border p-5" style="background: var(--card); border-color: var(--border)">
+    <h2 class="text-base font-semibold mb-3" style="color: var(--foreground)">Outstanding balances</h2>
+    <% if (!balances.length) { %>
+      <p class="text-sm" style="color: var(--muted-foreground)">No active operators.</p>
+    <% } else { %>
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-xs uppercase tracking-wider text-left" style="color: var(--muted-foreground)">
+            <th class="pb-2">Operator</th>
+            <th class="pb-2 text-right">Gross</th>
+            <th class="pb-2 text-right">Commission</th>
+            <th class="pb-2 text-right">Remitted</th>
+            <th class="pb-2 text-right">Outstanding</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% balances.forEach(function(o){ var b=o.balance; var owed = b.outstanding; %>
+            <tr class="border-t" style="border-color: var(--border)">
+              <td class="py-2"><a href="/admin/operators/<%= o.id %>" style="color: var(--primary)"><%= o.store_name %></a></td>
+              <td class="py-2 text-right tabular-nums">₱<%= b.gross.toLocaleString('en-PH', {minimumFractionDigits: 2}) %></td>
+              <td class="py-2 text-right tabular-nums"><%= b.commission_pct.toFixed(0) %>% (₱<%= b.commission.toLocaleString('en-PH', {minimumFractionDigits: 2}) %>)</td>
+              <td class="py-2 text-right tabular-nums">₱<%= b.remitted.toLocaleString('en-PH', {minimumFractionDigits: 2}) %></td>
+              <td class="py-2 text-right tabular-nums font-bold" style="color: <%= owed > 0 ? 'var(--destructive)' : 'var(--success)' %>">
+                ₱<%= owed.toLocaleString('en-PH', {minimumFractionDigits: 2}) %>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    <% } %>
+  </div>
+
+  <!-- Filter -->
+  <div class="flex gap-2 text-xs">
+    <% ['pending','approved','rejected','all'].forEach(function(s){ %>
+      <a href="/admin/remittances?status=<%= s %>" class="px-2 py-1 rounded"
+        style="background: <%= filter === s ? 'var(--primary)' : 'var(--card)' %>; color: <%= filter === s ? 'var(--primary-foreground)' : 'var(--muted-foreground)' %>; border: 1px solid var(--border)"><%= s %></a>
+    <% }) %>
+  </div>
+
+  <!-- Remittance list -->
+  <% if (!rows.length) { %>
+    <div class="rounded-lg border p-8 text-center text-sm" style="background: var(--card); border-color: var(--border); color: var(--muted-foreground)">
+      No <%= filter === 'all' ? '' : filter %> remittances.
+    </div>
+  <% } else { %>
+    <div class="rounded-lg border" style="background: var(--card); border-color: var(--border)">
+      <% rows.forEach(function(r, idx) {
+           var stColor = ({pending:'var(--primary)', approved:'var(--success)', rejected:'var(--destructive)'})[r.status] || 'var(--muted-foreground)';
+      %>
+        <div class="px-4 py-3 <%= idx > 0 ? 'border-t' : '' %>" style="border-color: var(--border)">
+          <div class="flex items-start gap-3">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-xs font-mono font-bold" style="color: var(--primary)">#<%= r.id %></span>
+                <span class="font-bold" style="color: var(--foreground)"><%= r.store_name %></span>
+                <span class="text-xs font-mono" style="color: var(--muted-foreground)">@<%= r.username %></span>
+                <span class="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded"
+                  style="background: color-mix(in oklab, <%= stColor %> 15%, var(--card)); color: <%= stColor %>; border: 1px solid color-mix(in oklab, <%= stColor %> 30%, var(--border))">
+                  <%= r.status %>
+                </span>
+              </div>
+              <div class="mt-1 flex items-center gap-3 text-sm">
+                <span class="font-bold tabular-nums" style="color: var(--foreground)">₱<%= r.amount.toLocaleString('en-PH', {minimumFractionDigits: 2}) %></span>
+                <span style="color: var(--muted-foreground)">via <%= r.method %></span>
+                <span class="font-mono text-xs" style="color: var(--muted-foreground)">ref <%= r.reference_no %></span>
+              </div>
+              <% if (r.notes) { %>
+                <p class="text-xs mt-1" style="color: var(--muted-foreground)"><%= r.notes %></p>
+              <% } %>
+              <div class="text-[10px] mt-1" style="color: var(--muted-foreground)">
+                submitted <%= new Date(r.created_at * 1000).toLocaleString() %>
+                <% if (r.approved_at) { %> · approved <%= new Date(r.approved_at * 1000).toLocaleString() %><% } %>
+                <% if (r.rejected_at) { %> · rejected <%= new Date(r.rejected_at * 1000).toLocaleString() %>: <%= r.rejected_reason %><% } %>
+              </div>
+            </div>
+
+            <% if (r.status === 'pending') { %>
+              <div class="flex flex-col gap-2 shrink-0">
+                <form method="POST" action="/admin/remittances/<%= r.id %>/approve" onsubmit="return confirm('Approve ₱<%= r.amount %> from <%= r.store_name %>?')">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                  <button type="submit" class="px-3 py-1.5 rounded text-xs font-bold"
+                    style="background: var(--success); color: white">Approve</button>
+                </form>
+                <form method="POST" action="/admin/remittances/<%= r.id %>/reject"
+                  onsubmit="var r=prompt('Reason for rejection (optional):'); if(r===null) return false; this.reason.value=r||''; return true;">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                  <input type="hidden" name="reason" value="" />
+                  <button type="submit" class="px-3 py-1.5 rounded text-xs font-bold border"
+                    style="border-color: color-mix(in oklab, var(--destructive) 40%, var(--border)); color: var(--destructive); background: var(--card)">Reject</button>
+                </form>
+              </div>
+            <% } %>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+  <% } %>
+</div>

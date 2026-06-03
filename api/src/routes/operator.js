@@ -35,18 +35,22 @@ function render(res, view, locals = {}) {
   });
 }
 
+// OPERATOR-SECHARDEN-2026-06-02 — write a real operator_id column instead of
+// the legacy 'operator#<id>:<action>' string hack. Falls back to NULL when id missing.
 function audit(opId, action, details, ip) {
   try {
     db.prepare(
-      'INSERT INTO audit_log (admin_id, action, details, ip_address, created_at) VALUES (NULL, ?, ?, ?, ?)'
-    ).run('operator#' + (opId || '?') + ':' + action, details || null, ip || null, Math.floor(Date.now()/1000));
+      'INSERT INTO audit_log (admin_id, operator_id, action, details, ip_address, created_at) VALUES (NULL, ?, ?, ?, ?, ?)'
+    ).run(opId || null, action, details || null, ip || null, Math.floor(Date.now()/1000));
   } catch (e) {}
 }
 
 function loadOperatorIntoReq(req, res, next) {
   if (req.session && req.session.operatorId) {
+    // OPERATOR-SECHARDEN-2026-06-02 — load richer fields + enforce status active.
     const op = db.prepare(
-      'SELECT id, username, store_name, store_slug, is_active FROM operators WHERE id=? AND is_active=1'
+      "SELECT id, username, store_name, store_slug, is_active, status, mobile, commission_pct, last_login_ip, last_login_at " +
+      "FROM operators WHERE id=? AND status='active'"
     ).get(req.session.operatorId);
     if (op) { req.operator = op; res.locals.operator = op; }
     else { delete req.session.operatorId; }
@@ -69,21 +73,67 @@ router.get('/login', (req, res) => {
 });
 
 router.post('/login', (req, res) => {
+  // OPERATOR-SECHARDEN-2026-06-02 — account lockout + status-aware auth.
   const username = String((req.body || {}).username || '').trim().toLowerCase();
   const pw       = String((req.body || {}).password || '');
+  const now      = Math.floor(Date.now() / 1000);
+
   const op = username
-    ? db.prepare('SELECT * FROM operators WHERE username=? AND is_active=1').get(username)
+    ? db.prepare("SELECT * FROM operators WHERE username=? AND status != 'archived'").get(username)
     : null;
-  if (!op || !bcrypt.compareSync(pw, op.password_hash)) {
-    audit(op ? op.id : null, 'login_fail', 'username=' + username, req.clientIp);
-    return render(res, 'login', { title: 'Operator · sign in', active: 'login', error: 'Wrong username or password.' });
+
+  // Generic message to avoid leaking which operators exist + invite enumeration.
+  const genericError = 'Sign-in failed. Check your credentials or contact admin if your account is locked.';
+
+  if (!op) {
+    audit(null, 'login_fail', 'username=' + username + ' reason=no_account', req.clientIp);
+    return render(res, 'login', { title: 'Operator · sign in', active: 'login', error: genericError });
   }
+
+  // Status gates
+  if (op.status === 'suspended') {
+    audit(op.id, 'login_fail', 'reason=suspended', req.clientIp);
+    return render(res, 'login', { title: 'Operator · sign in', active: 'login',
+      error: 'Your account has been suspended. Contact the admin.' });
+  }
+  if (op.status === 'pending') {
+    audit(op.id, 'login_fail', 'reason=pending', req.clientIp);
+    return render(res, 'login', { title: 'Operator · sign in', active: 'login',
+      error: 'Your account is awaiting admin activation.' });
+  }
+
+  // Lockout check
+  if (op.locked_until && op.locked_until > now) {
+    const wait = op.locked_until - now;
+    audit(op.id, 'login_fail', 'reason=locked retry_in=' + wait, req.clientIp);
+    return render(res, 'login', { title: 'Operator · sign in', active: 'login',
+      error: 'Account locked. Try again in ' + Math.ceil(wait/60) + ' minutes.' });
+  }
+
+  // Password check
+  if (!bcrypt.compareSync(pw, op.password_hash)) {
+    const newCount = (op.failed_login_count || 0) + 1;
+    // 5 strikes → lock for 15 min
+    if (newCount >= 5) {
+      db.prepare('UPDATE operators SET failed_login_count=?, locked_until=? WHERE id=?')
+        .run(0, now + 15 * 60, op.id);
+      audit(op.id, 'login_fail', 'reason=bad_password locked=15min', req.clientIp);
+    } else {
+      db.prepare('UPDATE operators SET failed_login_count=? WHERE id=?')
+        .run(newCount, op.id);
+      audit(op.id, 'login_fail', 'reason=bad_password attempts=' + newCount, req.clientIp);
+    }
+    return render(res, 'login', { title: 'Operator · sign in', active: 'login', error: genericError });
+  }
+
+  // SUCCESS — reset lockout counters, refresh session
+  db.prepare('UPDATE operators SET last_login_at=?, last_login_ip=?, failed_login_count=0, locked_until=NULL WHERE id=?')
+    .run(now, req.clientIp || null, op.id);
+
   if (req.session) {
-    // Clear any admin session for safety — an operator session can never carry adminId.
     delete req.session.adminId;
     req.session.operatorId = op.id;
   }
-  db.prepare('UPDATE operators SET last_login_at=? WHERE id=?').run(Math.floor(Date.now()/1000), op.id);
   audit(op.id, 'login_ok', null, req.clientIp);
   res.redirect('/operator/');
 });
@@ -98,6 +148,7 @@ router.use(requireOperator);
 
 // ─── dashboard ──────────────────────────────────────────────────────────────
 router.get('/', (req, res) => {
+  // OPERATOR-COMMISSION-UI-2026-06-02 — show outstanding balance on dashboard.
   const now = Math.floor(Date.now()/1000);
   const sid = req.operator.id;
 
@@ -117,7 +168,8 @@ router.get('/', (req, res) => {
     "SELECT COUNT(*) AS n FROM pending_payments WHERE status='paid' AND paid_at >= ? AND store_id = ?"
   ).get(todayStart, sid).n;
 
-  render(res, 'dashboard', {
+  const balance = computeOwed(req.operator.id);
+  render(res, 'dashboard', { balance,
     title: 'Operator · Dashboard',
     active: 'dash',
     pending, todayRev, todayCount,
@@ -125,10 +177,44 @@ router.get('/', (req, res) => {
 });
 
 // ─── sales ──────────────────────────────────────────────────────────────────
+// OPERATOR-COMMISSION-UI-2026-06-02 — date range + commission + CSV export.
+function parseDateRange(req) {
+  const q = req.query || {};
+  const now = Math.floor(Date.now()/1000);
+  const presets = {
+    today: () => { const d = new Date(); d.setHours(0,0,0,0); return [Math.floor(d.getTime()/1000), now]; },
+    '7d':  () => [now - 7  * 86400, now],
+    '30d': () => [now - 30 * 86400, now],
+    '90d': () => [now - 90 * 86400, now],
+    all:   () => [0, now],
+  };
+  const preset = q.preset && presets[q.preset] ? q.preset : null;
+  if (preset) {
+    const [from, to] = presets[preset]();
+    return { from, to, preset, label: preset };
+  }
+  if (q.from && q.to) {
+    const from = Math.floor(new Date(q.from + 'T00:00:00').getTime() / 1000);
+    const to   = Math.floor(new Date(q.to   + 'T23:59:59').getTime() / 1000);
+    if (!isNaN(from) && !isNaN(to)) {
+      return { from, to, preset: 'custom', label: q.from + ' to ' + q.to };
+    }
+  }
+  // default: last 7 days
+  const [from, to] = presets['7d']();
+  return { from, to, preset: '7d', label: '7d' };
+}
+
 router.get('/sales', (req, res) => {
   const sid = req.operator.id;
-  const todayStart = (() => { const d = new Date(); d.setHours(0,0,0,0); return Math.floor(d.getTime()/1000); })();
+  const range = parseDateRange(req);
 
+  const rangeRev = db.prepare(
+    "SELECT COALESCE(SUM(amount), 0) AS n, COUNT(*) AS c FROM pending_payments " +
+    " WHERE status='paid' AND paid_at >= ? AND paid_at <= ? AND store_id = ?"
+  ).get(range.from, range.to, sid);
+
+  const todayStart = (() => { const d = new Date(); d.setHours(0,0,0,0); return Math.floor(d.getTime()/1000); })();
   const todayRev = db.prepare(
     "SELECT COALESCE(SUM(amount), 0) AS n FROM pending_payments WHERE status='paid' AND paid_at >= ? AND store_id = ?"
   ).get(todayStart, sid).n;
@@ -145,19 +231,46 @@ router.get('/sales', (req, res) => {
   const recent = db.prepare(
     "SELECT v.id, v.code, v.created_at, v.status AS v_status, " +
     "  vp.name AS plan_name, vp.price AS plan_price, " +
-    "  pp.amount, pp.channel_name, pp.refunded_at, pp.status AS pp_status " +
+    "  pp.amount, pp.channel_name, pp.refunded_at, pp.status AS pp_status, pp.paid_at " +
     "FROM pending_payments pp " +
     "JOIN vouchers v ON v.id = pp.voucher_id " +
     "LEFT JOIN voucher_plans vp ON vp.id = pp.plan_id " +
-    "WHERE pp.store_id = ? AND v.created_at >= ? " +
-    "ORDER BY v.id DESC LIMIT 100"
-  ).all(sid, Math.floor(Date.now()/1000) - 7 * 86400);
+    "WHERE pp.store_id = ? AND pp.paid_at >= ? AND pp.paid_at <= ? " +
+    "ORDER BY pp.paid_at DESC LIMIT 200"
+  ).all(sid, range.from, range.to);
+
+  const balance = computeOwed(sid);
+  const rangeCommission = (rangeRev.n || 0) * (balance.commission_pct || 0) / 100;
 
   render(res, 'sales', {
     title: 'Operator · Sales',
     active: 'sales',
     todayRev, todayCount, lifetimeRev, lifetimeRefunds, recent,
+    range, rangeRev: rangeRev.n, rangeCount: rangeRev.c, rangeCommission,
+    balance,
   });
+});
+
+router.get('/sales.csv', (req, res) => {
+  const sid = req.operator.id;
+  const range = parseDateRange(req);
+  const rows = db.prepare(
+    "SELECT pp.paid_at, pp.amount, pp.channel_name, vp.name AS plan_name, v.code " +
+    "FROM pending_payments pp " +
+    "LEFT JOIN voucher_plans vp ON vp.id = pp.plan_id " +
+    "LEFT JOIN vouchers v ON v.id = pp.voucher_id " +
+    "WHERE pp.status='paid' AND pp.store_id = ? AND pp.paid_at >= ? AND pp.paid_at <= ? " +
+    "ORDER BY pp.paid_at ASC"
+  ).all(sid, range.from, range.to);
+  const balance = computeOwed(sid);
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="sales-' + (range.label || 'all') + '.csv"');
+  let csv = 'paid_at,amount,channel,plan,voucher_code,commission_pct\n';
+  rows.forEach(r => {
+    const date = r.paid_at ? new Date(r.paid_at * 1000).toISOString() : '';
+    csv += [date, r.amount, r.channel_name || '', (r.plan_name || '').replace(/,/g, ' '), r.code || '', balance.commission_pct].join(',') + '\n';
+  });
+  res.send(csv);
 });
 
 // ─── settings: edit store_name (NOT username) ──────────────────────────────
@@ -376,6 +489,56 @@ router.get('/api/sms-status/:msgId', (req, res) => {
     error:  row.error || null,
     sent_at: row.sent_at,
   });
+});
+
+
+// PAYWIFI-REMITTANCE-2026-06-02 — operator remittance flow
+const { computeOwed } = require('../services/remittance');
+
+router.get('/remit', (req, res) => {
+  const opId = req.operator.id;
+  const balance = computeOwed(opId);
+  const history = db.prepare(
+    "SELECT id, amount, method, reference_no, notes, status, created_at, approved_at, rejected_at, rejected_reason " +
+    "  FROM remittances WHERE operator_id=? ORDER BY id DESC LIMIT 30"
+  ).all(opId);
+  render(res, 'remit', {
+    title:  'Operator · Remit',
+    active: 'remit',
+    balance, history,
+    flash: req.session.opRemitFlash || null,
+  });
+  delete req.session.opRemitFlash;
+});
+
+router.post('/remit/submit', (req, res) => {
+  const body = req.body || {};
+  const amount = parseFloat(body.amount);
+  const method = ['cash','gcash','bank','other'].includes(body.method) ? body.method : null;
+  const reference_no = String(body.reference_no || '').trim().slice(0, 64);
+  const notes = String(body.notes || '').trim().slice(0, 500) || null;
+
+  if (!amount || amount <= 0) {
+    req.session.opRemitFlash = { kind: 'err', message: 'Amount must be greater than 0.' };
+    return res.redirect('/operator/remit');
+  }
+  if (!method) {
+    req.session.opRemitFlash = { kind: 'err', message: 'Choose a remittance method.' };
+    return res.redirect('/operator/remit');
+  }
+  if (!reference_no) {
+    req.session.opRemitFlash = { kind: 'err', message: 'Reference number is required.' };
+    return res.redirect('/operator/remit');
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  const r = db.prepare(
+    "INSERT INTO remittances (operator_id, amount, reference_no, method, notes, status, created_at) " +
+    "VALUES (?,?,?,?,?, 'pending', ?)"
+  ).run(req.operator.id, amount, reference_no, method, notes, now);
+  audit(req.operator.id, 'remittance_submit', 'remit_id=' + r.lastInsertRowid + ' amount=' + amount + ' method=' + method, req.clientIp);
+  req.session.opRemitFlash = { kind: 'ok', message: 'Submitted for admin approval. You\'ll see it in the list below.' };
+  res.redirect('/operator/remit');
 });
 
 module.exports = router;

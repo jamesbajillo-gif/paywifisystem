@@ -1,0 +1,217 @@
+<%# PAYWIFI-OPERATOR-ADMIN-2026-06-02 — create/edit page %>
+<div class="space-y-6">
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-bold" style="color: var(--foreground)">
+        <%= isNew ? 'New operator' : op.store_name %>
+      </h1>
+      <p class="text-sm" style="color: var(--muted-foreground)">
+        <% if (isNew) { %>Create a store partner who confirms cash payments and earns commission.
+        <% } else { %>@<%= op.username %> · store slug <code><%= op.store_slug %></code>
+        <% } %>
+      </p>
+    </div>
+    <a href="/admin/operators" style="color: var(--primary)" class="text-sm">&larr; Back to list</a>
+  </div>
+
+  <% if (typeof flash !== 'undefined' && flash) { %>
+    <div class="px-4 py-3 rounded-lg border text-sm"
+      style="border-color: color-mix(in oklab, var(--success) 35%, var(--border));
+             background: color-mix(in oklab, var(--success) 12%, var(--card));
+             color: var(--success);">
+      <%= flash.message %>
+    </div>
+  <% } %>
+  <% if (err) { %>
+    <div class="px-4 py-3 rounded-lg border text-sm"
+      style="border-color: color-mix(in oklab, var(--destructive) 35%, var(--border));
+             background: color-mix(in oklab, var(--destructive) 12%, var(--card));
+             color: var(--destructive);">
+      <%= err %>
+    </div>
+  <% } %>
+
+  <% if (!isNew && typeof stats !== 'undefined') {
+       var isLocked = op.locked_until && op.locked_until > Math.floor(Date.now()/1000);
+  %>
+    <!-- Activity card -->
+    <div class="rounded-lg border p-5" style="background: var(--card); border-color: var(--border)">
+      <h2 class="text-base font-semibold mb-3" style="color: var(--foreground)">Activity</h2>
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+        <div>
+          <div class="text-xs uppercase tracking-wider mb-1" style="color: var(--muted-foreground)">Gross revenue</div>
+          <div class="text-lg font-bold" style="color: var(--foreground)">₱<%= (stats.gross || 0).toLocaleString('en-PH') %></div>
+          <div class="text-xs" style="color: var(--muted-foreground)"><%= stats.paid_count %> paid</div>
+        </div>
+        <div>
+          <div class="text-xs uppercase tracking-wider mb-1" style="color: var(--muted-foreground)">Commission</div>
+          <div class="text-lg font-bold" style="color: var(--success)">
+            ₱<%= ((stats.gross || 0) * (op.commission_pct || 0) / 100).toLocaleString('en-PH', {maximumFractionDigits: 2}) %>
+          </div>
+          <div class="text-xs" style="color: var(--muted-foreground)">at <%= (op.commission_pct || 0).toFixed(0) %>%</div>
+        </div>
+        <div>
+          <div class="text-xs uppercase tracking-wider mb-1" style="color: var(--muted-foreground)">Last login</div>
+          <div class="text-sm" style="color: var(--foreground)"><%= op.last_login_at ? new Date(op.last_login_at * 1000).toLocaleString() : 'never' %></div>
+          <div class="text-xs" style="color: var(--muted-foreground)"><%= op.last_login_ip || '—' %></div>
+        </div>
+        <div>
+          <div class="text-xs uppercase tracking-wider mb-1" style="color: var(--muted-foreground)">Failed logins</div>
+          <div class="text-sm" style="color: var(--foreground)"><%= op.failed_login_count || 0 %></div>
+          <% if (isLocked) { %>
+            <div class="text-xs" style="color: var(--destructive)">locked until <%= new Date(op.locked_until * 1000).toLocaleTimeString() %></div>
+          <% } %>
+        </div>
+      </div>
+      <% if (isLocked) { %>
+        <form method="POST" action="/admin/operators/<%= op.id %>/unlock" class="mt-3">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <button type="submit" class="px-3 py-1.5 rounded text-xs font-semibold border" style="border-color: var(--border); color: var(--foreground); background: var(--card)">Unlock account</button>
+        </form>
+      <% } %>
+    </div>
+  <% } %>
+
+  <!-- Edit form -->
+  <form method="POST"
+    action="<%= isNew ? '/admin/operators/create' : '/admin/operators/' + op.id + '/update' %>"
+    class="rounded-lg border p-5 space-y-4" style="background: var(--card); border-color: var(--border)">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+
+    <% if (isNew) { %>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs uppercase tracking-wider mb-1" style="color: var(--muted-foreground)">Username (immutable)</label>
+          <input name="username" required pattern="[a-z0-9_]{3,32}" placeholder="lower-case, 3-32 chars"
+            class="w-full text-sm px-3 py-2 rounded border font-mono"
+            style="background: var(--background); border-color: var(--border); color: var(--foreground)" />
+        </div>
+        <div>
+          <label class="block text-xs uppercase tracking-wider mb-1" style="color: var(--muted-foreground)">Password</label>
+          <input name="password" type="password" required minlength="6" placeholder="min 6 chars"
+            class="w-full text-sm px-3 py-2 rounded border"
+            style="background: var(--background); border-color: var(--border); color: var(--foreground)" />
+        </div>
+      </div>
+    <% } %>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div>
+        <label class="block text-xs uppercase tracking-wider mb-1" style="color: var(--muted-foreground)">Store name</label>
+        <input name="store_name" required maxlength="80" value="<%= op.store_name || '' %>"
+          class="w-full text-sm px-3 py-2 rounded border"
+          style="background: var(--background); border-color: var(--border); color: var(--foreground)" />
+      </div>
+      <% if (isNew) { %>
+        <div>
+          <label class="block text-xs uppercase tracking-wider mb-1" style="color: var(--muted-foreground)">Store slug (auto-generated)</label>
+          <input name="store_slug" pattern="[a-z0-9-]{2,32}" placeholder="auto from store name"
+            class="w-full text-sm px-3 py-2 rounded border font-mono"
+            style="background: var(--background); border-color: var(--border); color: var(--foreground)" />
+        </div>
+      <% } %>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div>
+        <label class="block text-xs uppercase tracking-wider mb-1" style="color: var(--muted-foreground)">Mobile (09xxxxxxxxx)</label>
+        <input name="mobile" pattern="(09\d{9}|639\d{9})" placeholder="09171234567" value="<%= op.mobile ? op.mobile.replace(/^63/, '0') : '' %>"
+          class="w-full text-sm px-3 py-2 rounded border"
+          style="background: var(--background); border-color: var(--border); color: var(--foreground)" />
+      </div>
+      <div>
+        <label class="block text-xs uppercase tracking-wider mb-1" style="color: var(--muted-foreground)">Email (optional)</label>
+        <input name="email" type="email" maxlength="120" value="<%= op.email || '' %>"
+          class="w-full text-sm px-3 py-2 rounded border"
+          style="background: var(--background); border-color: var(--border); color: var(--foreground)" />
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div>
+        <label class="block text-xs uppercase tracking-wider mb-1" style="color: var(--muted-foreground)">Commission %</label>
+        <input name="commission_pct" type="number" min="0" max="100" step="0.5" value="<%= op.commission_pct != null ? op.commission_pct : 10 %>"
+          class="w-full text-sm px-3 py-2 rounded border"
+          style="background: var(--background); border-color: var(--border); color: var(--foreground)" />
+        <p class="text-xs mt-1" style="color: var(--muted-foreground)">Operator's cut of each paid Cash payment.</p>
+      </div>
+      <% if (isNew) { %>
+        <div>
+          <label class="block text-xs uppercase tracking-wider mb-1" style="color: var(--muted-foreground)">Initial status</label>
+          <select name="status" class="w-full text-sm px-3 py-2 rounded border"
+            style="background: var(--background); border-color: var(--border); color: var(--foreground)">
+            <option value="active">Active (ready to log in)</option>
+            <option value="pending">Pending approval</option>
+          </select>
+        </div>
+      <% } %>
+    </div>
+
+    <div>
+      <label class="block text-xs uppercase tracking-wider mb-1" style="color: var(--muted-foreground)">Internal notes (admin only)</label>
+      <textarea name="notes" rows="3" maxlength="2000"
+        class="w-full text-sm px-3 py-2 rounded border"
+        style="background: var(--background); border-color: var(--border); color: var(--foreground)"><%= op.notes || '' %></textarea>
+    </div>
+
+    <button type="submit" class="px-4 py-2 rounded font-semibold text-sm"
+      style="background: var(--primary); color: var(--primary-foreground)">
+      <%= isNew ? 'Create operator' : 'Save changes' %>
+    </button>
+  </form>
+
+  <% if (!isNew) { %>
+    <!-- Status control -->
+    <div class="rounded-lg border p-5" style="background: var(--card); border-color: var(--border)">
+      <h2 class="text-base font-semibold mb-1" style="color: var(--foreground)">Account status</h2>
+      <p class="text-sm mb-4" style="color: var(--muted-foreground)">Current: <strong style="color: var(--foreground)"><%= op.status %></strong>. Suspended operators can't log in but their data is preserved.</p>
+      <div class="flex flex-wrap gap-2">
+        <% ['active','pending','suspended','archived'].forEach(function(s){
+             if (s === op.status) return;
+             var clr = ({active:'var(--success)', pending:'var(--primary)', suspended:'var(--destructive)', archived:'var(--muted-foreground)'})[s];
+        %>
+          <form method="POST" action="/admin/operators/<%= op.id %>/status"
+            onsubmit="return confirm('Change status to <%= s %>?')">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+            <input type="hidden" name="status" value="<%= s %>" />
+            <button type="submit" class="px-3 py-1.5 rounded text-xs font-semibold border"
+              style="border-color: color-mix(in oklab, <%= clr %> 40%, var(--border)); color: <%= clr %>; background: var(--card)">
+              Set <%= s %>
+            </button>
+          </form>
+        <% }) %>
+      </div>
+    </div>
+
+    <!-- Password reset -->
+    <div class="rounded-lg border p-5" style="background: var(--card); border-color: var(--border)">
+      <h2 class="text-base font-semibold mb-3" style="color: var(--foreground)">Reset password</h2>
+      <form method="POST" action="/admin/operators/<%= op.id %>/password" class="flex gap-3"
+        onsubmit="return confirm('Reset password for <%= op.username %>?')">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+        <input name="password" type="password" required minlength="6" placeholder="New password (min 6)"
+          class="flex-1 text-sm px-3 py-2 rounded border"
+          style="background: var(--background); border-color: var(--border); color: var(--foreground)" />
+        <button type="submit" class="px-4 py-2 rounded font-semibold text-sm"
+          style="background: var(--primary); color: var(--primary-foreground)">Reset</button>
+      </form>
+    </div>
+
+    <% if (typeof recent !== 'undefined' && recent.length) { %>
+      <!-- Recent activity -->
+      <div class="rounded-lg border p-5" style="background: var(--card); border-color: var(--border)">
+        <h2 class="text-base font-semibold mb-3" style="color: var(--foreground)">Recent activity</h2>
+        <ul class="text-xs divide-y" style="border-color: var(--border)">
+          <% recent.forEach(function(r){ %>
+            <li class="py-2 flex items-baseline gap-3">
+              <span class="font-mono shrink-0" style="color: var(--muted-foreground)"><%= new Date(r.created_at * 1000).toLocaleString() %></span>
+              <span class="font-semibold shrink-0" style="color: var(--foreground)"><%= r.action %></span>
+              <span class="flex-1" style="color: var(--muted-foreground)"><%= r.details || '' %></span>
+              <span class="font-mono text-[10px] shrink-0" style="color: var(--muted-foreground)"><%= r.ip_address || '' %></span>
+            </li>
+          <% }) %>
+        </ul>
+      </div>
+    <% } %>
+  <% } %>
+</div>

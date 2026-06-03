@@ -1,19 +1,46 @@
+<%# OPERATOR-COMMISSION-UI-2026-06-02 — date range + commission %>
 <header class="mb-6">
   <p class="text-[11px] font-bold uppercase tracking-[0.2em]" style="color:var(--primary)">PAYWIFI · Operator</p>
   <h1 class="text-3xl font-bold tracking-tight"><%= operator.store_name %> · Sales</h1>
-  <p class="text-sm mt-1" style="color: var(--muted-foreground)">Today + last 7 days for your store.</p>
+  <p class="text-sm mt-1" style="color: var(--muted-foreground)">Filter by date range — exports as CSV for accounting.</p>
 </header>
-<div class="grid grid-cols-2 gap-3 mb-6">
+
+<!-- Date range picker -->
+<div class="rounded-2xl border-2 p-3 mb-4 flex flex-wrap items-center gap-2" style="background: var(--card); border-color: var(--border)">
+  <% ['today','7d','30d','90d','all'].forEach(function(p){ %>
+    <a href="/operator/sales?preset=<%= p %>" class="px-3 py-1.5 rounded text-xs font-semibold"
+      style="background: <%= range.preset === p ? 'var(--primary)' : 'var(--background)' %>; color: <%= range.preset === p ? 'var(--primary-foreground)' : 'var(--muted-foreground)' %>; border: 1px solid var(--border)"><%= p === '7d' ? '7 days' : p === '30d' ? '30 days' : p === '90d' ? '90 days' : p %></a>
+  <% }) %>
+  <span style="color: var(--muted-foreground); font-size: 12px">|</span>
+  <form method="GET" action="/operator/sales" class="flex items-center gap-1 text-xs">
+    <input type="date" name="from" required value="<%= new Date(range.from * 1000).toISOString().slice(0,10) %>" />
+    <span style="color: var(--muted-foreground)">→</span>
+    <input type="date" name="to" required value="<%= new Date(range.to * 1000).toISOString().slice(0,10) %>" />
+    <button type="submit" class="px-2 py-1 rounded font-semibold" style="background: var(--secondary); color: var(--secondary-foreground); border: 1px solid var(--border)">Go</button>
+  </form>
+  <div class="ml-auto">
+    <a href="/operator/sales.csv?<%= range.preset === 'custom' ? 'from=' + new Date(range.from * 1000).toISOString().slice(0,10) + '&to=' + new Date(range.to * 1000).toISOString().slice(0,10) : 'preset=' + range.preset %>"
+      class="px-3 py-1.5 rounded text-xs font-semibold" style="background: var(--card); color: var(--foreground); border: 1px solid var(--border)">
+      Download CSV
+    </a>
+  </div>
+</div>
+
+<div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
   <div class="rounded-2xl border-2 p-4" style="background: var(--card); border-color: var(--border)">
-    <p class="text-[11px] uppercase tracking-wider" style="color: var(--muted-foreground)">Today's revenue</p>
-    <p class="text-3xl font-bold tabular-nums mt-1"><%= fmtPHP(todayRev) %></p>
-    <p class="text-xs mt-1" style="color: var(--muted-foreground)"><%= todayCount %> vouchers</p>
+    <p class="text-[11px] uppercase tracking-wider" style="color: var(--muted-foreground)">Range gross (<%= range.label %>)</p>
+    <p class="text-2xl font-bold tabular-nums mt-1"><%= fmtPHP(rangeRev) %></p>
+    <p class="text-xs mt-1" style="color: var(--muted-foreground)"><%= rangeCount %> vouchers</p>
   </div>
   <div class="rounded-2xl border-2 p-4" style="background: var(--card); border-color: var(--border)">
-    <p class="text-[11px] uppercase tracking-wider" style="color: var(--muted-foreground)">Lifetime</p>
-    <p class="text-3xl font-bold tabular-nums mt-1"><%= fmtPHP(lifetimeRev) %></p>
-    <% if (lifetimeRefunds > 0) { %><p class="text-xs mt-1" style="color: var(--destructive)">−<%= fmtPHP(lifetimeRefunds) %> refunded</p>
-    <% } else { %><p class="text-xs mt-1" style="color: var(--muted-foreground)">Net of refunds</p><% } %>
+    <p class="text-[11px] uppercase tracking-wider" style="color: var(--muted-foreground)">Commission (<%= balance.commission_pct.toFixed(0) %>%)</p>
+    <p class="text-2xl font-bold tabular-nums mt-1" style="color: var(--success)"><%= fmtPHP(rangeCommission) %></p>
+    <p class="text-xs mt-1" style="color: var(--muted-foreground)">your earnings in range</p>
+  </div>
+  <div class="rounded-2xl border-2 p-4" style="background: var(--card); border-color: var(--border)">
+    <p class="text-[11px] uppercase tracking-wider" style="color: var(--muted-foreground)">Today / Lifetime</p>
+    <p class="text-lg font-bold tabular-nums mt-1"><%= fmtPHP(todayRev) %> · <%= fmtPHP(lifetimeRev) %></p>
+    <p class="text-xs mt-1" style="color: var(--muted-foreground)"><%= todayCount %> today<% if (lifetimeRefunds > 0) { %> · −<%= fmtPHP(lifetimeRefunds) %> refunded<% } %></p>
   </div>
 </div>
 <section class="rounded-2xl border-2 p-4" style="background: var(--card); border-color: var(--border)">
