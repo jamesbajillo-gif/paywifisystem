@@ -97,6 +97,29 @@ function methodIconId(opt) {
 
 /* ------------------------------ branding ------------------------------ */
 
+function hydratePartnerWidget() {
+  // PARTNER-WIDGET-2026-06-03 — pull from /portal/config.partner (already
+  // loaded into state.config at boot). Reads partner_cta_text /
+  // partner_rollout_message / partner_availability_status / partner_contact_number
+  // settings — same data the admin /settings page edits.
+  try {
+    var p = (state.config && state.config.partner) || {};
+    var sub = $("partner-widget-sub");
+    var chip = $("partner-widget-chip");
+    var btn = $("partner-widget");
+    if (!btn) return;
+    if (sub) sub.textContent = (p.cta_text || "Become a PAYWIFI Partner").trim();
+    if (chip && p.availability_status) {
+      chip.textContent = p.availability_status;
+      chip.classList.remove("hidden");
+    }
+    // aria-label includes the rollout message so screen readers get the full pitch
+    if (p.rollout_message) {
+      btn.setAttribute("aria-label", "Partner with us — " + p.rollout_message);
+    }
+  } catch (e) { /* widget hydration is non-critical */ }
+}
+
 function applyBranding() {
   const c = state.config || {};
   const portalName = (c.branding && c.branding.portal_name) || (c.app && c.app.name) || "PAYWIFI";
@@ -1491,6 +1514,7 @@ async function boot() {
     state.paymentOptions = (pos && pos.options) || [];
     state.storePartners = (cfg && (cfg.partners || cfg.store_partners)) || [];
     applyBranding();
+    hydratePartnerWidget();
   } catch (e) { console.warn("[boot] config load failed:", e); }
 
   // CONFIRM-LOCK-2026-05-31 — if the device has an active pending payment
@@ -1596,6 +1620,18 @@ document.addEventListener("DOMContentLoaded", () => {
   $("no-voucher-btn").addEventListener("click", showPlans);
   $("ads-widget").addEventListener("click", () => {
     window.location.href = "mailto:ads@example.com?subject=Ad%20slot%20inquiry";
+  });
+  // PARTNER-WIDGET-2026-06-03 — prefer tel: to partner.contact_number, fall back to mailto.
+  $("partner-widget").addEventListener("click", () => {
+    var p = (state.config && state.config.partner) || {};
+    var num = String(p.contact_number || "").replace(/[^\d+]/g, "");
+    if (num) {
+      window.location.href = "tel:" + num;
+    } else if (p.contact_email) {
+      window.location.href = "mailto:" + p.contact_email + "?subject=PAYWIFI%20Partner%20inquiry";
+    } else {
+      window.location.href = "/partner/login";
+    }
   });
   $("plans-close").addEventListener("click", showHome);
   $("plans-back").addEventListener("click", (e) => { e.preventDefault(); showHome(); });
