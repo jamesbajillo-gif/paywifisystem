@@ -32,17 +32,17 @@ module.exports = function blockPublicPayments(req, res, next) {
 
   const hosts = loadHosts();
   if (hosts.has(host)) {
-    const friendly = "You're on the public PAYWIFI site — payments can only be processed " +
-                     "while you're connected to our hotspot WiFi. " +
-                     "This is for your security and transaction protection: connecting through " +
-                     "PAYWIFI lets us authorize, validate, and route your payment safely. " +
-                     "Please join the PAYWIFI WiFi and try again.";
+    const friendly =
+      "Payments aren't available from this address. " +
+      "To buy a voucher, please connect to the PAYWIFI hotspot WiFi and open the captive portal. " +
+      "Connecting through PAYWIFI lets us authorize, validate, and route your payment safely.";
     return res.status(403).json({
       ok: false,
       code: 'NON_LAN_HOST',
+      host: host,
       error: friendly,
       message: friendly,
-      help: 'Look for the PAYWIFI network in your phone\'s WiFi settings, connect, then re-open this page.',
+      help: "Look for the PAYWIFI network in your phone's WiFi settings, connect, then re-open this page.",
       action: { label: 'How to connect', url: '/partner-faq.html' }
     });
   }
