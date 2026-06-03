@@ -86,10 +86,6 @@ server {
         add_header Cache-Control "max-age=86400, public";
     }
 
-    location = /partner-faq.html      { root /opt/paywifi/portal; }
-    location = /terms-partner.html    { root /opt/paywifi/portal; }
-    location = /privacy-partner.html  { root /opt/paywifi/portal; }
-    location = /op-auth.css           { root /opt/paywifi/portal; }
 
     location ^~ /hotspot-detect.html {
         proxy_set_header X-Real-IP $remote_addr;
@@ -189,6 +185,11 @@ server {
     set_real_ip_from 197.234.240.0/22;
     set_real_ip_from 198.41.128.0/17;
     real_ip_header CF-Connecting-IP;
+
+    location = /partner-faq.html      { root /opt/paywifi/portal; }
+    location = /terms-partner.html    { root /opt/paywifi/portal; }
+    location = /privacy-partner.html  { root /opt/paywifi/portal; }
+    location = /op-auth.css           { root /opt/paywifi/portal; }
 
     location ^~ /hotspot-detect.html {
         proxy_set_header X-Real-IP $remote_addr;

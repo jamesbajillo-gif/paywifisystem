@@ -6,9 +6,11 @@ const db = require('../db');
 //   (gross paid Cash revenue for the store) × (1 − commission_pct / 100)
 //   − sum of approved remittances
 function computeOwed(partnerId) {
-  const op = db.prepare("SELECT commission_pct FROM partners WHERE id=?").get(partnerId);
-  if (!op) return { gross: 0, commission: 0, owed_before_remit: 0, remitted: 0, outstanding: 0, commission_pct: 0 };
-  const pct = op.commission_pct || 0;
+  const p = db.prepare("SELECT id FROM partners WHERE id=?").get(partnerId);
+  if (!p) return { gross: 0, commission: 0, owed_before_remit: 0, remitted: 0, outstanding: 0, commission_pct: 0, remit_pct: 0 };
+  const compliance = require('./compliance');
+  const pct      = compliance.commissionPct();
+  const remitPct = compliance.remitPct();
 
   const r = db.prepare(
     "SELECT COALESCE(SUM(amount),0) AS gross, COUNT(*) AS paid_count " +
