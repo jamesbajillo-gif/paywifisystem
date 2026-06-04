@@ -279,10 +279,18 @@ function hydratePortalSidebarWidgets() {
     var lnReplay = $("live-news-replay");
     var lnChannel= $("live-news-channel");
     var lnNow    = $("live-news-now");
-    var lnUnmute = $("live-news-unmute");
-    var lnPrev   = $("live-news-prev");
-    var lnNext   = $("live-news-next");
-    var lnError  = $("live-news-error");
+    var lnFrame   = $("live-news-frame");
+    var lnSpinner = $("live-news-spinner");
+    var lnPlayBtn = $("live-news-playpause");
+    var lnPlayBtnIcon = $("live-news-playpause-icon");
+    var lnIconPlay  = $("live-news-icon-play");
+    var lnIconPause = $("live-news-icon-pause");
+    var lnMuteBtn = $("live-news-muteicon");
+    var lnIconSoundOn  = $("live-news-icon-sound-on");
+    var lnIconSoundOff = $("live-news-icon-sound-off");
+    var lnPrev    = $("live-news-prev");
+    var lnNext    = $("live-news-next");
+    var lnError   = $("live-news-error");
 
     if (lnCard) {
       var sources = (ln && Array.isArray(ln.sources_full)) ? ln.sources_full : (ln && ln.stream ? [ln.stream] : []);
@@ -305,6 +313,29 @@ function hydratePortalSidebarWidgets() {
           var cur = playable[state.liveNewsIdx];
           if (!cur) return;
           state.liveNewsCurrentKey = cur.source_key;
+        // CUSTOM-PLAYER-2026-06-04 — render mute icon + brief play-icon flash
+        function syncMuteIcon() {
+          if (!lnMuteBtn) return;
+          var muted = lnVid && lnVid.muted;
+          if (lnIconSoundOn)  lnIconSoundOn.classList.toggle("hidden", muted);
+          if (lnIconSoundOff) lnIconSoundOff.classList.toggle("hidden", !muted);
+          lnMuteBtn.classList.remove("hidden");
+        }
+        function flashCenterIcon(showPause) {
+          if (!lnPlayBtnIcon) return;
+          if (lnIconPlay)  lnIconPlay.classList.toggle("hidden",  showPause);
+          if (lnIconPause) lnIconPause.classList.toggle("hidden", !showPause);
+          lnPlayBtnIcon.classList.remove("hidden");
+          lnPlayBtnIcon.style.display = "flex";
+          clearTimeout(window.__pwLiveIconTimer);
+          window.__pwLiveIconTimer = setTimeout(function(){
+            lnPlayBtnIcon.style.display = "none";
+          }, 700);
+        }
+        function setSpinner(busy) {
+          if (!lnSpinner) return;
+          lnSpinner.classList.toggle("hidden", !busy);
+        }
 
           // Thumbnail (poster) — refreshes per channel switch
           if (lnThumb) {
@@ -364,9 +395,8 @@ function hydratePortalSidebarWidgets() {
               if (lnVid.canPlayType("application/vnd.apple.mpegurl")) {
                 lnVid.src = url;
                 lnVid.play().catch(function(err){
-                  // Autoplay-with-sound rejected → fall back to muted + show unmute overlay
                   try { lnVid.muted = true; lnVid.play().catch(function(){}); } catch (e) {}
-                  if (lnUnmute) lnUnmute.classList.remove("hidden");
+                  syncMuteIcon();
                 });
                 return;
               }
@@ -378,9 +408,8 @@ function hydratePortalSidebarWidgets() {
                   hls.attachMedia(lnVid);
                   hls.on(window.Hls.Events.MANIFEST_PARSED, function(){
                     lnVid.play().catch(function(err){
-                      // Autoplay-with-sound rejected → fall back to muted + show unmute overlay
                       try { lnVid.muted = true; lnVid.play().catch(function(){}); } catch (e) {}
-                      if (lnUnmute) lnUnmute.classList.remove("hidden");
+                      syncMuteIcon();
                     });
                   });
                   hls.on(window.Hls.Events.ERROR, function(_, data){
@@ -403,8 +432,20 @@ function hydratePortalSidebarWidgets() {
               }
             }
             attachHlsFor(cur.hls_url);
-            // Hide thumbnail once playback starts
-            lnVid.onplaying = function() { if (lnThumb) lnThumb.style.display = "none"; };
+            // Hide thumbnail when playback actually starts; wire spinner; sync mute icon.
+            lnVid.onplaying = function() {
+              if (lnThumb) lnThumb.style.display = "none";
+              setSpinner(false);
+              syncMuteIcon();
+            };
+            lnVid.onwaiting = function(){ setSpinner(true); };
+            lnVid.oncanplay = function(){ setSpinner(false); };
+            lnVid.onstalled = function(){ setSpinner(true); };
+            lnVid.onvolumechange = syncMuteIcon;
+            lnVid.onpause = function(){ if (!lnVid.ended) flashCenterIcon(false); };
+            lnVid.onplay  = function(){ flashCenterIcon(true); };
+            setSpinner(true);
+            syncMuteIcon();
           }
         };
         paint();
@@ -419,7 +460,6 @@ function hydratePortalSidebarWidgets() {
           // then explicitly unmute + play after the HLS attach has settled.
           state.liveNewsUserInteracted = true;
           paint();
-          if (lnUnmute) lnUnmute.classList.add("hidden");
           // Force unmute on the freshly-attached video (paint() reset muted to false
           // already because userInteracted is now true, but this guarantees it).
           try {
@@ -432,21 +472,40 @@ function hydratePortalSidebarWidgets() {
         if (lnPrev) lnPrev.onclick = function(e){ e.preventDefault(); e.stopPropagation(); cycleBy(-1); };
         if (lnNext) lnNext.onclick = function(e){ e.preventDefault(); e.stopPropagation(); cycleBy(1); };
 
-        // Tap-to-unmute (any first user gesture on the page) — same as before
-        function unmuteNow() {
+        // CUSTOM-PLAYER-2026-06-04 — tap-to-toggle play/pause; mute icon toggles independently.
+        function togglePlay() {
           state.liveNewsUserInteracted = true;
-          try { lnVid.muted = false; lnVid.volume = 1.0; lnVid.play().catch(function(){}); } catch (e) {}
-          if (lnUnmute) lnUnmute.classList.add("hidden");
-          document.removeEventListener("click", unmuteOnce, true);
-          document.removeEventListener("touchstart", unmuteOnce, true);
+          try {
+            if (lnVid.paused || lnVid.ended) { lnVid.play().catch(function(){}); }
+            else { lnVid.pause(); }
+          } catch (e) {}
         }
-        function unmuteOnce() { unmuteNow(); }
-        if (lnUnmute) lnUnmute.addEventListener("click", function(e){ e.preventDefault(); e.stopPropagation(); unmuteNow(); });
+        function toggleMute() {
+          state.liveNewsUserInteracted = true;
+          try {
+            lnVid.muted = !lnVid.muted;
+            if (!lnVid.muted) lnVid.volume = 1.0;
+            var pp = lnVid.play(); if (pp && pp.catch) pp.catch(function(){});
+          } catch (e) {}
+          syncMuteIcon();
+        }
+        if (lnPlayBtn) lnPlayBtn.onclick = function(e){ e.preventDefault(); e.stopPropagation(); togglePlay(); };
+        if (lnMuteBtn) lnMuteBtn.onclick = function(e){ e.preventDefault(); e.stopPropagation(); toggleMute(); };
+        // Background unmute hook — first gesture anywhere unmutes (mobile autoplay policy)
         if (!state.__lnUnmuteHooked) {
           state.__lnUnmuteHooked = true;
+          var unmuteOnce = function(){
+            state.liveNewsUserInteracted = true;
+            try { if (lnVid.muted) { lnVid.muted = false; lnVid.volume = 1.0; lnVid.play().catch(function(){}); } } catch (e) {}
+            syncMuteIcon();
+            document.removeEventListener("click", unmuteOnce, true);
+            document.removeEventListener("touchstart", unmuteOnce, true);
+          };
           document.addEventListener("click", unmuteOnce, { capture: true, once: true });
           document.addEventListener("touchstart", unmuteOnce, { capture: true, once: true });
         }
+        // Neuter media keyboard shortcuts on this video (browsers normally pass them through)
+        lnVid.addEventListener("keydown", function(e){ e.preventDefault(); }, true);
 
         // Real-time clock — single global interval
         function pwLiveTick() {

@@ -102,11 +102,14 @@
 
         <div id="live-news-widget"
           class="hidden w-full rounded-2xl border-2 border-border bg-card overflow-hidden min-w-0">
-          <div class="relative w-full bg-black aspect-video">
+          <div class="relative w-full bg-black aspect-video select-none" oncontextmenu="return false" id="live-news-frame">
             <!-- HLS-rendered video element (fills the frame) -->
             <video id="live-news-video"
-              class="absolute inset-0 w-full h-full object-cover bg-black"
-              playsinline muted autoplay></video>
+              class="absolute inset-0 w-full h-full object-cover bg-black select-none"
+              playsinline muted autoplay
+              disablepictureinpicture
+              controlsList="nodownload noplaybackrate nofullscreen noremoteplayback"
+              oncontextmenu="return false"></video>
             <!-- thumbnail shown until HLS attaches (poster fallback) -->
             <img id="live-news-thumb" alt="" class="absolute inset-0 w-full h-full object-cover pointer-events-none" />
             <!-- status badge — top-left -->
@@ -120,6 +123,24 @@
               <span id="live-news-replay" class="hidden inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500 text-black">REPLAY</span>
             </div>
             <!-- tap-to-unmute overlay (shown while muted; hides on first tap) -->
+            <!-- buffering spinner -->
+            <div id="live-news-spinner" class="hidden absolute inset-0 z-30 flex items-center justify-center pointer-events-none">
+              <span class="h-10 w-10 rounded-full border-4 border-white/30 border-t-white animate-spin"></span>
+            </div>
+            <!-- center play / pause tap target -->
+            <button id="live-news-playpause" type="button" aria-label="Play or pause"
+              class="absolute inset-0 z-10 flex items-center justify-center focus:outline-none">
+              <span id="live-news-playpause-icon" class="hidden h-16 w-16 rounded-full bg-black/60 text-white items-center justify-center backdrop-blur">
+                <svg id="live-news-icon-play" viewBox="0 0 24 24" class="h-8 w-8 ml-1" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                <svg id="live-news-icon-pause" viewBox="0 0 24 24" class="hidden h-8 w-8" fill="currentColor"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>
+              </span>
+            </button>
+            <!-- bottom-right mute toggle -->
+            <button id="live-news-muteicon" type="button" aria-label="Mute or unmute"
+              class="hidden absolute bottom-2 right-2 z-20 h-10 w-10 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center backdrop-blur transition-colors">
+              <svg id="live-news-icon-sound-on" viewBox="0 0 24 24" class="h-5 w-5" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05A4.5 4.5 0 0 0 16.5 12z"/></svg>
+              <svg id="live-news-icon-sound-off" viewBox="0 0 24 24" class="hidden h-5 w-5" fill="currentColor"><path d="M16.5 12A4.5 4.5 0 0 0 14 7.97v2.21l2.45 2.45c.03-.2.05-.41.05-.63zM19 12c0 .94-.2 1.82-.54 2.64l1.51 1.51A8.96 8.96 0 0 0 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.17v2.06a8.99 8.99 0 0 0 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>
+            </button>
             <!-- channel navigation arrows -->
             <button id="live-news-prev" type="button" aria-label="Previous channel"
               class="hidden absolute top-1/2 -translate-y-1/2 left-2 z-20 h-10 w-10 rounded-full bg-black/55 hover:bg-black/75 text-white flex items-center justify-center backdrop-blur transition-colors">
@@ -129,13 +150,7 @@
               class="hidden absolute top-1/2 -translate-y-1/2 right-2 z-20 h-10 w-10 rounded-full bg-black/55 hover:bg-black/75 text-white flex items-center justify-center backdrop-blur transition-colors">
               <svg viewBox="0 0 24 24" class="h-5 w-5" fill="currentColor"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
             </button>
-            <button id="live-news-unmute" type="button" aria-label="Tap for sound"
-              class="absolute inset-0 flex items-center justify-center bg-black/30 hover:bg-black/40 transition-colors">
-              <span class="rounded-full bg-white/90 text-black px-4 h-12 flex items-center gap-2 shadow-2xl text-sm font-bold uppercase tracking-wider">
-                <svg viewBox="0 0 24 24" class="h-5 w-5" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05A4.5 4.5 0 0 0 16.5 12z"/></svg>
-                Tap for sound
-              </span>
-            </button>
+
             <!-- fallback error message -->
             <div id="live-news-error" class="hidden absolute inset-0 flex flex-col items-center justify-center bg-black/70 text-white text-sm gap-2 p-4 text-center">
               <svg viewBox="0 0 24 24" class="h-8 w-8 opacity-70" fill="currentColor"><path d="M12 2L1 21h22L12 2zm0 5l7.53 13H4.47L12 7zm-1 6h2v2h-2v-2zm0-4h2v3h-2V9z"/></svg>
