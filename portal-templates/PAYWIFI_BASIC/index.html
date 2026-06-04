@@ -13,6 +13,11 @@
   <script src="/qr.js"></script>
   <link rel="stylesheet" href="/app.css" />
   <link rel="icon" href="data:," />
+  <style>
+    /* BADGE-FADE-2026-06-04 — channel/status badges fade after 5s of stillness */
+    .pw-fade { transition: opacity 400ms ease-out; opacity: 1; }
+    .pw-fade.pw-fade-out { opacity: 0; pointer-events: none; }
+  </style>
 </head>
 <body>
   <!-- icon defs injected by app.js from /icons.svg -->
@@ -113,13 +118,13 @@
             <!-- thumbnail shown until HLS attaches (poster fallback) -->
             <img id="live-news-thumb" alt="" class="absolute inset-0 w-full h-full object-cover pointer-events-none" />
             <!-- status badge — top-left -->
-            <span id="live-news-status" class="absolute top-2 left-2 inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider backdrop-blur bg-rose-600 text-white">
+            <span id="live-news-status" class="pw-fade absolute top-2 left-2 z-10 inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider backdrop-blur bg-rose-600 text-white">
               <span class="h-1.5 w-1.5 rounded-full bg-white animate-pulse" aria-hidden="true"></span>
               <span id="live-news-status-text">LIVE</span>
             </span>
             <!-- channel name badge — top-right -->
             <div class="absolute top-2 right-2 z-10 flex flex-col items-end gap-1">
-              <span id="live-news-channel" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider backdrop-blur bg-black/55 text-white border border-white/15">GMA News</span>
+              <span id="live-news-channel" class="pw-fade inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider backdrop-blur bg-black/55 text-white border border-white/15">GMA News</span>
               <span id="live-news-replay" class="hidden inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500 text-black">REPLAY</span>
             </div>
             <!-- tap-to-unmute overlay (shown while muted; hides on first tap) -->

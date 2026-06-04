@@ -278,6 +278,25 @@ def main():
         thumbnail_url = meta.get('thumbnail') or (pick.get('thumbnails') or [{}])[-1].get('url')
         if not thumbnail_url and video_id:
             thumbnail_url = f'https://i.ytimg.com/vi/{video_id}/maxresdefault.jpg'
+        # THUMB-CACHE-2026-06-04 — download to local cache so the portal can
+        # serve from /media/livethumbs/ and never leak i.ytimg.com URLs.
+        if thumbnail_url:
+            try:
+                import urllib.request, ssl
+                target = f'/opt/paywifi/portal/media/livethumbs/{source_key}.jpg'
+                req = urllib.request.Request(thumbnail_url, headers={'User-Agent': 'Mozilla/5.0'})
+                with urllib.request.urlopen(req, timeout=10, context=ssl.create_default_context()) as r:
+                    data = r.read()
+                # If maxres returned 404, fall back to hqdefault
+                if len(data) < 1000 and video_id:
+                    fb = f'https://i.ytimg.com/vi/{video_id}/hqdefault.jpg'
+                    with urllib.request.urlopen(urllib.request.Request(fb, headers={'User-Agent':'Mozilla/5.0'}), timeout=10) as r2:
+                        data = r2.read()
+                with open(target, 'wb') as f:
+                    f.write(data)
+                thumbnail_url = f'/media/livethumbs/{source_key}.jpg'
+            except Exception as _e:
+                log(f'thumb_download_fail: {_e}')
         view_count = meta.get('view_count') or pick.get('view_count')
         duration_sec = meta.get('duration') or pick.get('duration')
         channel_name = channel_name or meta.get('channel')

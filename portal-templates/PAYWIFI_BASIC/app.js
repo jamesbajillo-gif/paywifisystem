@@ -295,7 +295,7 @@ function hydratePortalSidebarWidgets() {
     if (lnCard) {
       var sources = (ln && Array.isArray(ln.sources_full)) ? ln.sources_full : (ln && ln.stream ? [ln.stream] : []);
       // Only sources that we can actually play (need hls_url) are part of the nav cycle.
-      var playable = sources.filter(function(s){ return s && s.hls_url; });
+      var playable = sources.filter(function(s){ return s && s.has_stream; });
       // If no playable sources, fall back to the picked stream (metadata only).
       if (!playable.length && ln && ln.stream) playable = [ln.stream];
       if (ln && ln.enabled !== false && playable.length) {
@@ -313,7 +313,20 @@ function hydratePortalSidebarWidgets() {
           var cur = playable[state.liveNewsIdx];
           if (!cur) return;
           state.liveNewsCurrentKey = cur.source_key;
-        // CUSTOM-PLAYER-2026-06-04 — render mute icon + brief play-icon flash
+        // BADGE-FADE-2026-06-04 — show channel + status briefly, then fade out.
+        function showBadges() {
+          [lnChannel, lnStatus].forEach(function(el){
+            if (!el) return;
+            el.classList.remove("pw-fade-out");
+          });
+          clearTimeout(window.__pwLiveBadgeFadeTimer);
+          window.__pwLiveBadgeFadeTimer = setTimeout(function(){
+            [lnChannel, lnStatus].forEach(function(el){
+              if (el) el.classList.add("pw-fade-out");
+            });
+          }, 5000);
+        }
+                // CUSTOM-PLAYER-2026-06-04 — render mute icon + brief play-icon flash
         function syncMuteIcon() {
           if (!lnMuteBtn) return;
           var muted = lnVid && lnVid.muted;
@@ -376,6 +389,7 @@ function hydratePortalSidebarWidgets() {
           // Arrow visibility (only show if there is more than one channel to switch to)
           if (lnPrev) lnPrev.classList.toggle("hidden", playable.length < 2);
           if (lnNext) lnNext.classList.toggle("hidden", playable.length < 2);
+          showBadges();
 
           // Attach HLS
           if (lnError) lnError.classList.add("hidden");
@@ -504,7 +518,7 @@ function hydratePortalSidebarWidgets() {
           } catch (e) {}
           syncMuteIcon();
         }
-        if (lnPlayBtn) lnPlayBtn.onclick = function(e){ e.preventDefault(); e.stopPropagation(); togglePlay(); };
+        if (lnPlayBtn) lnPlayBtn.onclick = function(e){ e.preventDefault(); e.stopPropagation(); togglePlay(); showBadges(); };
         if (lnMuteBtn) lnMuteBtn.onclick = function(e){ e.preventDefault(); e.stopPropagation(); toggleMute(); };
         // Background unmute hook — first gesture anywhere unmutes (mobile autoplay policy)
         if (!state.__lnUnmuteHooked) {
@@ -559,7 +573,7 @@ function hydratePortalSidebarWidgets() {
               }
               if (!lnNew) return;
               // Find the currently shown channel in the new list. If gone, keep showing the cached state.
-              var newPlayable = (lnNew.sources_full || []).filter(function(s){ return s && s.hls_url; });
+              var newPlayable = (lnNew.sources_full || []).filter(function(s){ return s && s.has_stream; });
               if (!newPlayable.length) return;
               var keepIdx = -1;
               if (state.liveNewsCurrentKey) {
