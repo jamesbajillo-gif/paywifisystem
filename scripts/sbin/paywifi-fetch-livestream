@@ -15,8 +15,10 @@ import json, re, subprocess, sqlite3, sys, time, os, traceback
 DB = '/var/lib/paywifi/paywifi.db'
 LOG = '/var/log/paywifi/livestream-fetch.log'
 
-LIVE_PREFIX_RE = re.compile(r'^\s*LIVE\s*[\-–—]', re.UNICODE)
-REPLAY_RE      = re.compile(r'\breplay\b', re.IGNORECASE)
+# Title patterns are passed in by the systemd unit. The default mirrors the
+# legacy GMA News behaviour so the old CLI invocation still works.
+DEFAULT_PATTERN = r'^\s*LIVE\s*[\-–—]'
+REPLAY_RE       = re.compile(r'\breplay\b', re.IGNORECASE)
 
 def log(msg):
     os.makedirs(os.path.dirname(LOG), exist_ok=True)
@@ -60,10 +62,26 @@ def clean_title(t):
     return t.split('|', 1)[0].strip()
 
 def main():
-    if len(sys.argv) < 3:
-        print('Usage: paywifi-fetch-livestream <source_key> <channel_url>', file=sys.stderr)
+    # Parse argv: <source_key> <channel_url> [--title-pattern <regex>]
+    args = list(sys.argv[1:])
+    pattern_str = DEFAULT_PATTERN
+    if '--title-pattern' in args:
+        i = args.index('--title-pattern')
+        try:
+            pattern_str = args[i + 1]
+        except IndexError:
+            print('Usage: paywifi-fetch-livestream <source_key> <channel_url> [--title-pattern <regex>]', file=sys.stderr)
+            sys.exit(2)
+        del args[i:i+2]
+    if len(args) < 2:
+        print('Usage: paywifi-fetch-livestream <source_key> <channel_url> [--title-pattern <regex>]', file=sys.stderr)
         sys.exit(2)
-    source_key, channel_url = sys.argv[1], sys.argv[2]
+    source_key, channel_url = args[0], args[1]
+    try:
+        title_re = re.compile(pattern_str, re.UNICODE)
+    except re.error as e:
+        print(f'Invalid --title-pattern regex: {e}', file=sys.stderr)
+        sys.exit(2)
     now = int(time.time())
 
     # CADENCE-THROTTLE-2026-06-04 — only re-fetch when live (≤60s cadence) OR
@@ -100,7 +118,7 @@ def main():
         log(f'fetched {len(entries)} entries')
         for e in entries:
             title = (e.get('title') or '').strip()
-            if LIVE_PREFIX_RE.match(title):
+            if title_re.match(title):
                 pick = e
                 break
         if pick is None:

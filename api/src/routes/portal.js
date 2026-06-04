@@ -223,16 +223,28 @@ router.get('/config', (req, res) => {
     const lnw = widgets.find(w => w.type === 'live_news');
     if (lnw) {
       try {
-        const sk = lnw.source_key || 'gmanews2026';
-        const row = db.prepare(
-          "SELECT video_id, original_title, display_title, has_replay, live_status, " +
+        // LIVE-PICKER-2026-06-04 — multi-source resolver. Pulls every cached
+        // row, ranks by live_status (is_live first), then by fetched_at desc.
+        // Lets a single live_news widget surface whichever configured channel
+        // is currently broadcasting; freshness tiebreaks.
+        const rows = db.prepare(
+          "SELECT source_key, video_id, original_title, display_title, has_replay, live_status, " +
           "published_at, release_at, thumbnail_url, view_count, duration_sec, channel_name, " +
-          "fetched_at, fetch_error, hls_url, hls_expire_at FROM live_stream_cache WHERE source_key=?"
-        ).get(sk);
-        // LIVE-PLAY-2026-06-04 — HLS manifest passed to all clients so the
-        // captive portal can autoplay the stream. The walled-garden auto-allowlist
-        // for *.googlevideo.com (dnsmasq nftset) handles the actual CDN reachability.
-        lnw.stream = row || null;
+          "fetched_at, fetch_error, hls_url, hls_expire_at FROM live_stream_cache"
+        ).all();
+        const STATUS_RANK = { is_live: 0, post_live: 1, was_live: 2, is_upcoming: 3, not_live: 4, unknown: 5 };
+        rows.sort((a, b) => {
+          const ra = STATUS_RANK[a.live_status] != null ? STATUS_RANK[a.live_status] : 99;
+          const rb = STATUS_RANK[b.live_status] != null ? STATUS_RANK[b.live_status] : 99;
+          if (ra !== rb) return ra - rb;
+          return (b.fetched_at || 0) - (a.fetched_at || 0);
+        });
+        lnw.stream = rows[0] || null;
+        lnw.sources_available = rows.map(r => ({
+          source_key: r.source_key,
+          live_status: r.live_status,
+          channel_name: r.channel_name
+        }));
       } catch (e) { lnw.stream = null; }
     }
   })();
