@@ -365,7 +365,13 @@ function hydratePortalSidebarWidgets() {
           // Attach HLS
           if (lnError) lnError.classList.add("hidden");
           if (lnVid && cur.hls_url) {
-            lnVid.muted = true; lnVid.autoplay = true; lnVid.playsInline = true;
+            // SOUND-ON-DEFAULT-2026-06-04 — try unmuted autoplay first. If the
+            // browser blocks it (no prior user gesture), fall back to muted + unmute overlay.
+            var startMuted = !state.liveNewsUserInteracted;
+            lnVid.muted = startMuted;
+            lnVid.autoplay = true;
+            lnVid.playsInline = true;
+            lnVid.volume = 1.0;
             // Tear down previous hls.js instance before reattaching
             try { if (window.__pwHls) { window.__pwHls.destroy(); window.__pwHls = null; } } catch (e) {}
 
@@ -373,7 +379,11 @@ function hydratePortalSidebarWidgets() {
               // Native HLS path (Safari/iOS)
               if (lnVid.canPlayType("application/vnd.apple.mpegurl")) {
                 lnVid.src = url;
-                lnVid.play().catch(function(){});
+                lnVid.play().catch(function(err){
+                  // Autoplay-with-sound rejected → fall back to muted + show unmute overlay
+                  try { lnVid.muted = true; lnVid.play().catch(function(){}); } catch (e) {}
+                  if (lnUnmute) lnUnmute.classList.remove("hidden");
+                });
                 return;
               }
               function go() {
@@ -383,7 +393,11 @@ function hydratePortalSidebarWidgets() {
                   hls.loadSource(url);
                   hls.attachMedia(lnVid);
                   hls.on(window.Hls.Events.MANIFEST_PARSED, function(){
-                    lnVid.play().catch(function(){});
+                    lnVid.play().catch(function(err){
+                      // Autoplay-with-sound rejected → fall back to muted + show unmute overlay
+                      try { lnVid.muted = true; lnVid.play().catch(function(){}); } catch (e) {}
+                      if (lnUnmute) lnUnmute.classList.remove("hidden");
+                    });
                   });
                   hls.on(window.Hls.Events.ERROR, function(_, data){
                     if (data && data.fatal) {
@@ -416,14 +430,27 @@ function hydratePortalSidebarWidgets() {
           if (!playable.length) return;
           state.liveNewsIdx = ((state.liveNewsIdx + delta) % playable.length + playable.length) % playable.length;
           state.liveNewsLocked = true;
+          // SOUND-ON-DEFAULT-2026-06-04 — prev/next click is a user gesture, so
+          // we can autoplay with sound on the new channel. Mark the flag, repaint,
+          // then explicitly unmute + play after the HLS attach has settled.
+          state.liveNewsUserInteracted = true;
           paint();
-          if (lnUnmute) lnUnmute.classList.remove("hidden");
+          if (lnUnmute) lnUnmute.classList.add("hidden");
+          // Force unmute on the freshly-attached video (paint() reset muted to false
+          // already because userInteracted is now true, but this guarantees it).
+          try {
+            lnVid.muted = false;
+            lnVid.volume = 1.0;
+            var pp = lnVid.play();
+            if (pp && pp.catch) pp.catch(function(){});
+          } catch (e) {}
         }
         if (lnPrev) lnPrev.onclick = function(e){ e.preventDefault(); e.stopPropagation(); cycleBy(-1); };
         if (lnNext) lnNext.onclick = function(e){ e.preventDefault(); e.stopPropagation(); cycleBy(1); };
 
         // Tap-to-unmute (any first user gesture on the page) — same as before
         function unmuteNow() {
+          state.liveNewsUserInteracted = true;
           try { lnVid.muted = false; lnVid.volume = 1.0; lnVid.play().catch(function(){}); } catch (e) {}
           if (lnUnmute) lnUnmute.classList.add("hidden");
           document.removeEventListener("click", unmuteOnce, true);
