@@ -175,6 +175,31 @@ server {
         proxy_set_header   X-Forwarded-Proto $http_x_forwarded_proto;
         proxy_read_timeout 30s;
     }
+    # HARDEN-2026-06-03 — brute-force resistance on voucher redeem.
+    location ^~ /api/auth/voucher {
+        limit_req  zone=req_voucher burst=5 nodelay;
+        limit_conn conn_perip 50;
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+        proxy_pass         http://127.0.0.1:3000/auth/voucher;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $http_x_forwarded_proto;
+        proxy_read_timeout 30s;
+    }
+    location ^~ /api/portal/auth/voucher {
+        limit_req  zone=req_voucher burst=5 nodelay;
+        limit_conn conn_perip 50;
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+        proxy_pass         http://127.0.0.1:3000/portal/auth/voucher;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $http_x_forwarded_proto;
+        proxy_read_timeout 30s;
+    }
     location /api/ {
         limit_req  zone=req_api burst=40 nodelay;
         limit_conn conn_perip 50;
@@ -344,6 +369,31 @@ server {
         proxy_read_timeout 30s;
     }
 
+    # HARDEN-2026-06-03 — brute-force resistance on voucher redeem.
+    location ^~ /api/auth/voucher {
+        limit_req  zone=req_voucher burst=5 nodelay;
+        limit_conn conn_perip 50;
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+        proxy_pass         http://127.0.0.1:3000/auth/voucher;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $http_x_forwarded_proto;
+        proxy_read_timeout 30s;
+    }
+    location ^~ /api/portal/auth/voucher {
+        limit_req  zone=req_voucher burst=5 nodelay;
+        limit_conn conn_perip 50;
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+        proxy_pass         http://127.0.0.1:3000/portal/auth/voucher;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $http_x_forwarded_proto;
+        proxy_read_timeout 30s;
+    }
     location /api/ {
         # HARDEN-2026-05-31 — Per-source request + connection caps.
         limit_req  zone=req_api burst=40 nodelay;
