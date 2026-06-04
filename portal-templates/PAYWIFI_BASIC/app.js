@@ -332,6 +332,25 @@ function hydratePortalSidebarWidgets() {
         if (!window.__pwLiveTickTimer) {
           window.__pwLiveTickTimer = setInterval(pwLiveTick, 1000);
         }
+        // LIVE-STATUS-POLL-2026-06-04 — re-fetch /portal/config every 30s so a
+        // live-stream transition (LIVE → REPLAY when GMA ends the broadcast)
+        // surfaces on the captive portal without waiting for the 60s worker tick.
+        if (!window.__pwLiveStatusPollTimer) {
+          window.__pwLiveStatusPollTimer = setInterval(function(){
+            fetch("/api/portal/config", { cache: "no-store" }).then(function(r){ return r.json(); }).then(function(cfg){
+              if (!cfg || !cfg.widgets) return;
+              for (var i=0;i<cfg.widgets.length;i++) {
+                var w = cfg.widgets[i];
+                if (w.type === "live_news") {
+                  state.config.widgets = cfg.widgets; // mutate so findWidget sees fresh data
+                  // Re-trigger the live-news block by calling hydrate again
+                  if (typeof hydratePortalSidebarWidgets === "function") hydratePortalSidebarWidgets();
+                  return;
+                }
+              }
+            }).catch(function(){});
+          }, 30000);
+        }
       } else {
         lnCard.classList.add("hidden");
       }

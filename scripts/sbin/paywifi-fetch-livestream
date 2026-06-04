@@ -24,11 +24,21 @@ def log(msg):
         f.write(time.strftime('%F %T ') + msg + '\n')
 
 def run_ytdlp(url, timeout=45):
-    return subprocess.run(
-        ['yt-dlp', '--flat-playlist', '--dump-single-json', '--no-download',
-         '--playlist-end', '40', url],
-        capture_output=True, timeout=timeout, check=True
-    )
+    import random
+    last_err = None
+    for attempt in range(2):
+        try:
+            return subprocess.run(
+                ['yt-dlp', '--flat-playlist', '--dump-single-json', '--no-download',
+                 '--playlist-end', '40', url],
+                capture_output=True, timeout=timeout, check=True
+            )
+        except (subprocess.TimeoutExpired, subprocess.CalledProcessError) as e:
+            last_err = e
+            if attempt == 0:
+                time.sleep(2.0 + random.uniform(0, 1.5))  # jittered retry
+                continue
+            raise
 
 def probe_one(video_id, timeout=30):
     """Probe a single video for current live_status + release_timestamp."""
@@ -54,9 +64,30 @@ def main():
         print('Usage: paywifi-fetch-livestream <source_key> <channel_url>', file=sys.stderr)
         sys.exit(2)
     source_key, channel_url = sys.argv[1], sys.argv[2]
-    log(f'start source={source_key} url={channel_url}')
-
     now = int(time.time())
+
+    # CADENCE-THROTTLE-2026-06-04 — only re-fetch when live (≤60s cadence) OR
+    # when stale by ≥5 min. Saves yt-dlp roundtrips when nothing's happening.
+    con = sqlite3.connect(DB)
+    try:
+        row = con.execute(
+            "SELECT live_status, fetched_at FROM live_stream_cache WHERE source_key=?",
+            (source_key,)
+        ).fetchone()
+    finally:
+        con.close()
+    if row is not None:
+        prev_status, prev_fetched = row[0], row[1] or 0
+        age = now - prev_fetched
+        is_live = (prev_status == 'is_live')
+        # When live, refresh aggressively (every call = 60s tick).
+        # When not live, refresh at most once per 5 minutes.
+        if not is_live and age < 300:
+            log(f'throttled source={source_key} not_live age={age}s')
+            return
+        # When live, allow tick-cadence (60s) — no extra throttle needed.
+
+    log(f'start source={source_key} url={channel_url}')
     err = None
     pick = None
     channel_name = None

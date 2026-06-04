@@ -12,7 +12,14 @@
     <span class="text-xs text-slate-500">Drag to reorder. Toggle to show/hide.</span>
   </div>
 
-  <div id="wl" class="space-y-1.5 mb-3 mt-3"></div>
+  <div class="flex items-center justify-between mb-2 mt-3">
+    <span class="text-xs text-slate-400">Bulk actions</span>
+    <div class="flex gap-2">
+      <button id="btn-enable-all"  class="px-3 py-1 rounded bg-emerald-900 text-emerald-200 text-xs font-semibold hover:bg-emerald-800">Enable all</button>
+      <button id="btn-disable-all" class="px-3 py-1 rounded bg-slate-700  text-slate-200  text-xs font-semibold hover:bg-slate-600">Disable all</button>
+    </div>
+  </div>
+  <div id="wl" class="space-y-1.5 mb-3 mt-1"></div>
 
   <div id="wep" class="hidden bg-slate-900 border border-slate-700 rounded-lg p-4 mb-3">
     <p class="text-xs text-slate-400 mb-3" id="wep-title">Editing widget</p>

@@ -13,7 +13,8 @@ var DEFAULT = [
   {id:'custom_html',type:'html',enabled:false,order:9,title:'Custom',html:''},
   {id:'ads_card',type:'ads_card',enabled:true,order:10,title:'Your Ads Here',subtitle:'Submit to inquire',contact_email:'ads@example.com'},
   {id:'partner_cta',type:'partner_cta',enabled:true,order:11,title:'Partner with Us',subtitle:'',chip:'',rollout:'',contact_number:'',contact_email:''},
-  {id:'youtube',type:'youtube',enabled:true,order:12,title:'Featured Video',media_id:'auto',playlist_mode:'auto',playlist_ids:[],autoplay:true,muted:false,loop:true,controls:true,allow_fullscreen:true,volume:1.0,click_to_play:false,skip_button:false,close_button:false,device_rule:'any'}
+  {id:'youtube',type:'youtube',enabled:true,order:12,title:'Featured Video',media_id:'auto',playlist_mode:'auto',playlist_ids:[],autoplay:true,muted:false,loop:true,controls:true,allow_fullscreen:true,volume:1.0,click_to_play:false,skip_button:false,close_button:false,device_rule:'any'},
+  {id:'live_news',type:'live_news',enabled:true,order:13,title:'Live News',source_key:'gmanews2026',channel_url:'https://www.youtube.com/@gmanews2026/streams'}
 ];
 var raw = window.PW_WIDGETS_INIT;
 var widgets = Array.isArray(raw) ? raw : DEFAULT;
@@ -84,7 +85,7 @@ function render(){
     document.getElementById('wep-title').textContent='Editing: '+esc(widgets[editIdx].title||widgets[editIdx].type);
     document.getElementById('wef').innerHTML=buildForm(widgets[editIdx]);
     document.getElementById('btn-wep-delete').style.display=widgets[editIdx].id&&
-      ['location','reminder','payment_options','available_plans','status_bar','ads_card','partner_cta','youtube'].includes(widgets[editIdx].id)?'none':'';
+      ['location','payment_options','available_plans','status_bar','ads_card','partner_cta','youtube','live_news'].includes(widgets[editIdx].id)?'none':'';
   } else {
     ep.classList.add('hidden');
     editIdx=null;
@@ -371,6 +372,11 @@ function applyEdit(){
     var ea = (document.querySelector('#wef [name="end_at"]')  ||{}).value || '';
     w.start_at = sa ? Math.floor(new Date(sa).getTime()/1000) : null;
     w.end_at   = ea ? Math.floor(new Date(ea).getTime()/1000) : null;
+    // V-06: sanity check — start_at must precede end_at
+    if (w.start_at && w.end_at && w.start_at >= w.end_at) {
+      alert('Schedule start time must be before the end time. Reverting both to blank.');
+      w.start_at = null; w.end_at = null;
+    }
     var drEl = document.querySelector('#wef [name="device_rule"]');
     w.device_rule = drEl ? drEl.value : 'any';
     var piEl = document.querySelector('#wef [name="partner_id"]');
@@ -509,5 +515,17 @@ async function ytDelete(id, btn){
   }catch(e){}
 }
 
+// BULK-TOGGLE-2026-06-04 — flip enabled on every widget at once
+var _bea = document.getElementById('btn-enable-all');
+if (_bea) _bea.addEventListener('click', function(){
+  widgets.forEach(function(w){ w.enabled = true; });
+  render();
+});
+var _bda = document.getElementById('btn-disable-all');
+if (_bda) _bda.addEventListener('click', function(){
+  if (!confirm('Disable every widget? (Singleton widgets stay in the list but are hidden on the captive portal.)')) return;
+  widgets.forEach(function(w){ w.enabled = false; });
+  render();
+});
 render();
 })();

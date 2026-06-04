@@ -57,6 +57,7 @@ function resolveLocalIcon(raw) {
 
 const router  = express.Router();
 const db      = require('../db');
+const { TYPES, isKnownType, isProtected } = require('../lib/widget-types');
 const { fmtBytes, fmtDuration, fmtSpeed } = require('../utils/format');
 const voucherSvc = require('../services/voucher');
 const sessionSvc = require('../services/session');
@@ -675,9 +676,33 @@ router.get('/widgets', (req, res) => {
   });
 });
 
+// WIDGET-VALIDATE-2026-06-04 — guards against type-poisoning + html xss via
+// unknown shapes. Returns null = ok; otherwise an error string.
+function validateWidget(w) {
+  if (!w || typeof w !== 'object' || Array.isArray(w)) return 'not_an_object';
+  if (typeof w.type !== 'string' || !isKnownType(w.type)) return 'unknown_type:' + w.type;
+  if (w.id !== undefined && typeof w.id !== 'string') return 'bad_id';
+  if (w.title !== undefined && typeof w.title !== 'string') return 'bad_title';
+  if (w.title !== undefined && w.title.length > 200) return 'title_too_long';
+  if (w.enabled !== undefined && typeof w.enabled !== 'boolean') return 'bad_enabled';
+  if (w.order !== undefined && typeof w.order !== 'number') return 'bad_order';
+  // Per-type spot checks
+  if (w.type === 'html' && typeof w.html === 'string' && w.html.length > 50000) return 'html_too_long';
+  if (w.type === 'text' && typeof w.body === 'string' && w.body.length > 10000) return 'body_too_long';
+  if (w.type === 'youtube' && w.volume !== undefined &&
+      (typeof w.volume !== 'number' || w.volume < 0 || w.volume > 1)) return 'bad_volume';
+  if (w.type === 'youtube' && w.playlist_ids !== undefined && !Array.isArray(w.playlist_ids)) return 'bad_playlist_ids';
+  return null;
+}
+
 router.post('/widgets', (req, res) => {
   const widgets = req.body;
   if (!Array.isArray(widgets)) return res.status(400).json({ ok: false, error: 'Invalid widgets array' });
+  if (widgets.length > 50) return res.status(400).json({ ok: false, error: 'Too many widgets' });
+  for (let i = 0; i < widgets.length; i++) {
+    const reason = validateWidget(widgets[i]);
+    if (reason) return res.status(400).json({ ok: false, error: 'widget#' + i + ': ' + reason });
+  }
   const now = Math.floor(Date.now() / 1000);
   // WIDGETS-META-2026-06-03 — preserve per-widget updated_at/updated_by, only
   // stamping a fresh value when the widget body actually changed.

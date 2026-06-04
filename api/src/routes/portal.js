@@ -1,6 +1,7 @@
 'use strict';
 // PATCHED: M1-INSERT-FIRST-2026-05-30, REMAINING-FIXES-2026-05-30, M1-M2-RETURN-QR-2026-05-30 (insert-first + partial UNIQUE)
 const express = require('express');
+const { TYPES, singletonTypes, alwaysVisibleTypes } = require('../lib/widget-types');
 const router = express.Router();
 const crypto  = require('crypto');
 function hashPhone(p) { return crypto.createHash('sha256').update(p).digest('hex'); }
@@ -121,6 +122,8 @@ const DEFAULT_WIDGETS = [
   { id:'reminder',        type:'text',            enabled:true,  order:2, title:'Reminder',
     body:'Your session starts the moment you enter the voucher code. Time continues to count down whether you are browsing or not. Reconnecting on the same device within your plan\'s validity will resume your session automatically.' },
   { id:'payment_options', type:'payment_options', enabled:true,  order:3, title:'Payment Options' },
+  { id:'available_plans', type:'available_plans', enabled:true,  order:4, title:'Available Plans', sticky:true },
+  { id:'status_bar',      type:'status_bar',      enabled:true,  order:5, title:'Status Bar',      sticky:true },
   { id:'announcement',    type:'announcement',    enabled:false, order:0, title:'Notice',          body:'',  level:'info' },
   { id:'hours',           type:'hours',           enabled:false, order:4, title:'Business Hours',
     hours:{ mon:'', tue:'', wed:'', thu:'', fri:'', sat:'', sun:'' } },
@@ -144,10 +147,12 @@ router.get('/config', (req, res) => {
   // PORTAL-WIDGET-2026-06-03 — ensure singleton tiles exist; back-fill empty fields from legacy partner_* settings.
   (function ensureSingletonWidgets() {
     const have = new Set(widgets.map(w => w.type));
-    if (!have.has('ads_card'))    widgets.push(DEFAULT_WIDGETS.find(w => w.type === 'ads_card'));
-    if (!have.has('partner_cta')) widgets.push(DEFAULT_WIDGETS.find(w => w.type === 'partner_cta'));
-    if (!have.has('youtube'))     widgets.push(DEFAULT_WIDGETS.find(w => w.type === 'youtube'));
-    if (!have.has('live_news'))   widgets.push(DEFAULT_WIDGETS.find(w => w.type === 'live_news'));
+    for (const st of singletonTypes()) {
+      if (!have.has(st.type)) {
+        const seed = DEFAULT_WIDGETS.find(w => w.type === st.type);
+        if (seed) widgets.push(seed);
+      }
+    }
     const pcw = widgets.find(w => w.type === 'partner_cta');
     if (pcw) {
       if (!pcw.subtitle)        pcw.subtitle        = settings.partner_cta_text             || '';
@@ -222,8 +227,24 @@ router.get('/config', (req, res) => {
         const row = db.prepare(
           "SELECT video_id, original_title, display_title, has_replay, live_status, " +
           "published_at, release_at, thumbnail_url, view_count, duration_sec, channel_name, " +
-          "fetched_at, fetch_error FROM live_stream_cache WHERE source_key=?"
+          "fetched_at, fetch_error, hls_url, hls_expire_at FROM live_stream_cache WHERE source_key=?"
         ).get(sk);
+        if (row) {
+          // HLS-GATE-AUTH-2026-06-04 — only authenticated devices receive the
+          // HLS manifest URL. Pre-auth clients see metadata card (tap → YouTube).
+          let authed = false;
+          try {
+            if (req.clientIp) {
+              const sess = db.prepare("SELECT id FROM sessions WHERE ip_address=? AND ended_at IS NULL LIMIT 1").get(req.clientIp);
+              authed = !!sess;
+            }
+          } catch (e) {}
+          if (!authed) {
+            row.hls_url = null;
+            row.hls_expire_at = null;
+            row.hls_gated = 'auth_required';
+          }
+        }
         lnw.stream = row || null;
       } catch (e) { lnw.stream = null; }
     }
@@ -266,7 +287,7 @@ router.get('/config', (req, res) => {
       contact_email:    settings.maintenance_contact_email     || '',
       contact_messenger:settings.maintenance_contact_messenger || '',
     },
-    widgets: widgets.filter(w => w.enabled || w.type==='status_bar' || w.type==='available_plans' || w.type==='ads_card' || w.type==='partner_cta' || w.type==='youtube' || w.type==='live_news').sort((a, b) => (a.order||0) - (b.order||0)),
+    widgets: (function(){ const _av = new Set(alwaysVisibleTypes()); return widgets.filter(w => w.enabled || _av.has(w.type)); })().sort((a, b) => (a.order||0) - (b.order||0)),
     partners: storePartners,
     partner: {
       contact_number:      settings.partner_contact_number      || '',
