@@ -63,7 +63,23 @@ def clean_title(t):
 
 def main():
     # Parse argv: <source_key> <channel_url> [--title-pattern <regex>]
+    #         OR: --all  (iterate over live_stream_sources WHERE enabled=1)
     args = list(sys.argv[1:])
+    if '--all' in args:
+        con = sqlite3.connect(DB)
+        try:
+            rows = con.execute(
+                "SELECT source_key, channel_url, title_pattern FROM live_stream_sources WHERE enabled=1 ORDER BY fetch_priority DESC, id ASC"
+            ).fetchall()
+        finally:
+            con.close()
+        log(f'--all mode: {len(rows)} enabled source(s)')
+        for sk, url, pat in rows:
+            try:
+                subprocess.run([sys.argv[0], sk, url, '--title-pattern', pat], timeout=120, check=False)
+            except subprocess.TimeoutExpired:
+                log(f'  TIMEOUT on {sk}')
+        return
     pattern_str = DEFAULT_PATTERN
     if '--title-pattern' in args:
         i = args.index('--title-pattern')
@@ -116,11 +132,34 @@ def main():
         channel_name = data.get('channel') or data.get('uploader')
         entries = data.get('entries') or []
         log(f'fetched {len(entries)} entries')
-        for e in entries:
-            title = (e.get('title') or '').strip()
-            if title_re.match(title):
+        # ITERATE-2026-06-04 — pick the first title match that's actually LIVE or a
+        # recent replay. Probe each candidate; skip ones yt-dlp reports as upcoming
+        # (e.g. 'This live event will begin in N hours'). Cap probes at 6 to bound
+        # the cost. If nothing's live yet, fall back to the first title match.
+        candidates = [e for e in entries if title_re.search((e.get('title') or '').strip())]
+        log(f'matched {len(candidates)} candidates')
+        pre_probed_meta = None
+        for idx, e in enumerate(candidates[:6]):
+            vid = e.get('id')
+            if not vid:
+                continue
+            meta = probe_one(vid)
+            if meta is None:
+                # Probe failed — usually because video is upcoming. Skip.
+                log(f'  skip {vid} ({e.get("title","")[:60]}): probe_failed')
+                continue
+            status = meta.get('live_status') or 'unknown'
+            log(f'  candidate {idx}: {vid} status={status}')
+            if status in ('is_live', 'post_live', 'was_live'):
                 pick = e
+                pre_probed_meta = meta
                 break
+            elif idx == 0:
+                # Remember first match in case nothing's live; we'll show as upcoming.
+                pre_probed_meta = meta
+        if pick is None and candidates:
+            pick = candidates[0]
+            log('no live/replay found — falling back to first candidate (likely upcoming)')
         if pick is None:
             err = 'no_match'
             log('no LIVE-prefixed entry found')
@@ -148,8 +187,11 @@ def main():
     hls_url = None
     hls_expire_at = None
     if pick:
-        # Flat-playlist gives partial info. Probe for current status.
-        meta = probe_one(video_id) or {}
+        # Use the metadata we already fetched if available; saves a second probe.
+        if pre_probed_meta:
+            meta = pre_probed_meta
+        else:
+            meta = probe_one(video_id) or {}
         live_status_raw = meta.get('live_status') or pick.get('live_status') or 'unknown'
         # Pull HLS manifest URL + expiry if the stream is live
         if str(live_status_raw) == 'is_live':
