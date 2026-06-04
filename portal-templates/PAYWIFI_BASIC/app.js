@@ -246,6 +246,26 @@ function hydratePortalSidebarWidgets() {
           ytTrack("error");
         });
 
+
+        function ytTrack(event) {
+          try {
+            var body = JSON.stringify({ media_id: media && media.id, widget_id: yt && yt.id, event: event });
+            if (navigator.sendBeacon) {
+              var blob = new Blob([body], { type: "application/json" });
+              navigator.sendBeacon("/api/portal/media/track", blob);
+            } else {
+              fetch("/api/portal/media/track", {
+                method: "POST", credentials: "same-origin",
+                headers: { "Content-Type": "application/json" }, body: body, keepalive: true
+              }).catch(function() {});
+            }
+          } catch (e) {}
+        }
+      } else {
+        ytCard.classList.add("hidden");
+      }
+    }
+
     // LIVE-NEWS-2026-06-03 — GMA News live-stream card with real-time clock.
     var ln       = findWidget("live_news");
     var lnCard   = $("live-news-widget");
@@ -353,24 +373,6 @@ function hydratePortalSidebarWidgets() {
         }
       } else {
         lnCard.classList.add("hidden");
-      }
-    }
-        function ytTrack(event) {
-          try {
-            var body = JSON.stringify({ media_id: media && media.id, widget_id: yt && yt.id, event: event });
-            if (navigator.sendBeacon) {
-              var blob = new Blob([body], { type: "application/json" });
-              navigator.sendBeacon("/api/portal/media/track", blob);
-            } else {
-              fetch("/api/portal/media/track", {
-                method: "POST", credentials: "same-origin",
-                headers: { "Content-Type": "application/json" }, body: body, keepalive: true
-              }).catch(function() {});
-            }
-          } catch (e) {}
-        }
-      } else {
-        ytCard.classList.add("hidden");
       }
     }
   } catch (e) { /* non-critical */ }
