@@ -96,10 +96,25 @@ def main():
     published_at = None
     release_at = None
 
+    hls_url = None
+    hls_expire_at = None
     if pick:
         # Flat-playlist gives partial info. Probe for current status.
         meta = probe_one(video_id) or {}
         live_status_raw = meta.get('live_status') or pick.get('live_status') or 'unknown'
+        # Pull HLS manifest URL + expiry if the stream is live
+        if str(live_status_raw) == 'is_live':
+            hls_url = meta.get('manifest_url') or None
+            if not hls_url:
+                # Fall back to first m3u8 format
+                for f in (meta.get('formats') or []):
+                    if 'm3u8' in str(f.get('protocol', '')):
+                        hls_url = f.get('url')
+                        break
+            if hls_url:
+                m = re.search(r'/expire/(\d+)/', hls_url)
+                if m:
+                    hls_expire_at = int(m.group(1))
         # Map yt-dlp values
         if live_status_raw is None:
             # If has_replay match → assume was_live; otherwise unknown
@@ -128,8 +143,8 @@ def main():
           INSERT INTO live_stream_cache
             (source_key, channel_url, video_id, original_title, display_title, has_replay,
              live_status, published_at, release_at, thumbnail_url, view_count, duration_sec,
-             channel_name, fetched_at, fetch_error)
-          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+             channel_name, fetched_at, fetch_error, hls_url, hls_expire_at)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
           ON CONFLICT(source_key) DO UPDATE SET
              video_id       = excluded.video_id,
              original_title = excluded.original_title,
@@ -143,14 +158,16 @@ def main():
              duration_sec   = excluded.duration_sec,
              channel_name   = excluded.channel_name,
              fetched_at     = excluded.fetched_at,
-             fetch_error    = excluded.fetch_error
+             fetch_error    = excluded.fetch_error,
+             hls_url        = excluded.hls_url,
+             hls_expire_at  = excluded.hls_expire_at
         ''', (source_key, channel_url, video_id, original_title, display_title, has_replay,
               live_status, published_at, release_at, thumbnail_url, view_count, duration_sec,
-              channel_name, now, err))
+              channel_name, now, err, hls_url, hls_expire_at))
         con.commit()
     finally:
         con.close()
-    log(f'done video_id={video_id} live_status={live_status} has_replay={has_replay} err={err}')
+    log(f'done video_id={video_id} live_status={live_status} has_replay={has_replay} hls={"yes" if hls_url else "no"} err={err}')
     print(f'ok video_id={video_id} live_status={live_status}')
 
 if __name__ == '__main__':

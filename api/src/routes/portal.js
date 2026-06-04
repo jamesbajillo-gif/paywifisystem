@@ -194,6 +194,14 @@ router.get('/config', (req, res) => {
             "SELECT id, video_id, title, duration_sec, file_path, thumbnail_path, resolution " +
             "FROM media_assets WHERE id=?" + ReadyClause + ScheduleClause + ScopeClause
           ).get(mid);
+          // VIDEO-BUGFIX-2026-06-04 — fallback if media_id is 'auto' / NaN / not found
+          if (!media) {
+            media = db.prepare(
+              "SELECT id, video_id, title, duration_sec, file_path, thumbnail_path, resolution " +
+              "FROM media_assets WHERE 1=1" + ReadyClause + ScheduleClause + ScopeClause +
+              " ORDER BY id DESC LIMIT 1"
+            ).get();
+          }
         } else {
           // auto — newest eligible
           media = db.prepare(
