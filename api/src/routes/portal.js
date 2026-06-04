@@ -240,6 +240,10 @@ router.get('/config', (req, res) => {
           return (b.fetched_at || 0) - (a.fetched_at || 0);
         });
         lnw.stream = rows[0] || null;
+        // NAV-2026-06-04 — expose every cached stream so the portal can offer
+        // prev/next channel navigation client-side without extra fetches.
+        lnw.sources_full = rows;
+        // Backward-compat lightweight summary (older clients).
         lnw.sources_available = rows.map(r => ({
           source_key: r.source_key,
           live_status: r.live_status,

@@ -117,6 +117,15 @@
             <!-- replay badge — top-right (shown only when has_replay=1) -->
             <span id="live-news-replay" class="hidden absolute top-2 right-2 px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500 text-black">REPLAY</span>
             <!-- tap-to-unmute overlay (shown while muted; hides on first tap) -->
+            <!-- channel navigation arrows -->
+            <button id="live-news-prev" type="button" aria-label="Previous channel"
+              class="hidden absolute top-1/2 -translate-y-1/2 left-2 z-20 h-10 w-10 rounded-full bg-black/55 hover:bg-black/75 text-white flex items-center justify-center backdrop-blur transition-colors">
+              <svg viewBox="0 0 24 24" class="h-5 w-5" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+            </button>
+            <button id="live-news-next" type="button" aria-label="Next channel"
+              class="hidden absolute top-1/2 -translate-y-1/2 right-2 z-20 h-10 w-10 rounded-full bg-black/55 hover:bg-black/75 text-white flex items-center justify-center backdrop-blur transition-colors">
+              <svg viewBox="0 0 24 24" class="h-5 w-5" fill="currentColor"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+            </button>
             <button id="live-news-unmute" type="button" aria-label="Tap for sound"
               class="absolute inset-0 flex items-center justify-center bg-black/30 hover:bg-black/40 transition-colors">
               <span class="rounded-full bg-white/90 text-black px-4 h-12 flex items-center gap-2 shadow-2xl text-sm font-bold uppercase tracking-wider">
@@ -133,13 +142,14 @@
             </div>
           </div>
           <div class="px-4 py-3">
-            <p id="live-news-title" class="text-base font-bold leading-snug line-clamp-2">Live News</p>
-            <p class="text-xs mt-1 text-muted-foreground flex items-center gap-1.5 flex-wrap">
+            <p class="text-sm font-semibold text-foreground flex items-center gap-1.5 flex-wrap">
               <span id="live-news-channel">GMA News</span>
-              <span aria-hidden="true">·</span>
+            </p>
+            <p class="text-xs mt-1 text-muted-foreground flex items-center gap-1.5 flex-wrap">
               <span id="live-news-publish"></span>
               <span aria-hidden="true">·</span>
               <span id="live-news-now"></span>
+              <span id="live-news-index" class="ml-auto text-[10px] uppercase tracking-wider font-bold opacity-70"></span>
             </p>
           </div>
         </div>

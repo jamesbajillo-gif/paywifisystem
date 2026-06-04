@@ -266,72 +266,178 @@ function hydratePortalSidebarWidgets() {
       }
     }
 
-    // LIVE-NEWS-2026-06-04 — inline HLS player (via hls.js) with autoplay,
-    // muted-start, tap-to-unmute, and real-time clock. yt-dlp populates the
-    // manifest URL on the server side; we just attach + play.
-    var ln       = findWidget("live_news");
+    // LIVE-NEWS-2026-06-04 (NAV) — inline HLS player with overlay channel navigation.
+    // The server picks an initial "best" stream; once the user navigates (arrows),
+    // the choice locks for the session. The 30s status poll then refreshes only
+    // the CURRENT channel's badge/title — never reshuffles.
+    var ln = findWidget("live_news");
     var lnCard   = $("live-news-widget");
     var lnVid    = $("live-news-video");
     var lnThumb  = $("live-news-thumb");
-    var lnTitle  = $("live-news-title");
     var lnStatus = $("live-news-status");
     var lnStatusText = $("live-news-status-text");
     var lnReplay = $("live-news-replay");
     var lnChannel= $("live-news-channel");
     var lnPublish= $("live-news-publish");
     var lnNow    = $("live-news-now");
+    var lnIndex  = $("live-news-index");
     var lnUnmute = $("live-news-unmute");
+    var lnPrev   = $("live-news-prev");
+    var lnNext   = $("live-news-next");
     var lnError  = $("live-news-error");
-    var lnYtLink = $("live-news-yt-fallback");
+
     if (lnCard) {
-      var stream = ln && ln.stream;
-      if (ln && ln.enabled !== false && stream && stream.video_id) {
+      var sources = (ln && Array.isArray(ln.sources_full)) ? ln.sources_full : (ln && ln.stream ? [ln.stream] : []);
+      // Only sources that we can actually play (need hls_url) are part of the nav cycle.
+      var playable = sources.filter(function(s){ return s && s.hls_url; });
+      // If no playable sources, fall back to the picked stream (metadata only).
+      if (!playable.length && ln && ln.stream) playable = [ln.stream];
+      if (ln && ln.enabled !== false && playable.length) {
         lnCard.classList.remove("hidden");
-        if (lnThumb && stream.thumbnail_url) {
-          lnThumb.src = stream.thumbnail_url;
-          lnThumb.onerror = function() {
-            this.onerror = null;
-            this.src = "https://i.ytimg.com/vi/" + stream.video_id + "/hqdefault.jpg";
-          };
+        // Lock-on-pick — once the user navigates, stay on that channel.
+        if (state.liveNewsLocked && state.liveNewsCurrentKey) {
+          var idxFromState = playable.findIndex(function(s){ return s.source_key === state.liveNewsCurrentKey; });
+          if (idxFromState >= 0) state.liveNewsIdx = idxFromState;
+          // else: the locked channel disappeared — fall through to picker default.
         }
-        if (lnTitle) lnTitle.textContent = (ln.title ? (ln.title + " — ") : "") + (stream.display_title || "");
-        if (lnChannel) lnChannel.textContent = stream.channel_name || "GMA News";
-        if (lnYtLink)  lnYtLink.href = "https://www.youtube.com/watch?v=" + encodeURIComponent(stream.video_id);
-
-        // Status badge
-        var status = String(stream.live_status || "").toLowerCase();
-        var badgeText = "LIVE", badgeColor = "bg-rose-600 text-white", pulse = true;
-        if (status === "is_live")          { badgeText = "LIVE";     badgeColor = "bg-rose-600 text-white"; pulse = true;  }
-        else if (status === "is_upcoming") { badgeText = "UPCOMING"; badgeColor = "bg-sky-600 text-white";  pulse = false; }
-        else if (status === "was_live" || status === "post_live") { badgeText = "REPLAY"; badgeColor = "bg-amber-500 text-black"; pulse = false; }
-        else                               { badgeText = "STREAM";   badgeColor = "bg-slate-600 text-white"; pulse = false; }
-        if (lnStatus) {
-          lnStatus.className =
-            "absolute top-2 left-2 z-10 inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider backdrop-blur " + badgeColor;
-          var dot = lnStatus.querySelector("span:first-child");
-          if (dot) dot.style.display = pulse ? "" : "none";
+        if (typeof state.liveNewsIdx !== "number" || state.liveNewsIdx >= playable.length) {
+          state.liveNewsIdx = 0;
         }
-        if (lnStatusText) lnStatusText.textContent = badgeText;
+        var paint = function() {
+          var cur = playable[state.liveNewsIdx];
+          if (!cur) return;
+          state.liveNewsCurrentKey = cur.source_key;
 
-        // Replay badge (based on original-title regex)
-        if (lnReplay) {
-          if (stream.has_replay) lnReplay.classList.remove("hidden");
-          else                    lnReplay.classList.add("hidden");
-        }
-        if (lnReplay) lnReplay.className = lnReplay.className.replace(" absolute", " z-10 absolute");
-
-        // Publication date
-        if (lnPublish) {
-          var ts = stream.published_at || stream.release_at;
-          if (ts) {
-            var d = new Date(ts * 1000);
-            lnPublish.textContent = "Streamed " + d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-          } else {
-            lnPublish.textContent = "";
+          // Thumbnail (poster) — refreshes per channel switch
+          if (lnThumb) {
+            lnThumb.style.display = "";
+            if (cur.thumbnail_url) {
+              lnThumb.src = cur.thumbnail_url;
+              lnThumb.onerror = function() {
+                this.onerror = null;
+                this.src = cur.video_id ? ("https://i.ytimg.com/vi/" + cur.video_id + "/hqdefault.jpg") : "";
+              };
+            }
           }
+
+          if (lnChannel) lnChannel.textContent = cur.channel_name || cur.source_key || "Live Channel";
+
+          // Status badge
+          var status = String(cur.live_status || "").toLowerCase();
+          var badgeText = "STREAM", badgeColor = "bg-slate-600 text-white", pulse = false;
+          if (status === "is_live")          { badgeText = "LIVE";     badgeColor = "bg-rose-600 text-white"; pulse = true;  }
+          else if (status === "is_upcoming") { badgeText = "UPCOMING"; badgeColor = "bg-sky-600 text-white";  pulse = false; }
+          else if (status === "was_live" || status === "post_live") { badgeText = "REPLAY"; badgeColor = "bg-amber-500 text-black"; pulse = false; }
+          if (lnStatus) {
+            lnStatus.className =
+              "absolute top-2 left-2 z-10 inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider backdrop-blur " + badgeColor;
+            var dot = lnStatus.querySelector("span:first-child");
+            if (dot) dot.style.display = pulse ? "" : "none";
+          }
+          if (lnStatusText) lnStatusText.textContent = badgeText;
+
+          // Replay badge (driven by original-title regex)
+          if (lnReplay) {
+            if (cur.has_replay) lnReplay.classList.remove("hidden");
+            else                lnReplay.classList.add("hidden");
+          }
+
+          // Publish date
+          if (lnPublish) {
+            var ts = cur.published_at || cur.release_at;
+            if (ts) {
+              var d = new Date(ts * 1000);
+              lnPublish.textContent = "Streamed " + d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+            } else {
+              lnPublish.textContent = "";
+            }
+          }
+
+          // Channel index (e.g., "2 / 4")
+          if (lnIndex) {
+            lnIndex.textContent = (state.liveNewsIdx + 1) + " / " + playable.length;
+          }
+
+          // Arrow visibility (only show if there is more than one channel to switch to)
+          if (lnPrev) lnPrev.classList.toggle("hidden", playable.length < 2);
+          if (lnNext) lnNext.classList.toggle("hidden", playable.length < 2);
+
+          // Attach HLS
+          if (lnError) lnError.classList.add("hidden");
+          if (lnVid && cur.hls_url) {
+            lnVid.muted = true; lnVid.autoplay = true; lnVid.playsInline = true;
+            // Tear down previous hls.js instance before reattaching
+            try { if (window.__pwHls) { window.__pwHls.destroy(); window.__pwHls = null; } } catch (e) {}
+
+            function attachHlsFor(url) {
+              // Native HLS path (Safari/iOS)
+              if (lnVid.canPlayType("application/vnd.apple.mpegurl")) {
+                lnVid.src = url;
+                lnVid.play().catch(function(){});
+                return;
+              }
+              function go() {
+                try {
+                  var hls = new window.Hls({ enableWorker: true, lowLatencyMode: false, capLevelToPlayerSize: true });
+                  window.__pwHls = hls;
+                  hls.loadSource(url);
+                  hls.attachMedia(lnVid);
+                  hls.on(window.Hls.Events.MANIFEST_PARSED, function(){
+                    lnVid.play().catch(function(){});
+                  });
+                  hls.on(window.Hls.Events.ERROR, function(_, data){
+                    if (data && data.fatal) {
+                      console.warn("[live-news] hls fatal", data.type, data.details);
+                      if (lnError) lnError.classList.remove("hidden");
+                    }
+                  });
+                } catch (e) {
+                  if (lnError) lnError.classList.remove("hidden");
+                }
+              }
+              if (window.Hls) { go(); }
+              else {
+                var hjs = document.createElement("script");
+                hjs.src = "/hls.js"; hjs.async = true;
+                hjs.onload = go;
+                hjs.onerror = function(){ if (lnError) lnError.classList.remove("hidden"); };
+                document.head.appendChild(hjs);
+              }
+            }
+            attachHlsFor(cur.hls_url);
+            // Hide thumbnail once playback starts
+            lnVid.onplaying = function() { if (lnThumb) lnThumb.style.display = "none"; };
+          }
+        };
+        paint();
+
+        // Navigation
+        function cycleBy(delta) {
+          if (!playable.length) return;
+          state.liveNewsIdx = ((state.liveNewsIdx + delta) % playable.length + playable.length) % playable.length;
+          state.liveNewsLocked = true;
+          paint();
+          if (lnUnmute) lnUnmute.classList.remove("hidden");
+        }
+        if (lnPrev) lnPrev.onclick = function(e){ e.preventDefault(); e.stopPropagation(); cycleBy(-1); };
+        if (lnNext) lnNext.onclick = function(e){ e.preventDefault(); e.stopPropagation(); cycleBy(1); };
+
+        // Tap-to-unmute (any first user gesture on the page) — same as before
+        function unmuteNow() {
+          try { lnVid.muted = false; lnVid.volume = 1.0; lnVid.play().catch(function(){}); } catch (e) {}
+          if (lnUnmute) lnUnmute.classList.add("hidden");
+          document.removeEventListener("click", unmuteOnce, true);
+          document.removeEventListener("touchstart", unmuteOnce, true);
+        }
+        function unmuteOnce() { unmuteNow(); }
+        if (lnUnmute) lnUnmute.addEventListener("click", function(e){ e.preventDefault(); e.stopPropagation(); unmuteNow(); });
+        if (!state.__lnUnmuteHooked) {
+          state.__lnUnmuteHooked = true;
+          document.addEventListener("click", unmuteOnce, { capture: true, once: true });
+          document.addEventListener("touchstart", unmuteOnce, { capture: true, once: true });
         }
 
-        // Real-time clock
+        // Real-time clock — single global interval
         function pwLiveTick() {
           if (!lnNow) return;
           var n = new Date();
@@ -341,97 +447,52 @@ function hydratePortalSidebarWidgets() {
           lnNow.textContent = "Now " + hh + ":" + mm + ":" + ss;
         }
         pwLiveTick();
-        if (!window.__pwLiveTickTimer) {
-          window.__pwLiveTickTimer = setInterval(pwLiveTick, 1000);
-        }
+        if (!window.__pwLiveTickTimer) window.__pwLiveTickTimer = setInterval(pwLiveTick, 1000);
 
-        // 30s live-status poll
+        // Status poll — refresh CURRENT channel data only; never reshuffle.
         if (!window.__pwLiveStatusPollTimer) {
           window.__pwLiveStatusPollTimer = setInterval(function(){
             fetch("/api/portal/config", { cache: "no-store" }).then(function(r){ return r.json(); }).then(function(cfg){
               if (!cfg || !cfg.widgets) return;
+              var lnNew = null;
               for (var i=0;i<cfg.widgets.length;i++) {
-                if (cfg.widgets[i].type === "live_news") {
-                  state.config.widgets = cfg.widgets;
-                  if (typeof hydratePortalSidebarWidgets === "function") hydratePortalSidebarWidgets();
-                  return;
+                if (cfg.widgets[i].type === "live_news") { lnNew = cfg.widgets[i]; break; }
+              }
+              if (!lnNew) return;
+              // Find the currently shown channel in the new list. If gone, keep showing the cached state.
+              var newPlayable = (lnNew.sources_full || []).filter(function(s){ return s && s.hls_url; });
+              if (!newPlayable.length) return;
+              var keepIdx = -1;
+              if (state.liveNewsCurrentKey) {
+                keepIdx = newPlayable.findIndex(function(s){ return s.source_key === state.liveNewsCurrentKey; });
+              }
+              if (keepIdx >= 0) {
+                // The channel is still alive. Update just its metadata (badge, publish, thumbnail).
+                var cur = newPlayable[keepIdx];
+                // Update badge
+                var status = String(cur.live_status || "").toLowerCase();
+                var bt = "STREAM", bc = "bg-slate-600 text-white", pl = false;
+                if (status === "is_live")          { bt = "LIVE";     bc = "bg-rose-600 text-white"; pl = true;  }
+                else if (status === "is_upcoming") { bt = "UPCOMING"; bc = "bg-sky-600 text-white";  pl = false; }
+                else if (status === "was_live" || status === "post_live") { bt = "REPLAY"; bc = "bg-amber-500 text-black"; pl = false; }
+                if (lnStatus) {
+                  lnStatus.className =
+                    "absolute top-2 left-2 z-10 inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider backdrop-blur " + bc;
+                  var dot = lnStatus.querySelector("span:first-child");
+                  if (dot) dot.style.display = pl ? "" : "none";
                 }
+                if (lnStatusText) lnStatusText.textContent = bt;
+                if (lnReplay) lnReplay.classList.toggle("hidden", !cur.has_replay);
+                // Refresh the local playable list in case other channels' status changed,
+                // but DO NOT reshuffle the current selection.
+                playable = newPlayable;
+                state.liveNewsIdx = keepIdx;
+                if (lnIndex) lnIndex.textContent = (state.liveNewsIdx + 1) + " / " + playable.length;
+                if (lnPrev) lnPrev.classList.toggle("hidden", playable.length < 2);
+                if (lnNext) lnNext.classList.toggle("hidden", playable.length < 2);
               }
             }).catch(function(){});
           }, 30000);
-        }
-
-        // ── INLINE HLS PLAYER ────────────────────────────────────────────────
-        // Browsers refuse autoplay-with-sound without prior user interaction.
-        // We start muted (browser allows), then unmute on the FIRST user gesture
-        // anywhere on the page OR a tap on the overlay.
-        var hlsUrl = stream.hls_url;
-        if (lnVid && hlsUrl) {
-          lnVid.muted = true;
-          lnVid.autoplay = true;
-          lnVid.playsInline = true;
-
-          function attachHls() {
-            // 1) Native HLS (Safari, iOS)
-            if (lnVid.canPlayType("application/vnd.apple.mpegurl")) {
-              lnVid.src = hlsUrl;
-              lnVid.play().catch(function(){});
-              return;
-            }
-            // 2) hls.js (Chrome, Firefox, Edge, Android)
-            function go() {
-              try {
-                if (window.__pwHls) { try { window.__pwHls.destroy(); } catch (e) {} }
-                var hls = new window.Hls({ enableWorker: true, lowLatencyMode: false, capLevelToPlayerSize: true });
-                window.__pwHls = hls;
-                hls.loadSource(hlsUrl);
-                hls.attachMedia(lnVid);
-                hls.on(window.Hls.Events.MANIFEST_PARSED, function(){
-                  lnVid.play().catch(function(){});
-                });
-                hls.on(window.Hls.Events.ERROR, function(evt, data){
-                  if (data && data.fatal) {
-                    console.warn("[live-news] hls fatal", data.type, data.details);
-                    if (lnError) lnError.classList.remove("hidden");
-                  }
-                });
-              } catch (e) {
-                if (lnError) lnError.classList.remove("hidden");
-              }
-            }
-            if (window.Hls) { go(); }
-            else {
-              var hjs = document.createElement("script");
-              hjs.src = "/hls.js"; hjs.async = true;
-              hjs.onload = go;
-              hjs.onerror = function(){ if (lnError) lnError.classList.remove("hidden"); };
-              document.head.appendChild(hjs);
-            }
-          }
-          attachHls();
-          // Once playback actually starts, hide the thumbnail
-          lnVid.addEventListener("playing", function(){
-            if (lnThumb) lnThumb.style.display = "none";
-          }, { once: true });
-
-          // Tap-to-unmute — overlay or anywhere on the page
-          function unmuteNow() {
-            try {
-              lnVid.muted = false;
-              lnVid.volume = 1.0;
-              lnVid.play().catch(function(){});
-            } catch (e) {}
-            if (lnUnmute) lnUnmute.classList.add("hidden");
-            document.removeEventListener("click", unmuteOnce, true);
-            document.removeEventListener("touchstart", unmuteOnce, true);
-          }
-          function unmuteOnce() { unmuteNow(); }
-          if (lnUnmute) lnUnmute.addEventListener("click", function(e){ e.preventDefault(); unmuteNow(); });
-          document.addEventListener("click", unmuteOnce, { capture: true, once: true });
-          document.addEventListener("touchstart", unmuteOnce, { capture: true, once: true });
-        } else if (lnVid) {
-          // No HLS URL — show error overlay + keep the YouTube fallback link
-          if (lnError) lnError.classList.remove("hidden");
         }
       } else {
         lnCard.classList.add("hidden");

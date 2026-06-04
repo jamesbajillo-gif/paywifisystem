@@ -138,7 +138,8 @@ app.use('/admin', adminSession, csrf, require('./routes/adminUi-updates'));  // 
 app.use('/admin', adminSession, csrf, require('./routes/adminUi-infra'));     // infrastructure health
 app.use('/admin', adminSession, csrf, require('./routes/adminUi-devices'));
 app.use('/admin', adminSession, csrf, require('./routes/adminUi-partners'));
-app.use('/admin', adminSession, csrf, require('./routes/adminUi-media'));        // media library
+app.use('/admin', adminSession, csrf, require('./routes/adminUi-media'));
+app.use('/admin', adminSession, csrf, require('./routes/adminUi-livestream'));        // media library
 app.use('/admin', adminSession, csrf, require('./routes/adminUi-remittances'));  // operator CRUD   // device diagnostics
 app.use('/admin', adminSession, csrf, require('./routes/adminUi-cloudflare')); // PAYWIFI-CLOUDFLARED-2026-06-01 — Cloudflare tunnel admin
 

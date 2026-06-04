@@ -303,16 +303,115 @@ function buildForm(w){
     },0);
   }
   if(w.type==='live_news'){
-    // GMA-LOCKED-2026-06-04 — source channel is preconfigured at deploy time
-    // via the systemd unit. Operators control Title + Enable; channel is fixed.
-    h+='<div class="mt-2 rounded border border-slate-700 bg-slate-950 p-3">'
-      +'<div class="flex items-center gap-2 text-xs text-slate-300 mb-1.5">'
-        +'<span class="px-1.5 py-0.5 rounded bg-amber-500 text-black text-[10px] font-bold uppercase tracking-wider">Preset</span>'
-        +'<span class="font-semibold">GMA News</span>'
+    // LIVE-CHANNELS-2026-06-04 — interactive channel manager inside the edit panel.
+    h+='<div class="mt-2 rounded border border-slate-700 bg-slate-950 p-3" id="lc-host">'
+      +'<div class="flex items-center justify-between mb-2">'
+        +'<label class="text-xs font-semibold text-slate-300">Live channels</label>'
+        +'<button type="button" id="lc-refresh" class="text-[10px] text-slate-400 hover:text-slate-200">Refresh</button>'
       +'</div>'
-      +'<p class="text-[11px] text-slate-400 leading-snug">Source: <code class="text-slate-300">@gmanews2026 / streams</code></p>'
-      +'<p class="text-[11px] text-slate-500 mt-1">Surfaces the most recent video whose title starts with <code>LIVE\u00A0-</code> (any dash variant). Refresh runs every 5 minutes. Channel and source key are deployment-locked — to change them, update <code>paywifi-livestream-fetch.service</code>.</p>'
+      +'<p class="text-[11px] text-slate-500 mb-2">Whichever channel is broadcasting wins automatic selection on the captive portal. Users can flip channels via the overlay arrows.</p>'
+      +'<div id="lc-list" class="space-y-1.5"></div>'
+      +'<div class="mt-3 pt-2 border-t border-slate-800">'
+        +'<label class="text-xs font-semibold text-slate-300">Add channel</label>'
+        +'<div class="grid grid-cols-12 gap-2 mt-1.5 text-xs">'
+          +'<input id="lc-add-key"     placeholder="source_key (a-z, 0-9, _)" class="col-span-3 px-2 py-1 rounded bg-slate-800 border border-slate-700 text-slate-200">'
+          +'<input id="lc-add-label"   placeholder="Display label" class="col-span-3 px-2 py-1 rounded bg-slate-800 border border-slate-700 text-slate-200">'
+          +'<input id="lc-add-url"     placeholder="https://www.youtube.com/@channel/streams" class="col-span-6 px-2 py-1 rounded bg-slate-800 border border-slate-700 text-slate-200">'
+          +'<input id="lc-add-pattern" placeholder="title regex (e.g. (?i)\\bLIVE\\b)" class="col-span-9 px-2 py-1 rounded bg-slate-800 border border-slate-700 text-slate-200 font-mono">'
+          +'<button type="button" id="lc-add" class="col-span-3 px-3 py-1 rounded bg-brand-500 text-slate-900 text-xs font-bold hover:bg-brand-400">Add channel</button>'
+        +'</div>'
+        +'<p id="lc-msg" class="text-[11px] mt-1.5 hidden"></p>'
+      +'</div>'
     +'</div>';
+    // Defer wiring until the edit panel is in the DOM
+    setTimeout(function(){
+      var msg = document.getElementById('lc-msg');
+      function flash(text, ok){
+        if (!msg) return;
+        msg.className = 'text-[11px] mt-1.5 ' + (ok ? 'text-emerald-400' : 'text-rose-400');
+        msg.textContent = text;
+        msg.classList.remove('hidden');
+        setTimeout(function(){ msg.classList.add('hidden'); }, 3500);
+      }
+      function statusChip(status){
+        var color = 'bg-slate-700 text-slate-300';
+        if (status === 'is_live')      color = 'bg-rose-700 text-rose-100';
+        else if (status === 'was_live' || status === 'post_live') color = 'bg-amber-700 text-amber-100';
+        else if (status === 'is_upcoming') color = 'bg-sky-700 text-sky-100';
+        return '<span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ' + color + '">' + (status || 'unknown') + '</span>';
+      }
+      function renderList(rows){
+        var box = document.getElementById('lc-list');
+        if (!box) return;
+        if (!rows || !rows.length) {
+          box.innerHTML = '<p class="text-xs text-slate-500 px-2 py-3 text-center">No channels yet. Add one below.</p>';
+          return;
+        }
+        box.innerHTML = rows.map(function(r){
+          var cache = r.cache || {};
+          var dot = r.enabled ? 'bg-emerald-400' : 'bg-slate-600';
+          return '<div class="flex items-center gap-2 px-2 py-1.5 rounded bg-slate-900 border border-slate-800">'
+            +'<span class="h-2 w-2 rounded-full ' + dot + '"></span>'
+            +'<div class="flex-1 min-w-0">'
+              +'<div class="text-xs text-slate-200 font-medium truncate">' + esc(r.channel_label || r.source_key) + statusChip(cache.live_status) + '</div>'
+              +'<div class="text-[10px] text-slate-500 font-mono truncate" title="' + esc(r.channel_url) + '">' + esc(r.source_key) + ' · ' + esc(r.title_pattern || '') + '</div>'
+            +'</div>'
+            +'<button type="button" data-act="toggle" data-id="' + r.id + '" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-[10px] text-slate-300">' + (r.enabled ? 'Disable' : 'Enable') + '</button>'
+            +'<button type="button" data-act="delete" data-id="' + r.id + '" class="px-2 py-0.5 rounded bg-rose-900 hover:bg-rose-800 text-[10px] text-rose-200">Delete</button>'
+          +'</div>';
+        }).join('');
+        // Wire toggle / delete buttons
+        Array.prototype.forEach.call(box.querySelectorAll('button[data-act]'), function(btn){
+          btn.addEventListener('click', function(){
+            var id = btn.getAttribute('data-id');
+            var act = btn.getAttribute('data-act');
+            if (act === 'delete' && !confirm('Delete this channel? Its cached stream row is also removed.')) return;
+            var url = '/admin/livestream/sources/' + id + '/' + (act === 'toggle' ? 'toggle' : 'delete');
+            var fd = new FormData(); fd.append('_csrf', CSRF);
+            fetch(url, { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'x-csrf-token': CSRF } })
+              .then(function(r){ return r.json(); })
+              .then(function(d){
+                if (d.ok) { flash(act + ' ok', true); loadList(); }
+                else flash('Error: ' + (d.error || 'unknown'), false);
+              })
+              .catch(function(e){ flash('Network error: ' + e.message, false); });
+          });
+        });
+      }
+      function loadList(){
+        fetch('/admin/livestream/sources', { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+          .then(function(r){ return r.json(); })
+          .then(function(d){
+            if (d && d.ok) renderList(d.sources || []);
+            else { var b = document.getElementById('lc-list'); if (b) b.innerHTML = '<p class="text-xs text-rose-400">Failed to load channels.</p>'; }
+          })
+          .catch(function(){
+            var b = document.getElementById('lc-list'); if (b) b.innerHTML = '<p class="text-xs text-rose-400">Network error.</p>';
+          });
+      }
+      var refresh = document.getElementById('lc-refresh');
+      if (refresh) refresh.addEventListener('click', loadList);
+      var addBtn = document.getElementById('lc-add');
+      if (addBtn) addBtn.addEventListener('click', function(){
+        var key  = (document.getElementById('lc-add-key')||{}).value || '';
+        var lab  = (document.getElementById('lc-add-label')||{}).value || '';
+        var url  = (document.getElementById('lc-add-url')||{}).value || '';
+        var pat  = (document.getElementById('lc-add-pattern')||{}).value || '';
+        if (!key || !url || !pat) { flash('Source key, channel URL, and title regex are required', false); return; }
+        fetch('/admin/livestream/sources', {
+          method: 'POST', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', 'x-csrf-token': CSRF },
+          body: JSON.stringify({ source_key: key, channel_label: lab, channel_url: url, title_pattern: pat, enabled: true })
+        }).then(function(r){ return r.json(); }).then(function(d){
+          if (d.ok) {
+            flash('Channel added — runs on next 60s tick.', true);
+            ['lc-add-key','lc-add-label','lc-add-url','lc-add-pattern'].forEach(function(id){ var el=document.getElementById(id); if (el) el.value=''; });
+            loadList();
+          } else flash('Error: ' + (d.error || 'unknown'), false);
+        }).catch(function(e){ flash('Network error: ' + e.message, false); });
+      });
+      loadList();
+    }, 50);
   }
   if(w.type==='available_plans'||w.type==='status_bar'){
     h+='<div class="flex items-center gap-3 mt-1">'
@@ -327,16 +426,115 @@ function applyEdit(){
   var g=function(n){var el=document.querySelector('#wef [name="'+n+'"]');return el?el.value:'';};
   w.title=g('title');
   if(w.type==='live_news'){
-    // GMA-LOCKED-2026-06-04 — source channel is preconfigured at deploy time
-    // via the systemd unit. Operators control Title + Enable; channel is fixed.
-    h+='<div class="mt-2 rounded border border-slate-700 bg-slate-950 p-3">'
-      +'<div class="flex items-center gap-2 text-xs text-slate-300 mb-1.5">'
-        +'<span class="px-1.5 py-0.5 rounded bg-amber-500 text-black text-[10px] font-bold uppercase tracking-wider">Preset</span>'
-        +'<span class="font-semibold">GMA News</span>'
+    // LIVE-CHANNELS-2026-06-04 — interactive channel manager inside the edit panel.
+    h+='<div class="mt-2 rounded border border-slate-700 bg-slate-950 p-3" id="lc-host">'
+      +'<div class="flex items-center justify-between mb-2">'
+        +'<label class="text-xs font-semibold text-slate-300">Live channels</label>'
+        +'<button type="button" id="lc-refresh" class="text-[10px] text-slate-400 hover:text-slate-200">Refresh</button>'
       +'</div>'
-      +'<p class="text-[11px] text-slate-400 leading-snug">Source: <code class="text-slate-300">@gmanews2026 / streams</code></p>'
-      +'<p class="text-[11px] text-slate-500 mt-1">Surfaces the most recent video whose title starts with <code>LIVE\u00A0-</code> (any dash variant). Refresh runs every 5 minutes. Channel and source key are deployment-locked — to change them, update <code>paywifi-livestream-fetch.service</code>.</p>'
+      +'<p class="text-[11px] text-slate-500 mb-2">Whichever channel is broadcasting wins automatic selection on the captive portal. Users can flip channels via the overlay arrows.</p>'
+      +'<div id="lc-list" class="space-y-1.5"></div>'
+      +'<div class="mt-3 pt-2 border-t border-slate-800">'
+        +'<label class="text-xs font-semibold text-slate-300">Add channel</label>'
+        +'<div class="grid grid-cols-12 gap-2 mt-1.5 text-xs">'
+          +'<input id="lc-add-key"     placeholder="source_key (a-z, 0-9, _)" class="col-span-3 px-2 py-1 rounded bg-slate-800 border border-slate-700 text-slate-200">'
+          +'<input id="lc-add-label"   placeholder="Display label" class="col-span-3 px-2 py-1 rounded bg-slate-800 border border-slate-700 text-slate-200">'
+          +'<input id="lc-add-url"     placeholder="https://www.youtube.com/@channel/streams" class="col-span-6 px-2 py-1 rounded bg-slate-800 border border-slate-700 text-slate-200">'
+          +'<input id="lc-add-pattern" placeholder="title regex (e.g. (?i)\\bLIVE\\b)" class="col-span-9 px-2 py-1 rounded bg-slate-800 border border-slate-700 text-slate-200 font-mono">'
+          +'<button type="button" id="lc-add" class="col-span-3 px-3 py-1 rounded bg-brand-500 text-slate-900 text-xs font-bold hover:bg-brand-400">Add channel</button>'
+        +'</div>'
+        +'<p id="lc-msg" class="text-[11px] mt-1.5 hidden"></p>'
+      +'</div>'
     +'</div>';
+    // Defer wiring until the edit panel is in the DOM
+    setTimeout(function(){
+      var msg = document.getElementById('lc-msg');
+      function flash(text, ok){
+        if (!msg) return;
+        msg.className = 'text-[11px] mt-1.5 ' + (ok ? 'text-emerald-400' : 'text-rose-400');
+        msg.textContent = text;
+        msg.classList.remove('hidden');
+        setTimeout(function(){ msg.classList.add('hidden'); }, 3500);
+      }
+      function statusChip(status){
+        var color = 'bg-slate-700 text-slate-300';
+        if (status === 'is_live')      color = 'bg-rose-700 text-rose-100';
+        else if (status === 'was_live' || status === 'post_live') color = 'bg-amber-700 text-amber-100';
+        else if (status === 'is_upcoming') color = 'bg-sky-700 text-sky-100';
+        return '<span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ' + color + '">' + (status || 'unknown') + '</span>';
+      }
+      function renderList(rows){
+        var box = document.getElementById('lc-list');
+        if (!box) return;
+        if (!rows || !rows.length) {
+          box.innerHTML = '<p class="text-xs text-slate-500 px-2 py-3 text-center">No channels yet. Add one below.</p>';
+          return;
+        }
+        box.innerHTML = rows.map(function(r){
+          var cache = r.cache || {};
+          var dot = r.enabled ? 'bg-emerald-400' : 'bg-slate-600';
+          return '<div class="flex items-center gap-2 px-2 py-1.5 rounded bg-slate-900 border border-slate-800">'
+            +'<span class="h-2 w-2 rounded-full ' + dot + '"></span>'
+            +'<div class="flex-1 min-w-0">'
+              +'<div class="text-xs text-slate-200 font-medium truncate">' + esc(r.channel_label || r.source_key) + statusChip(cache.live_status) + '</div>'
+              +'<div class="text-[10px] text-slate-500 font-mono truncate" title="' + esc(r.channel_url) + '">' + esc(r.source_key) + ' · ' + esc(r.title_pattern || '') + '</div>'
+            +'</div>'
+            +'<button type="button" data-act="toggle" data-id="' + r.id + '" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-[10px] text-slate-300">' + (r.enabled ? 'Disable' : 'Enable') + '</button>'
+            +'<button type="button" data-act="delete" data-id="' + r.id + '" class="px-2 py-0.5 rounded bg-rose-900 hover:bg-rose-800 text-[10px] text-rose-200">Delete</button>'
+          +'</div>';
+        }).join('');
+        // Wire toggle / delete buttons
+        Array.prototype.forEach.call(box.querySelectorAll('button[data-act]'), function(btn){
+          btn.addEventListener('click', function(){
+            var id = btn.getAttribute('data-id');
+            var act = btn.getAttribute('data-act');
+            if (act === 'delete' && !confirm('Delete this channel? Its cached stream row is also removed.')) return;
+            var url = '/admin/livestream/sources/' + id + '/' + (act === 'toggle' ? 'toggle' : 'delete');
+            var fd = new FormData(); fd.append('_csrf', CSRF);
+            fetch(url, { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'x-csrf-token': CSRF } })
+              .then(function(r){ return r.json(); })
+              .then(function(d){
+                if (d.ok) { flash(act + ' ok', true); loadList(); }
+                else flash('Error: ' + (d.error || 'unknown'), false);
+              })
+              .catch(function(e){ flash('Network error: ' + e.message, false); });
+          });
+        });
+      }
+      function loadList(){
+        fetch('/admin/livestream/sources', { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+          .then(function(r){ return r.json(); })
+          .then(function(d){
+            if (d && d.ok) renderList(d.sources || []);
+            else { var b = document.getElementById('lc-list'); if (b) b.innerHTML = '<p class="text-xs text-rose-400">Failed to load channels.</p>'; }
+          })
+          .catch(function(){
+            var b = document.getElementById('lc-list'); if (b) b.innerHTML = '<p class="text-xs text-rose-400">Network error.</p>';
+          });
+      }
+      var refresh = document.getElementById('lc-refresh');
+      if (refresh) refresh.addEventListener('click', loadList);
+      var addBtn = document.getElementById('lc-add');
+      if (addBtn) addBtn.addEventListener('click', function(){
+        var key  = (document.getElementById('lc-add-key')||{}).value || '';
+        var lab  = (document.getElementById('lc-add-label')||{}).value || '';
+        var url  = (document.getElementById('lc-add-url')||{}).value || '';
+        var pat  = (document.getElementById('lc-add-pattern')||{}).value || '';
+        if (!key || !url || !pat) { flash('Source key, channel URL, and title regex are required', false); return; }
+        fetch('/admin/livestream/sources', {
+          method: 'POST', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', 'x-csrf-token': CSRF },
+          body: JSON.stringify({ source_key: key, channel_label: lab, channel_url: url, title_pattern: pat, enabled: true })
+        }).then(function(r){ return r.json(); }).then(function(d){
+          if (d.ok) {
+            flash('Channel added — runs on next 60s tick.', true);
+            ['lc-add-key','lc-add-label','lc-add-url','lc-add-pattern'].forEach(function(id){ var el=document.getElementById(id); if (el) el.value=''; });
+            loadList();
+          } else flash('Error: ' + (d.error || 'unknown'), false);
+        }).catch(function(e){ flash('Network error: ' + e.message, false); });
+      });
+      loadList();
+    }, 50);
   }
   if(w.type==='available_plans'||w.type==='status_bar'){
     var scb=document.querySelector('#wef [name="sticky"]');w.sticky=scb?scb.checked:true;
