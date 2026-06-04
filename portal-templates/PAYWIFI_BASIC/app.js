@@ -245,6 +245,97 @@ function hydratePortalSidebarWidgets() {
           if (ytErr) ytErr.classList.remove("hidden");
           ytTrack("error");
         });
+
+    // LIVE-NEWS-2026-06-03 — GMA News live-stream card with real-time clock.
+    var ln       = findWidget("live_news");
+    var lnCard   = $("live-news-widget");
+    var lnThumb  = $("live-news-thumb");
+    var lnTitle  = $("live-news-title");
+    var lnStatus = $("live-news-status");
+    var lnStatusText = $("live-news-status-text");
+    var lnReplay = $("live-news-replay");
+    var lnChannel= $("live-news-channel");
+    var lnPublish= $("live-news-publish");
+    var lnNow    = $("live-news-now");
+    if (lnCard) {
+      var stream = ln && ln.stream;
+      if (ln && ln.enabled !== false && stream && stream.video_id) {
+        lnCard.classList.remove("hidden");
+        if (lnThumb && stream.thumbnail_url) {
+          lnThumb.src = stream.thumbnail_url;
+          // Graceful fallback to medium-res if maxres 404s
+          lnThumb.onerror = function() {
+            this.onerror = null;
+            this.src = "https://i.ytimg.com/vi/" + stream.video_id + "/hqdefault.jpg";
+          };
+        }
+        if (lnTitle) lnTitle.textContent = (ln.title ? (ln.title + " — ") : "") + (stream.display_title || "");
+        if (lnChannel) lnChannel.textContent = stream.channel_name || "GMA News";
+        lnCard.href = "https://www.youtube.com/watch?v=" + encodeURIComponent(stream.video_id);
+
+        // Status badge — driven by live_status + has_replay
+        var status = String(stream.live_status || "").toLowerCase();
+        var badgeText = "LIVE";
+        var badgeColor = "bg-rose-600 text-white";
+        var pulse = true;
+        if (status === "is_live") {
+          badgeText = "LIVE";
+          badgeColor = "bg-rose-600 text-white";
+        } else if (status === "is_upcoming") {
+          badgeText = "UPCOMING";
+          badgeColor = "bg-sky-600 text-white";
+          pulse = false;
+        } else if (status === "was_live" || status === "post_live") {
+          badgeText = "REPLAY";
+          badgeColor = "bg-amber-500 text-black";
+          pulse = false;
+        } else {
+          badgeText = "STREAM";
+          badgeColor = "bg-slate-600 text-white";
+          pulse = false;
+        }
+        if (lnStatus) {
+          lnStatus.className =
+            "absolute top-2 left-2 inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider backdrop-blur " + badgeColor;
+          var dot = lnStatus.querySelector("span:first-child");
+          if (dot) dot.style.display = pulse ? "" : "none";
+        }
+        if (lnStatusText) lnStatusText.textContent = badgeText;
+
+        // Replay badge — independent of status; driven by original title match
+        if (lnReplay) {
+          if (stream.has_replay) lnReplay.classList.remove("hidden");
+          else                    lnReplay.classList.add("hidden");
+        }
+
+        // Publication / release timestamp
+        if (lnPublish) {
+          var ts = stream.published_at || stream.release_at;
+          if (ts) {
+            var d = new Date(ts * 1000);
+            lnPublish.textContent = "Streamed " + d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+          } else {
+            lnPublish.textContent = "";
+          }
+        }
+
+        // Real-time clock — updates every second
+        function pwLiveTick() {
+          if (!lnNow) return;
+          var n = new Date();
+          var hh = String(n.getHours()).padStart(2,"0");
+          var mm = String(n.getMinutes()).padStart(2,"0");
+          var ss = String(n.getSeconds()).padStart(2,"0");
+          lnNow.textContent = "Now " + hh + ":" + mm + ":" + ss;
+        }
+        pwLiveTick();
+        if (!window.__pwLiveTickTimer) {
+          window.__pwLiveTickTimer = setInterval(pwLiveTick, 1000);
+        }
+      } else {
+        lnCard.classList.add("hidden");
+      }
+    }
         function ytTrack(event) {
           try {
             var body = JSON.stringify({ media_id: media && media.id, widget_id: yt && yt.id, event: event });

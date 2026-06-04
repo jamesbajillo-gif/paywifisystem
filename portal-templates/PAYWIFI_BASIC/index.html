@@ -99,6 +99,36 @@
             </div>
           </div>
         </div>
+
+        <a id="live-news-widget" href="#" target="_blank" rel="noopener noreferrer"
+          class="hidden w-full rounded-2xl border-2 border-border bg-card overflow-hidden min-w-0 active:scale-[0.99] transition-all">
+          <div class="relative w-full bg-black aspect-video">
+            <img id="live-news-thumb" alt="" class="absolute inset-0 w-full h-full object-cover" />
+            <!-- status badge — top-left -->
+            <span id="live-news-status" class="absolute top-2 left-2 inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider backdrop-blur bg-rose-600 text-white">
+              <span class="h-1.5 w-1.5 rounded-full bg-white animate-pulse" aria-hidden="true"></span>
+              <span id="live-news-status-text">LIVE</span>
+            </span>
+            <!-- replay badge — top-right (shown only when has_replay=1) -->
+            <span id="live-news-replay" class="hidden absolute top-2 right-2 px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500 text-black">REPLAY</span>
+            <!-- play overlay -->
+            <span class="absolute inset-0 flex items-center justify-center bg-black/30">
+              <span class="rounded-full bg-white/90 text-black h-12 w-12 flex items-center justify-center shadow-2xl">
+                <svg viewBox="0 0 24 24" class="h-6 w-6 ml-1" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+              </span>
+            </span>
+          </div>
+          <div class="px-4 py-3">
+            <p id="live-news-title" class="text-base font-bold leading-snug line-clamp-2">Live News</p>
+            <p class="text-xs mt-1 text-muted-foreground flex items-center gap-1.5 flex-wrap">
+              <span id="live-news-channel">GMA News</span>
+              <span aria-hidden="true">·</span>
+              <span id="live-news-publish"></span>
+              <span aria-hidden="true">·</span>
+              <span id="live-news-now"></span>
+            </p>
+          </div>
+        </a>
       </div>
     </section>
     <footer class="sticky bottom-0 z-20 bg-background/95 backdrop-blur border-t border-border safe-bottom safe-x pt-3">

@@ -132,6 +132,7 @@ const DEFAULT_WIDGETS = [
   { id:'ads_card',        type:'ads_card',        enabled:true,  order:8, title:'Your Ads Here',    subtitle:'Submit to inquire', contact_email:'ads@example.com' },
   { id:'partner_cta',     type:'partner_cta',     enabled:true,  order:9, title:'Partner with Us',  subtitle:'',                  chip:'',                       rollout:'', contact_number:'', contact_email:'' },
   { id:'youtube',         type:'youtube',         enabled:true,  order:10, title:'Featured Video',  media_id:'auto', playlist_mode:'auto', playlist_ids:[], autoplay:true,  muted:false, loop:true, controls:true, allow_fullscreen:true, volume:1.0, click_to_play:false, skip_button:false, close_button:false, device_rule:'any' },
+  { id:'live_news',       type:'live_news',       enabled:true,  order:11, title:'Live News', source_key:'gmanews2026', channel_url:'https://www.youtube.com/@gmanews2026/streams' },
 ];
 
 // ── Portal config ────────────────────────────────────────────────────────────
@@ -146,6 +147,7 @@ router.get('/config', (req, res) => {
     if (!have.has('ads_card'))    widgets.push(DEFAULT_WIDGETS.find(w => w.type === 'ads_card'));
     if (!have.has('partner_cta')) widgets.push(DEFAULT_WIDGETS.find(w => w.type === 'partner_cta'));
     if (!have.has('youtube'))     widgets.push(DEFAULT_WIDGETS.find(w => w.type === 'youtube'));
+    if (!have.has('live_news'))   widgets.push(DEFAULT_WIDGETS.find(w => w.type === 'live_news'));
     const pcw = widgets.find(w => w.type === 'partner_cta');
     if (pcw) {
       if (!pcw.subtitle)        pcw.subtitle        = settings.partner_cta_text             || '';
@@ -204,6 +206,19 @@ router.get('/config', (req, res) => {
       ytw.media = media || null;
       ytw.playlist_mode = mode;
     }
+    // LIVE-NEWS-2026-06-03 — attach cached stream metadata to the widget.
+    const lnw = widgets.find(w => w.type === 'live_news');
+    if (lnw) {
+      try {
+        const sk = lnw.source_key || 'gmanews2026';
+        const row = db.prepare(
+          "SELECT video_id, original_title, display_title, has_replay, live_status, " +
+          "published_at, release_at, thumbnail_url, view_count, duration_sec, channel_name, " +
+          "fetched_at, fetch_error FROM live_stream_cache WHERE source_key=?"
+        ).get(sk);
+        lnw.stream = row || null;
+      } catch (e) { lnw.stream = null; }
+    }
   })();
   // STORE-WIRE-2026-06-01 — derive partners from active operators
   // (cash payments are routed by partner_id → operator).
@@ -243,7 +258,7 @@ router.get('/config', (req, res) => {
       contact_email:    settings.maintenance_contact_email     || '',
       contact_messenger:settings.maintenance_contact_messenger || '',
     },
-    widgets: widgets.filter(w => w.enabled || w.type==='status_bar' || w.type==='available_plans' || w.type==='ads_card' || w.type==='partner_cta' || w.type==='youtube').sort((a, b) => (a.order||0) - (b.order||0)),
+    widgets: widgets.filter(w => w.enabled || w.type==='status_bar' || w.type==='available_plans' || w.type==='ads_card' || w.type==='partner_cta' || w.type==='youtube' || w.type==='live_news').sort((a, b) => (a.order||0) - (b.order||0)),
     partners: storePartners,
     partner: {
       contact_number:      settings.partner_contact_number      || '',

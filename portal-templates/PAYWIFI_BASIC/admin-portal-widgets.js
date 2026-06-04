@@ -301,6 +301,11 @@ function buildForm(w){
       });});
     },0);
   }
+  if(w.type==='live_news'){
+    h+=inp('source_key',w.source_key,'Source key','gmanews2026 (used by the worker; do not change unless you also change the systemd unit)');
+    h+=inp('channel_url',w.channel_url,'Channel URL','https://www.youtube.com/@gmanews2026/streams');
+    h+='<p class="text-[11px] text-slate-500 mt-1">The widget shows the most recent video whose title starts with <code>LIVE\u00A0-</code> (any dash variant). Refresh runs every 5 minutes via systemd timer.</p>';
+  }
   if(w.type==='available_plans'||w.type==='status_bar'){
     h+='<div class="flex items-center gap-3 mt-1">'
       +'<input type="checkbox" name="sticky" id="sticky-cb" class="w-4 h-4 accent-brand-500"'+(w.sticky!==false?' checked':'')+'>'
@@ -313,6 +318,11 @@ function applyEdit(){
   var w=widgets[editIdx];
   var g=function(n){var el=document.querySelector('#wef [name="'+n+'"]');return el?el.value:'';};
   w.title=g('title');
+  if(w.type==='live_news'){
+    h+=inp('source_key',w.source_key,'Source key','gmanews2026 (used by the worker; do not change unless you also change the systemd unit)');
+    h+=inp('channel_url',w.channel_url,'Channel URL','https://www.youtube.com/@gmanews2026/streams');
+    h+='<p class="text-[11px] text-slate-500 mt-1">The widget shows the most recent video whose title starts with <code>LIVE\u00A0-</code> (any dash variant). Refresh runs every 5 minutes via systemd timer.</p>';
+  }
   if(w.type==='available_plans'||w.type==='status_bar'){
     var scb=document.querySelector('#wef [name="sticky"]');w.sticky=scb?scb.checked:true;
   }
@@ -325,6 +335,7 @@ function applyEdit(){
     ['phone','email','facebook','instagram'].forEach(function(k){w[k]=g(k);});
   } else if(w.type==='promo'){w.image_url=g('image_url');w.caption=g('caption');}
   else if(w.type==='html'){w.html=g('html');}
+  else if(w.type==='live_news'){w.source_key=g('source_key')||'gmanews2026'; w.channel_url=g('channel_url')||'';}
   else if(w.type==='ads_card'){w.subtitle=g('subtitle');w.contact_email=g('contact_email');}
   else if(w.type==='partner_cta'){w.subtitle=g('subtitle');w.chip=g('chip');w.rollout=g('rollout');w.contact_number=g('contact_number');w.contact_email=g('contact_email');}
   else if(w.type==='youtube'){

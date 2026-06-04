@@ -1,0 +1,157 @@
+#!/usr/bin/env python3
+"""
+PAYWIFI-FETCH-LIVESTREAM — periodically refresh live_stream_cache from a
+YouTube channel's /streams tab. Matches videos whose title begins with
+'LIVE' followed by any dash variant (-, –, —). Stores the first match,
+its cleaned title (everything up to the first '|' stripped + trimmed),
+and a replay flag derived from the original title.
+
+Usage: paywifi-fetch-livestream <source_key> <channel_url>
+Example:
+  paywifi-fetch-livestream gmanews2026 https://www.youtube.com/@gmanews2026/streams
+"""
+import json, re, subprocess, sqlite3, sys, time, os, traceback
+
+DB = '/var/lib/paywifi/paywifi.db'
+LOG = '/var/log/paywifi/livestream-fetch.log'
+
+LIVE_PREFIX_RE = re.compile(r'^\s*LIVE\s*[\-–—]', re.UNICODE)
+REPLAY_RE      = re.compile(r'\breplay\b', re.IGNORECASE)
+
+def log(msg):
+    os.makedirs(os.path.dirname(LOG), exist_ok=True)
+    with open(LOG, 'a') as f:
+        f.write(time.strftime('%F %T ') + msg + '\n')
+
+def run_ytdlp(url, timeout=45):
+    return subprocess.run(
+        ['yt-dlp', '--flat-playlist', '--dump-single-json', '--no-download',
+         '--playlist-end', '40', url],
+        capture_output=True, timeout=timeout, check=True
+    )
+
+def probe_one(video_id, timeout=30):
+    """Probe a single video for current live_status + release_timestamp."""
+    try:
+        r = subprocess.run(
+            ['yt-dlp', '--dump-single-json', '--no-download', '--skip-download',
+             '-f', 'best',
+             f'https://www.youtube.com/watch?v={video_id}'],
+            capture_output=True, timeout=timeout, check=True
+        )
+        return json.loads(r.stdout)
+    except Exception as e:
+        log(f'probe_one({video_id}) failed: {e}')
+        return None
+
+def clean_title(t):
+    if not t:
+        return ''
+    return t.split('|', 1)[0].strip()
+
+def main():
+    if len(sys.argv) < 3:
+        print('Usage: paywifi-fetch-livestream <source_key> <channel_url>', file=sys.stderr)
+        sys.exit(2)
+    source_key, channel_url = sys.argv[1], sys.argv[2]
+    log(f'start source={source_key} url={channel_url}')
+
+    now = int(time.time())
+    err = None
+    pick = None
+    channel_name = None
+
+    try:
+        result = run_ytdlp(channel_url)
+        data = json.loads(result.stdout)
+        channel_name = data.get('channel') or data.get('uploader')
+        entries = data.get('entries') or []
+        log(f'fetched {len(entries)} entries')
+        for e in entries:
+            title = (e.get('title') or '').strip()
+            if LIVE_PREFIX_RE.match(title):
+                pick = e
+                break
+        if pick is None:
+            err = 'no_match'
+            log('no LIVE-prefixed entry found')
+    except subprocess.TimeoutExpired:
+        err = 'timeout'
+        log('yt-dlp timeout')
+    except subprocess.CalledProcessError as e:
+        err = 'ytdlp_failed'
+        log(f'yt-dlp exit {e.returncode}: {(e.stderr or b"").decode()[:200]}')
+    except Exception as e:
+        err = 'unexpected'
+        log(f'unexpected: {e}\n{traceback.format_exc()}')
+
+    video_id = pick.get('id') if pick else None
+    original_title = pick.get('title') if pick else None
+    display_title = clean_title(original_title) if original_title else None
+    has_replay = 1 if (original_title and REPLAY_RE.search(original_title)) else 0
+    thumbnail_url = None
+    view_count = None
+    duration_sec = None
+    live_status = 'unknown'
+    published_at = None
+    release_at = None
+
+    if pick:
+        # Flat-playlist gives partial info. Probe for current status.
+        meta = probe_one(video_id) or {}
+        live_status_raw = meta.get('live_status') or pick.get('live_status') or 'unknown'
+        # Map yt-dlp values
+        if live_status_raw is None:
+            # If has_replay match → assume was_live; otherwise unknown
+            live_status = 'was_live' if has_replay else 'unknown'
+        else:
+            live_status = str(live_status_raw)
+        # Publication / release times
+        ts = meta.get('timestamp') or meta.get('release_timestamp')
+        if ts:
+            published_at = int(ts)
+        rel = meta.get('release_timestamp')
+        if rel:
+            release_at = int(rel)
+        thumbnail_url = meta.get('thumbnail') or (pick.get('thumbnails') or [{}])[-1].get('url')
+        if not thumbnail_url and video_id:
+            thumbnail_url = f'https://i.ytimg.com/vi/{video_id}/maxresdefault.jpg'
+        view_count = meta.get('view_count') or pick.get('view_count')
+        duration_sec = meta.get('duration') or pick.get('duration')
+        channel_name = channel_name or meta.get('channel')
+
+    # Upsert
+    con = sqlite3.connect(DB)
+    try:
+        con.execute("PRAGMA foreign_keys=OFF;")
+        con.execute('''
+          INSERT INTO live_stream_cache
+            (source_key, channel_url, video_id, original_title, display_title, has_replay,
+             live_status, published_at, release_at, thumbnail_url, view_count, duration_sec,
+             channel_name, fetched_at, fetch_error)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+          ON CONFLICT(source_key) DO UPDATE SET
+             video_id       = excluded.video_id,
+             original_title = excluded.original_title,
+             display_title  = excluded.display_title,
+             has_replay     = excluded.has_replay,
+             live_status    = excluded.live_status,
+             published_at   = excluded.published_at,
+             release_at     = excluded.release_at,
+             thumbnail_url  = excluded.thumbnail_url,
+             view_count     = excluded.view_count,
+             duration_sec   = excluded.duration_sec,
+             channel_name   = excluded.channel_name,
+             fetched_at     = excluded.fetched_at,
+             fetch_error    = excluded.fetch_error
+        ''', (source_key, channel_url, video_id, original_title, display_title, has_replay,
+              live_status, published_at, release_at, thumbnail_url, view_count, duration_sec,
+              channel_name, now, err))
+        con.commit()
+    finally:
+        con.close()
+    log(f'done video_id={video_id} live_status={live_status} has_replay={has_replay} err={err}')
+    print(f'ok video_id={video_id} live_status={live_status}')
+
+if __name__ == '__main__':
+    main()
