@@ -228,9 +228,13 @@ router.get('/config', (req, res) => {
         // Lets a single live_news widget surface whichever configured channel
         // is currently broadcasting; freshness tiebreaks.
         const rows = db.prepare(
-          "SELECT source_key, video_id, original_title, display_title, has_replay, live_status, " +
-          "published_at, release_at, thumbnail_url, view_count, duration_sec, channel_name, " +
-          "fetched_at, fetch_error, hls_url, hls_expire_at FROM live_stream_cache"
+          "SELECT c.source_key, c.video_id, c.original_title, c.display_title, c.has_replay, c.live_status, " +
+          "c.published_at, c.release_at, c.thumbnail_url, c.view_count, c.duration_sec, " +
+          "COALESCE(NULLIF(s.channel_label, ''), c.channel_name) AS channel_name, " +
+          "c.fetched_at, c.fetch_error, c.hls_url, c.hls_expire_at " +
+          "FROM live_stream_cache c " +
+          "LEFT JOIN live_stream_sources s ON s.source_key = c.source_key " +
+          "WHERE s.enabled = 1 OR s.enabled IS NULL"
         ).all();
         const STATUS_RANK = { is_live: 0, post_live: 1, was_live: 2, is_upcoming: 3, not_live: 4, unknown: 5 };
         rows.sort((a, b) => {
