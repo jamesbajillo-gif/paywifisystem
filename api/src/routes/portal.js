@@ -229,22 +229,9 @@ router.get('/config', (req, res) => {
           "published_at, release_at, thumbnail_url, view_count, duration_sec, channel_name, " +
           "fetched_at, fetch_error, hls_url, hls_expire_at FROM live_stream_cache WHERE source_key=?"
         ).get(sk);
-        if (row) {
-          // HLS-GATE-AUTH-2026-06-04 — only authenticated devices receive the
-          // HLS manifest URL. Pre-auth clients see metadata card (tap → YouTube).
-          let authed = false;
-          try {
-            if (req.clientIp) {
-              const sess = db.prepare("SELECT id FROM sessions WHERE ip_address=? AND ended_at IS NULL LIMIT 1").get(req.clientIp);
-              authed = !!sess;
-            }
-          } catch (e) {}
-          if (!authed) {
-            row.hls_url = null;
-            row.hls_expire_at = null;
-            row.hls_gated = 'auth_required';
-          }
-        }
+        // LIVE-PLAY-2026-06-04 — HLS manifest passed to all clients so the
+        // captive portal can autoplay the stream. The walled-garden auto-allowlist
+        // for *.googlevideo.com (dnsmasq nftset) handles the actual CDN reachability.
         lnw.stream = row || null;
       } catch (e) { lnw.stream = null; }
     }

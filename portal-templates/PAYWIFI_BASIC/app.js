@@ -266,9 +266,12 @@ function hydratePortalSidebarWidgets() {
       }
     }
 
-    // LIVE-NEWS-2026-06-03 — GMA News live-stream card with real-time clock.
+    // LIVE-NEWS-2026-06-04 — inline HLS player (via hls.js) with autoplay,
+    // muted-start, tap-to-unmute, and real-time clock. yt-dlp populates the
+    // manifest URL on the server side; we just attach + play.
     var ln       = findWidget("live_news");
     var lnCard   = $("live-news-widget");
+    var lnVid    = $("live-news-video");
     var lnThumb  = $("live-news-thumb");
     var lnTitle  = $("live-news-title");
     var lnStatus = $("live-news-status");
@@ -277,13 +280,15 @@ function hydratePortalSidebarWidgets() {
     var lnChannel= $("live-news-channel");
     var lnPublish= $("live-news-publish");
     var lnNow    = $("live-news-now");
+    var lnUnmute = $("live-news-unmute");
+    var lnError  = $("live-news-error");
+    var lnYtLink = $("live-news-yt-fallback");
     if (lnCard) {
       var stream = ln && ln.stream;
       if (ln && ln.enabled !== false && stream && stream.video_id) {
         lnCard.classList.remove("hidden");
         if (lnThumb && stream.thumbnail_url) {
           lnThumb.src = stream.thumbnail_url;
-          // Graceful fallback to medium-res if maxres 404s
           lnThumb.onerror = function() {
             this.onerror = null;
             this.src = "https://i.ytimg.com/vi/" + stream.video_id + "/hqdefault.jpg";
@@ -291,44 +296,31 @@ function hydratePortalSidebarWidgets() {
         }
         if (lnTitle) lnTitle.textContent = (ln.title ? (ln.title + " — ") : "") + (stream.display_title || "");
         if (lnChannel) lnChannel.textContent = stream.channel_name || "GMA News";
-        lnCard.href = "https://www.youtube.com/watch?v=" + encodeURIComponent(stream.video_id);
+        if (lnYtLink)  lnYtLink.href = "https://www.youtube.com/watch?v=" + encodeURIComponent(stream.video_id);
 
-        // Status badge — driven by live_status + has_replay
+        // Status badge
         var status = String(stream.live_status || "").toLowerCase();
-        var badgeText = "LIVE";
-        var badgeColor = "bg-rose-600 text-white";
-        var pulse = true;
-        if (status === "is_live") {
-          badgeText = "LIVE";
-          badgeColor = "bg-rose-600 text-white";
-        } else if (status === "is_upcoming") {
-          badgeText = "UPCOMING";
-          badgeColor = "bg-sky-600 text-white";
-          pulse = false;
-        } else if (status === "was_live" || status === "post_live") {
-          badgeText = "REPLAY";
-          badgeColor = "bg-amber-500 text-black";
-          pulse = false;
-        } else {
-          badgeText = "STREAM";
-          badgeColor = "bg-slate-600 text-white";
-          pulse = false;
-        }
+        var badgeText = "LIVE", badgeColor = "bg-rose-600 text-white", pulse = true;
+        if (status === "is_live")          { badgeText = "LIVE";     badgeColor = "bg-rose-600 text-white"; pulse = true;  }
+        else if (status === "is_upcoming") { badgeText = "UPCOMING"; badgeColor = "bg-sky-600 text-white";  pulse = false; }
+        else if (status === "was_live" || status === "post_live") { badgeText = "REPLAY"; badgeColor = "bg-amber-500 text-black"; pulse = false; }
+        else                               { badgeText = "STREAM";   badgeColor = "bg-slate-600 text-white"; pulse = false; }
         if (lnStatus) {
           lnStatus.className =
-            "absolute top-2 left-2 inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider backdrop-blur " + badgeColor;
+            "absolute top-2 left-2 z-10 inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider backdrop-blur " + badgeColor;
           var dot = lnStatus.querySelector("span:first-child");
           if (dot) dot.style.display = pulse ? "" : "none";
         }
         if (lnStatusText) lnStatusText.textContent = badgeText;
 
-        // Replay badge — independent of status; driven by original title match
+        // Replay badge (based on original-title regex)
         if (lnReplay) {
           if (stream.has_replay) lnReplay.classList.remove("hidden");
           else                    lnReplay.classList.add("hidden");
         }
+        if (lnReplay) lnReplay.className = lnReplay.className.replace(" absolute", " z-10 absolute");
 
-        // Publication / release timestamp
+        // Publication date
         if (lnPublish) {
           var ts = stream.published_at || stream.release_at;
           if (ts) {
@@ -339,7 +331,7 @@ function hydratePortalSidebarWidgets() {
           }
         }
 
-        // Real-time clock — updates every second
+        // Real-time clock
         function pwLiveTick() {
           if (!lnNow) return;
           var n = new Date();
@@ -352,24 +344,94 @@ function hydratePortalSidebarWidgets() {
         if (!window.__pwLiveTickTimer) {
           window.__pwLiveTickTimer = setInterval(pwLiveTick, 1000);
         }
-        // LIVE-STATUS-POLL-2026-06-04 — re-fetch /portal/config every 30s so a
-        // live-stream transition (LIVE → REPLAY when GMA ends the broadcast)
-        // surfaces on the captive portal without waiting for the 60s worker tick.
+
+        // 30s live-status poll
         if (!window.__pwLiveStatusPollTimer) {
           window.__pwLiveStatusPollTimer = setInterval(function(){
             fetch("/api/portal/config", { cache: "no-store" }).then(function(r){ return r.json(); }).then(function(cfg){
               if (!cfg || !cfg.widgets) return;
               for (var i=0;i<cfg.widgets.length;i++) {
-                var w = cfg.widgets[i];
-                if (w.type === "live_news") {
-                  state.config.widgets = cfg.widgets; // mutate so findWidget sees fresh data
-                  // Re-trigger the live-news block by calling hydrate again
+                if (cfg.widgets[i].type === "live_news") {
+                  state.config.widgets = cfg.widgets;
                   if (typeof hydratePortalSidebarWidgets === "function") hydratePortalSidebarWidgets();
                   return;
                 }
               }
             }).catch(function(){});
           }, 30000);
+        }
+
+        // ── INLINE HLS PLAYER ────────────────────────────────────────────────
+        // Browsers refuse autoplay-with-sound without prior user interaction.
+        // We start muted (browser allows), then unmute on the FIRST user gesture
+        // anywhere on the page OR a tap on the overlay.
+        var hlsUrl = stream.hls_url;
+        if (lnVid && hlsUrl) {
+          lnVid.muted = true;
+          lnVid.autoplay = true;
+          lnVid.playsInline = true;
+
+          function attachHls() {
+            // 1) Native HLS (Safari, iOS)
+            if (lnVid.canPlayType("application/vnd.apple.mpegurl")) {
+              lnVid.src = hlsUrl;
+              lnVid.play().catch(function(){});
+              return;
+            }
+            // 2) hls.js (Chrome, Firefox, Edge, Android)
+            function go() {
+              try {
+                if (window.__pwHls) { try { window.__pwHls.destroy(); } catch (e) {} }
+                var hls = new window.Hls({ enableWorker: true, lowLatencyMode: false, capLevelToPlayerSize: true });
+                window.__pwHls = hls;
+                hls.loadSource(hlsUrl);
+                hls.attachMedia(lnVid);
+                hls.on(window.Hls.Events.MANIFEST_PARSED, function(){
+                  lnVid.play().catch(function(){});
+                });
+                hls.on(window.Hls.Events.ERROR, function(evt, data){
+                  if (data && data.fatal) {
+                    console.warn("[live-news] hls fatal", data.type, data.details);
+                    if (lnError) lnError.classList.remove("hidden");
+                  }
+                });
+              } catch (e) {
+                if (lnError) lnError.classList.remove("hidden");
+              }
+            }
+            if (window.Hls) { go(); }
+            else {
+              var hjs = document.createElement("script");
+              hjs.src = "/hls.js"; hjs.async = true;
+              hjs.onload = go;
+              hjs.onerror = function(){ if (lnError) lnError.classList.remove("hidden"); };
+              document.head.appendChild(hjs);
+            }
+          }
+          attachHls();
+          // Once playback actually starts, hide the thumbnail
+          lnVid.addEventListener("playing", function(){
+            if (lnThumb) lnThumb.style.display = "none";
+          }, { once: true });
+
+          // Tap-to-unmute — overlay or anywhere on the page
+          function unmuteNow() {
+            try {
+              lnVid.muted = false;
+              lnVid.volume = 1.0;
+              lnVid.play().catch(function(){});
+            } catch (e) {}
+            if (lnUnmute) lnUnmute.classList.add("hidden");
+            document.removeEventListener("click", unmuteOnce, true);
+            document.removeEventListener("touchstart", unmuteOnce, true);
+          }
+          function unmuteOnce() { unmuteNow(); }
+          if (lnUnmute) lnUnmute.addEventListener("click", function(e){ e.preventDefault(); unmuteNow(); });
+          document.addEventListener("click", unmuteOnce, { capture: true, once: true });
+          document.addEventListener("touchstart", unmuteOnce, { capture: true, once: true });
+        } else if (lnVid) {
+          // No HLS URL — show error overlay + keep the YouTube fallback link
+          if (lnError) lnError.classList.remove("hidden");
         }
       } else {
         lnCard.classList.add("hidden");
