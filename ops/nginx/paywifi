@@ -418,6 +418,12 @@ server {
         allow 192.168.89.0/24;
         deny  all;
 
+        # HARDEN-2026-06-03 — upgrade plain-HTTP admin requests to HTTPS for
+        # any direct LAN/WAN client. Cloudflare tunnel (origin 127.0.0.1) is
+        # exempt — CF terminates TLS at the edge and proxies HTTP to us.
+        if ($remote_addr != 127.0.0.1) {
+            return 301 https://$host$request_uri;
+        }
         # If this is cloudflared (loopback), proxy directly.
         if ($remote_addr = "127.0.0.1") {
             rewrite ^ /__cf_admin$uri last;

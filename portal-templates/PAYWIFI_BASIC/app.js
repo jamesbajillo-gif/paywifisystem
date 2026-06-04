@@ -1660,6 +1660,16 @@ async function boot() {
     ]);
     state.config = cfg || {};
     state.plans = (plans && plans.plans) || [];
+    // DEVICE-COOKIE-HANDSHAKE-2026-06-03 — auto-PoP. If a remembered device
+    // is reconnecting, the server bumps its handshake timestamp here; if the
+    // cookie is missing or mismatched, sessiond will require fresh voucher.
+    try {
+      fetch("/api/portal/handshake", {
+        method: "POST", credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: "{}", keepalive: true
+      }).catch(function(){});
+    } catch (e) {}
     state.paymentOptions = (pos && pos.options) || [];
     state.storePartners = (cfg && (cfg.partners || cfg.store_partners)) || [];
     applyBranding();

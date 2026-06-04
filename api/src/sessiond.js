@@ -230,6 +230,19 @@ function leaseSweep() {
     }
     if (!rd.expires_at || rd.expires_at <= t) continue;
 
+    // DEVICE-COOKIE-POP-2026-06-03 — if strict-PoP is enabled, the remembered
+    // device must have shown a recent handshake (cookie matched the MAC). If
+    // not, treat the MAC remember as stale → require re-voucher.
+    const popRequired = (db.prepare("SELECT value FROM settings WHERE key='device_cookie_required_for_reauth'").get() || {}).value === '1';
+    if (popRequired) {
+      const handshakeMaxAgeSec = 3600 * 24; // 24h grace — admin-configurable later
+      const ok = rd.last_handshake_at && (t - rd.last_handshake_at) < handshakeMaxAgeSec;
+      if (!ok) {
+        console.log('[sessiond] PoP: skipping auto-reauth for ' + l.mac + ' (no recent handshake)');
+        continue;
+      }
+    }
+
     // Check device cap
     const dev = db.prepare(`
       SELECT COUNT(*) AS n FROM sessions WHERE voucher_id=? AND ended_at IS NULL

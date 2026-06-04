@@ -54,6 +54,7 @@ app.use('/partner/verify',   partnerVerifyLimiter);
 // Portal endpoints
 // PAYWIFI-PUBLIC-HOST-BLOCK-2026-06-01 — refuse payment endpoints from paywifi.net (public host)
 const blockPublicPayments = require('./middleware/blockPublicPayments');
+const perDeviceCap        = require('./middleware/perDeviceCap');
 app.use('/portal/payment/create',  blockPublicPayments);
 app.use('/auth/voucher',           blockPublicPayments);
 app.use('/portal/auth/voucher',    blockPublicPayments);
@@ -63,6 +64,17 @@ app.use('/portal/payment/status',  blockPublicPayments);
 app.use('/portal/payment/pending', blockPublicPayments);
 app.use('/portal/set-phone',       blockPublicPayments);
 app.use('/portal/free-trial',      blockPublicPayments);
+
+// PER-DEVICE-CAP-2026-06-03 — admin-toggleable strict per-session device cap.
+// Mounted on session-bound endpoints; /handshake, /config, /plans are exempt
+// so a freshly-connecting device can still see the portal and handshake in.
+app.use('/portal/payment/create',  perDeviceCap);
+app.use('/portal/payment/cancel',  perDeviceCap);
+app.use('/portal/payment/status',  perDeviceCap);
+app.use('/portal/payment/pending', perDeviceCap);
+app.use('/portal/set-phone',       perDeviceCap);
+app.use('/portal/free-trial',      perDeviceCap);
+app.use('/auth/voucher',           perDeviceCap);
 app.use('/auth/voucher',     rateLimit({ windowMs: 60*1000,     max: 20,  keyGenerator: rlKeyByIp, message: 'Too many voucher attempts.' }));
 app.use('/portal/free-trial',rateLimit({ windowMs: 10*60*1000,  max: 5,   keyGenerator: rlKeyByIp, standardHeaders: true, message: JSON.stringify({ ok: false, error: 'Too many attempts. Try again in 10 minutes.' }) }));
 app.use('/portal/payment/status', rateLimit({ windowMs: 60*1000, max: 60, keyGenerator: rlKeyByIp, message: JSON.stringify({ ok: false, error: 'Too many status requests.' }) }));

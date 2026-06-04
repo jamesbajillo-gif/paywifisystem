@@ -1563,4 +1563,64 @@ router.post('/media/track', express.json({ limit: '2kb' }), (req, res) => {
   }
 });
 
+// DEVICE-COOKIE-HANDSHAKE-2026-06-03 — proof-of-possession + session-bind check.
+//
+// The portal JS calls POST /api/portal/handshake on every page load.
+// Behaviour:
+//   - If a valid pw_device cookie is presented AND maps to a remembered_devices
+//     row whose MAC matches the calling client's MAC, the row's TTL + handshake
+//     timestamp are bumped and we return { ok:true, verified:true }.
+//   - If no cookie OR cookie doesn't match the calling MAC, we return
+//     { ok:true, verified:false }. The portal then knows it must show the
+//     voucher form even if the MAC happens to be in paywifi_auth_mac.
+//   - When `device_cookie_required_for_reauth=1`, sessiond consults this row
+//     before granting MAC-only reauth; missing/stale handshake → no auto-reauth.
+router.post('/handshake', express.json({ limit: '2kb' }), (req, res) => {
+  try {
+    const cookieRaw = (req.cookies && req.cookies['pw_device']) || req.headers['x-device-token'] || null;
+    if (!cookieRaw) {
+      return res.json({ ok: true, verified: false, reason: 'no_cookie' });
+    }
+    const tokenHash = crypto.createHash('sha256').update(String(cookieRaw)).digest('hex');
+    const mac = req.clientMac;
+    if (!mac) {
+      return res.json({ ok: true, verified: false, reason: 'no_mac' });
+    }
+    const row = db.prepare(
+      "SELECT id, mac_address, valid_until, voucher_id FROM remembered_devices WHERE device_token_hash=?"
+    ).get(tokenHash);
+    if (!row) {
+      // Unknown cookie - audit but don't leak which case matched
+      try {
+        db.prepare(
+          "INSERT INTO audit_log (admin_id, action, details, ip_address, created_at) VALUES (NULL,'voucher_handshake_unknown',?,?,?)"
+        ).run('mac=' + mac.slice(0,8) + '???', req.clientIp || null, Math.floor(Date.now()/1000));
+      } catch (e) {}
+      return res.json({ ok: true, verified: false, reason: 'cookie_unknown' });
+    }
+    if (row.mac_address !== mac) {
+      // Cookie binds to a different MAC — possible theft attempt
+      try {
+        db.prepare(
+          "INSERT INTO audit_log (admin_id, action, details, ip_address, created_at) VALUES (NULL,'voucher_handshake_mac_mismatch',?,?,?)"
+        ).run('cookie_mac=' + row.mac_address.slice(0,8) + '??? real_mac=' + mac.slice(0,8) + '???', req.clientIp || null, Math.floor(Date.now()/1000));
+      } catch (e) {}
+      return res.json({ ok: true, verified: false, reason: 'mac_mismatch' });
+    }
+    const now = Math.floor(Date.now() / 1000);
+    if (row.valid_until > 0 && row.valid_until < now) {
+      return res.json({ ok: true, verified: false, reason: 'remembered_expired' });
+    }
+    db.prepare("UPDATE remembered_devices SET last_handshake_at=? WHERE id=?").run(now, row.id);
+    try {
+      db.prepare(
+        "INSERT INTO audit_log (admin_id, action, details, ip_address, created_at) VALUES (NULL,'voucher_handshake_ok',?,?,?)"
+      ).run('mac=' + mac.slice(0,8) + '???', req.clientIp || null, now);
+    } catch (e) {}
+    res.json({ ok: true, verified: true, valid_until: row.valid_until });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: 'handshake_failed' });
+  }
+});
+
 module.exports = router;

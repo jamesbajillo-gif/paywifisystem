@@ -1,9 +1,61 @@
 'use strict';
 const router = require('express').Router();
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const db = require('../db');
 const voucherSvc = require('../services/voucher');
 const sessionSvc = require('../services/session');
+
+// DEVICE-COOKIE-2026-06-03 — proof-of-possession cookie. Set at voucher
+// redeem; verified at /api/portal/handshake. Cuts MAC-spoof + tethering
+// abuse windows from hours to seconds.
+const DEVICE_COOKIE = 'pw_device';
+function newDeviceToken() { return crypto.randomBytes(32).toString('base64url'); }
+function hashDeviceToken(t) { return crypto.createHash('sha256').update(t || '').digest('hex'); }
+function setDeviceCookie(req, res, token) {
+  const maxAge = 30 * 24 * 3600 * 1000; // 30 days
+  res.cookie(DEVICE_COOKIE, token, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.PAYWIFI_HTTPS === '1',
+    maxAge: maxAge,
+    path: '/'
+  });
+}
+function readDeviceCookie(req) {
+  const fromCookie = req.cookies && req.cookies[DEVICE_COOKIE];
+  if (fromCookie) return String(fromCookie);
+  // Allow header fallback for testing / non-browser tooling
+  const hdr = req.headers['x-device-token'];
+  return hdr ? String(hdr) : null;
+}
+function rememberDeviceWithToken(mac, voucherId, validUntil, nowSec, tokenHash) {
+  db.prepare(`
+    INSERT INTO remembered_devices (mac_address, voucher_id, valid_until, created_at, device_token_hash, last_handshake_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(mac_address) DO UPDATE SET
+      voucher_id        = excluded.voucher_id,
+      valid_until       = excluded.valid_until,
+      device_token_hash = COALESCE(excluded.device_token_hash, remembered_devices.device_token_hash),
+      last_handshake_at = excluded.last_handshake_at
+  `).run(mac, voucherId, validUntil, nowSec, tokenHash || null, nowSec);
+}
+
+// VOUCHER-AUDIT-2026-06-03 — surface every redeem attempt to audit_log so
+// security-relevant events survive log rotation (nginx logs roll weekly).
+function auditVoucher(action, req, details) {
+  try {
+    const code = (req.body && req.body.code) ? String(req.body.code).toUpperCase().slice(0, 32) : '';
+    const ip = req.clientIp || (req.headers['x-real-ip'] || '').toString().slice(0, 45);
+    const mac = req.clientMac || '';
+    const merged = (details || '') +
+      ' ip=' + ip + ' mac=' + (mac ? mac.slice(0, 8) + '???' : '?') +
+      (code ? ' code=' + code.slice(0,2) + '****' + code.slice(-2) : '');
+    db.prepare(
+      "INSERT INTO audit_log (admin_id, action, details, ip_address, created_at) VALUES (NULL, ?, ?, ?, ?)"
+    ).run('voucher_' + action, merged.slice(0, 500), ip || null, Math.floor(Date.now() / 1000));
+  } catch (e) { /* never block on audit */ }
+}
 
 // V-04: force-kick of existing sessions is privileged — honour it only for authenticated admins
 function isAdminRequest(req) {
@@ -14,13 +66,8 @@ function isAdminRequest(req) {
 }
 
 function rememberDevice(mac, voucherId, validUntil, nowSec) {
-  db.prepare(`
-    INSERT INTO remembered_devices (mac_address, voucher_id, valid_until, created_at)
-    VALUES (?, ?, ?, ?)
-    ON CONFLICT(mac_address) DO UPDATE SET
-      voucher_id  = excluded.voucher_id,
-      valid_until = excluded.valid_until
-  `).run(mac, voucherId, validUntil, nowSec);
+  // legacy callers — pass through with no token; PoP not active for these paths
+  return rememberDeviceWithToken(mac, voucherId, validUntil, nowSec, null);
 }
 
 function maskMac(mac) {
@@ -33,15 +80,16 @@ router.post('/voucher', (req, res) => {
   const code  = String(req.body?.code  || '').toUpperCase().trim();
   const force = req.body?.force === true && isAdminRequest(req);  // V-04: admin-gated
 
-  if (!code)          return res.status(400).json({ ok: false, error: 'Please enter your voucher code.' });
-  if (!req.clientIp)  return res.status(400).json({ ok: false, error: 'We could not detect your device. Please reconnect to the WiFi and try again.' });
-  if (!req.clientMac) return res.status(400).json({ ok: false, error: 'We could not detect your device. Please reconnect to the WiFi and try again.' });
+  if (!code)          { auditVoucher('reject_empty', req, 'reason=empty_code'); return res.status(400).json({ ok: false, error: 'Please enter your voucher code.' }); }
+  if (!req.clientIp)  { auditVoucher('reject_no_ip',  req, 'reason=no_client_ip');  return res.status(400).json({ ok: false, error: 'We could not detect your device. Please reconnect to the WiFi and try again.' }); }
+  if (!req.clientMac) { auditVoucher('reject_no_mac', req, 'reason=no_client_mac'); return res.status(400).json({ ok: false, error: 'We could not detect your device. Please reconnect to the WiFi and try again.' }); }
 
   const voucher = voucherSvc.findByCode(code);
-  if (!voucher) return res.status(404).json({ ok: false, error: 'We could not find that voucher. Please check the code and try again.' });
+  if (!voucher) { auditVoucher('reject_unknown', req, 'reason=not_found'); return res.status(404).json({ ok: false, error: 'We could not find that voucher. Please check the code and try again.' }); }
 
   // Reject already-consumed voucher states
   if (!['unused', 'active', 'queued'].includes(voucher.status)) {
+    auditVoucher('reject_consumed', req, 'reason=status_' + voucher.status);
     return res.status(400).json({ ok: false, error: 'This voucher cannot be used right now.' });
   }
 
@@ -54,6 +102,18 @@ router.post('/voucher', (req, res) => {
     rememberDevice(req.clientMac, voucher.id, existing.expires_at || 0, now);
     const ftA = db.prepare('SELECT id FROM free_trial_claims WHERE voucher_id=? AND redeemed_at IS NULL LIMIT 1').get(voucher.id);
     if (ftA) db.prepare('UPDATE free_trial_claims SET redeemed_at=? WHERE id=?').run(now, ftA.id);
+    auditVoucher('touch_existing', req, 'voucher_id=' + voucher.id + ' session_id=' + existing.id);
+    // refresh device cookie if missing/different so the session is bound
+    var _existingToken = readDeviceCookie(req);
+    if (!_existingToken) {
+      _existingToken = newDeviceToken();
+      try {
+        var _h = hashDeviceToken(_existingToken);
+        db.prepare('UPDATE sessions SET device_token_hash=COALESCE(device_token_hash,?), device_first_seen=COALESCE(device_first_seen,?) WHERE id=?').run(_h, Math.floor(Date.now()/1000), existing.id);
+        db.prepare('UPDATE remembered_devices SET device_token_hash=COALESCE(device_token_hash,?), last_handshake_at=? WHERE mac_address=?').run(_h, Math.floor(Date.now()/1000), req.clientMac);
+      } catch (e) {}
+      setDeviceCookie(req, res, _existingToken);
+    }
     return res.json({ ok: true, session_id: existing.id, expires_at: existing.expires_at, message: 'Already connected.' });
   }
 
@@ -91,8 +151,10 @@ router.post('/voucher', (req, res) => {
     try {
       queuePos = queueInsert();
     } catch (e) {
+      auditVoucher('queue_fail', req, 'voucher_id=' + voucher.id + ' err=' + e.message.slice(0,80));
       return res.status(500).json({ ok: false, error: 'Something went wrong adding your voucher. Please try again.' });
     }
+    auditVoucher('queued', req, 'voucher_id=' + voucher.id + ' pos=' + (queuePos+1));
 
     const remaining = Math.max(0, (existing.expires_at || 0) - now);
     // STACK-15: return queued:true with position
@@ -145,10 +207,12 @@ router.post('/voucher', (req, res) => {
   try {
     result = doActivate();
   } catch (e) {
+    auditVoucher('activate_500', req, 'voucher_id=' + voucher.id + ' err=' + e.message.slice(0,80));
     return res.status(500).json({ ok: false, error: e.message });
   }
 
   if (result.conflict) {
+    auditVoucher('reject_device_limit', req, 'voucher_id=' + voucher.id + ' active=' + result.activeSessions.length);
     return res.status(409).json({
       ok:          false,
       error:       'This voucher is already in use on another device.',
@@ -159,7 +223,21 @@ router.post('/voucher', (req, res) => {
       }))
     });
   }
-  if (result.failed) return res.status(400).json(result.failed);
+  if (result.failed) { auditVoucher('reject_activation', req, 'voucher_id=' + voucher.id + ' err=' + (result.failed.error || 'unknown')); return res.status(400).json(result.failed); }
+
+  auditVoucher('redeem_ok', req, 'voucher_id=' + voucher.id + ' session_id=' + result.sid);
+
+  // Mint device cookie + persist hash on the session + the remembered_devices row.
+  const dToken = newDeviceToken();
+  const dHash  = hashDeviceToken(dToken);
+  const dNow   = Math.floor(Date.now() / 1000);
+  try {
+    db.prepare('UPDATE sessions SET device_token_hash=?, device_first_seen=? WHERE id=?')
+      .run(dHash, dNow, result.sid);
+    db.prepare('UPDATE remembered_devices SET device_token_hash=?, last_handshake_at=? WHERE mac_address=?')
+      .run(dHash, dNow, req.clientMac);
+  } catch (e) { /* token persistence is best-effort */ }
+  setDeviceCookie(req, res, dToken);
 
   res.json({
     ok:               true,
