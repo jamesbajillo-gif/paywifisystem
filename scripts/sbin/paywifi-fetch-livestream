@@ -18,6 +18,10 @@ LOG = '/var/log/paywifi/livestream-fetch.log'
 # Title patterns are passed in by the systemd unit. The default mirrors the
 # legacy GMA News behaviour so the old CLI invocation still works.
 DEFAULT_PATTERN = r'^\s*LIVE\s*[\-–—]'
+# CH-FALLBACK-2026-06-04 — secondary "livestream anywhere, case-insensitive"
+# pattern. Used when the primary regex returned candidates but none were
+# actually live/replay (most matches were upcoming).
+SECONDARY_PATTERN_STR = r'(?i)\blivestream\b'
 REPLAY_RE       = re.compile(r'\breplay\b', re.IGNORECASE)
 
 def log(msg):
@@ -157,9 +161,40 @@ def main():
             elif idx == 0:
                 # Remember first match in case nothing's live; we'll show as upcoming.
                 pre_probed_meta = meta
+        # CH-FALLBACK-2026-06-04 — secondary pass with (?i)livestream
+        # Only fires when primary iteration found NO live/replay match (pick is None
+        # at this point only if every probed candidate was upcoming/failed).
+        if pick is None:
+            try:
+                secondary_re = re.compile(SECONDARY_PATTERN_STR, re.UNICODE)
+            except re.error:
+                secondary_re = None
+            if secondary_re is not None:
+                # Skip entries we already probed in pass 1
+                already = set(c.get('id') for c in candidates[:6])
+                fallback_cands = [
+                    e for e in entries
+                    if e.get('id') not in already
+                       and secondary_re.search((e.get('title') or '').strip())
+                ]
+                log(f'secondary pass: {len(fallback_cands)} additional candidate(s) via livestream')
+                for idx, e in enumerate(fallback_cands[:6]):
+                    vid = e.get('id')
+                    if not vid:
+                        continue
+                    meta = probe_one(vid)
+                    if meta is None:
+                        log(f'  skip {vid} ({e.get("title","")[:60]}): probe_failed')
+                        continue
+                    status = meta.get('live_status') or 'unknown'
+                    log(f'  fallback candidate {idx}: {vid} status={status}')
+                    if status in ('is_live', 'post_live', 'was_live'):
+                        pick = e
+                        pre_probed_meta = meta
+                        break
         if pick is None and candidates:
             pick = candidates[0]
-            log('no live/replay found — falling back to first candidate (likely upcoming)')
+            log('no live/replay found in primary OR fallback — using first primary candidate')
         if pick is None:
             err = 'no_match'
             log('no LIVE-prefixed entry found')
