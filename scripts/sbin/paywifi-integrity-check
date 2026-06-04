@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# PAYWIFI-INTEGRITY-CHECK-2026-06-04 — verify hls.js + worker binaries unchanged.
+set -uo pipefail
+LOG=/var/log/paywifi/integrity-check.log
+mkdir -p /var/log/paywifi
+log() { echo "$(date '+%F %T') $*" >> "$LOG"; }
+
+EXPECT_HLS="$(cat /etc/paywifi/integrity/hls.js.sha384 2>/dev/null || true)"
+GOT_HLS="$(openssl dgst -sha384 -binary /opt/paywifi/portal/hls.js | openssl base64 -A)"
+if [ -z "$EXPECT_HLS" ]; then
+  mkdir -p /etc/paywifi/integrity
+  echo "$GOT_HLS" > /etc/paywifi/integrity/hls.js.sha384
+  log "initialized hls.js baseline"
+elif [ "$EXPECT_HLS" != "$GOT_HLS" ]; then
+  log "DRIFT hls.js: expected $EXPECT_HLS got $GOT_HLS"
+  echo "DRIFT detected on hls.js"; exit 2
+fi
+
+# Pin yt-dlp version
+YT_VERSION="$(yt-dlp --version 2>/dev/null)"
+EXPECT_YT="$(cat /etc/paywifi/integrity/yt-dlp.version 2>/dev/null || true)"
+if [ -z "$EXPECT_YT" ]; then
+  mkdir -p /etc/paywifi/integrity
+  echo "$YT_VERSION" > /etc/paywifi/integrity/yt-dlp.version
+  log "initialized yt-dlp baseline at $YT_VERSION"
+elif [ "$EXPECT_YT" != "$YT_VERSION" ]; then
+  log "DRIFT yt-dlp: expected $EXPECT_YT got $YT_VERSION"
+fi
+
+log "ok hls=$GOT_HLS yt-dlp=$YT_VERSION"

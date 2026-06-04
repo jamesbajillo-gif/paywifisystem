@@ -231,7 +231,9 @@ router.get('/config', (req, res) => {
           "SELECT c.source_key, c.video_id, c.original_title, c.display_title, c.has_replay, c.live_status, " +
           "c.published_at, c.release_at, c.thumbnail_url, c.view_count, c.duration_sec, " +
           "COALESCE(NULLIF(s.channel_label, ''), c.channel_name) AS channel_name, " +
-          "c.fetched_at, c.fetch_error, c.hls_url, c.hls_expire_at " +
+          "c.fetched_at, c.fetch_error, " +
+          "NULL AS hls_url, NULL AS hls_expire_at, " +
+          "1 AS has_stream " +
           "FROM live_stream_cache c " +
           "LEFT JOIN live_stream_sources s ON s.source_key = c.source_key " +
           "WHERE s.enabled = 1 OR s.enabled IS NULL"

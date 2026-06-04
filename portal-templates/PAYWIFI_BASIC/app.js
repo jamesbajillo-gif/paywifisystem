@@ -379,7 +379,7 @@ function hydratePortalSidebarWidgets() {
 
           // Attach HLS
           if (lnError) lnError.classList.add("hidden");
-          if (lnVid && cur.hls_url) {
+          if (lnVid && cur.source_key) {
             // SOUND-ON-DEFAULT-2026-06-04 — try unmuted autoplay first. If the
             // browser blocks it (no prior user gesture), fall back to muted + unmute overlay.
             var startMuted = !state.liveNewsUserInteracted;
@@ -426,12 +426,27 @@ function hydratePortalSidebarWidgets() {
               else {
                 var hjs = document.createElement("script");
                 hjs.src = "/hls.js"; hjs.async = true;
+                hjs.crossOrigin = "anonymous";
+                hjs.integrity = "sha384-V5ruNBgmYcC3SJRUQeNykAAAgde5gOFq/Hu0CZj7bygDP0yRIhkvX8+w0u/7mRvr";
                 hjs.onload = go;
                 hjs.onerror = function(){ if (lnError) lnError.classList.remove("hidden"); };
                 document.head.appendChild(hjs);
               }
             }
-            attachHlsFor(cur.hls_url);
+            // PROXY-START-2026-06-04 — fetch a tokenised playlist URL, attach via hls.js.
+            fetch("/api/portal/stream/start", {
+              method: "POST", credentials: "same-origin",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ source_key: cur.source_key })
+            }).then(function(r){ return r.json(); }).then(function(d){
+              if (!d || !d.ok || !d.playlist_url) {
+                if (lnError) lnError.classList.remove("hidden");
+                return;
+              }
+              attachHlsFor(d.playlist_url);
+            }).catch(function(){
+              if (lnError) lnError.classList.remove("hidden");
+            });
             // Hide thumbnail when playback actually starts; wire spinner; sync mute icon.
             lnVid.onplaying = function() {
               if (lnThumb) lnThumb.style.display = "none";
@@ -533,6 +548,8 @@ function hydratePortalSidebarWidgets() {
 
         // Status poll — refresh CURRENT channel data only; never reshuffle.
         if (!window.__pwLiveStatusPollTimer) {
+          window.__pwLivePollCount = 0;
+          window.__pwLivePollPrev = null;
           window.__pwLiveStatusPollTimer = setInterval(function(){
             fetch("/api/portal/config", { cache: "no-store" }).then(function(r){ return r.json(); }).then(function(cfg){
               if (!cfg || !cfg.widgets) return;

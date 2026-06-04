@@ -118,6 +118,7 @@ app.get('/health', (_req, res) => {
 
 // ---- JSON API (Bearer JWT, no CSRF needed for /api/*) ---------------------
 const deviceSync = require('./middleware/deviceSync');
+app.use('/portal/stream', require('./routes/portal-stream'));
 app.use('/portal',  deviceSync, require('./routes/portal'));
 app.use('/auth',    deviceSync, require('./routes/auth'));
 app.use('/session', deviceSync, require('./routes/session'));
