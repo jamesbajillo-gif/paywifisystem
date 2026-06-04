@@ -278,7 +278,6 @@ function hydratePortalSidebarWidgets() {
     var lnStatusText = $("live-news-status-text");
     var lnReplay = $("live-news-replay");
     var lnChannel= $("live-news-channel");
-    var lnPublish= $("live-news-publish");
     var lnNow    = $("live-news-now");
     var lnUnmute = $("live-news-unmute");
     var lnPrev   = $("live-news-prev");
@@ -341,16 +340,7 @@ function hydratePortalSidebarWidgets() {
             else                lnReplay.classList.add("hidden");
           }
 
-          // Publish date
-          if (lnPublish) {
-            var ts = cur.published_at || cur.release_at;
-            if (ts) {
-              var d = new Date(ts * 1000);
-              lnPublish.textContent = "Streamed " + d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-            } else {
-              lnPublish.textContent = "";
-            }
-          }
+          // (publish date removed per VIS-3)
 
           // Arrow visibility (only show if there is more than one channel to switch to)
           if (lnPrev) lnPrev.classList.toggle("hidden", playable.length < 2);
@@ -461,11 +451,23 @@ function hydratePortalSidebarWidgets() {
         // Real-time clock — single global interval
         function pwLiveTick() {
           if (!lnNow) return;
-          var n = new Date();
-          var hh = String(n.getHours()).padStart(2,"0");
-          var mm = String(n.getMinutes()).padStart(2,"0");
-          var ss = String(n.getSeconds()).padStart(2,"0");
-          lnNow.textContent = "Now " + hh + ":" + mm + ":" + ss;
+          // VIS-3-2026-06-04 — show current time in Asia/Manila, 12-hour format.
+          try {
+            var s = new Date().toLocaleTimeString("en-US", {
+              timeZone: "Asia/Manila",
+              hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true
+            });
+            lnNow.textContent = s + " Manila";
+          } catch (e) {
+            // Older browsers without timezone support — fall back to local 12-hour
+            var n = new Date();
+            var h = n.getHours();
+            var ap = h >= 12 ? "PM" : "AM";
+            h = ((h + 11) % 12) + 1;
+            var mm = String(n.getMinutes()).padStart(2,"0");
+            var ss = String(n.getSeconds()).padStart(2,"0");
+            lnNow.textContent = h + ":" + mm + ":" + ss + " " + ap;
+          }
         }
         pwLiveTick();
         if (!window.__pwLiveTickTimer) window.__pwLiveTickTimer = setInterval(pwLiveTick, 1000);
