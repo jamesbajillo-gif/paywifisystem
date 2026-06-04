@@ -280,7 +280,6 @@ function hydratePortalSidebarWidgets() {
     var lnChannel= $("live-news-channel");
     var lnPublish= $("live-news-publish");
     var lnNow    = $("live-news-now");
-    var lnIndex  = $("live-news-index");
     var lnUnmute = $("live-news-unmute");
     var lnPrev   = $("live-news-prev");
     var lnNext   = $("live-news-next");
@@ -351,11 +350,6 @@ function hydratePortalSidebarWidgets() {
             } else {
               lnPublish.textContent = "";
             }
-          }
-
-          // Channel index (e.g., "2 / 4")
-          if (lnIndex) {
-            lnIndex.textContent = (state.liveNewsIdx + 1) + " / " + playable.length;
           }
 
           // Arrow visibility (only show if there is more than one channel to switch to)
@@ -514,7 +508,6 @@ function hydratePortalSidebarWidgets() {
                 // but DO NOT reshuffle the current selection.
                 playable = newPlayable;
                 state.liveNewsIdx = keepIdx;
-                if (lnIndex) lnIndex.textContent = (state.liveNewsIdx + 1) + " / " + playable.length;
                 if (lnPrev) lnPrev.classList.toggle("hidden", playable.length < 2);
                 if (lnNext) lnNext.classList.toggle("hidden", playable.length < 2);
               }

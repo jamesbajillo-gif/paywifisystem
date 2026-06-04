@@ -114,8 +114,11 @@
               <span class="h-1.5 w-1.5 rounded-full bg-white animate-pulse" aria-hidden="true"></span>
               <span id="live-news-status-text">LIVE</span>
             </span>
-            <!-- replay badge — top-right (shown only when has_replay=1) -->
-            <span id="live-news-replay" class="hidden absolute top-2 right-2 px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500 text-black">REPLAY</span>
+            <!-- channel name badge — top-right -->
+            <div class="absolute top-2 right-2 z-10 flex flex-col items-end gap-1">
+              <span id="live-news-channel" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider backdrop-blur bg-black/55 text-white border border-white/15">GMA News</span>
+              <span id="live-news-replay" class="hidden inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500 text-black">REPLAY</span>
+            </div>
             <!-- tap-to-unmute overlay (shown while muted; hides on first tap) -->
             <!-- channel navigation arrows -->
             <button id="live-news-prev" type="button" aria-label="Previous channel"
@@ -142,14 +145,10 @@
             </div>
           </div>
           <div class="px-4 py-3">
-            <p class="text-sm font-semibold text-foreground flex items-center gap-1.5 flex-wrap">
-              <span id="live-news-channel">GMA News</span>
-            </p>
-            <p class="text-xs mt-1 text-muted-foreground flex items-center gap-1.5 flex-wrap">
+            <p class="text-xs text-muted-foreground flex items-center gap-1.5 flex-wrap">
               <span id="live-news-publish"></span>
               <span aria-hidden="true">·</span>
               <span id="live-news-now"></span>
-              <span id="live-news-index" class="ml-auto text-[10px] uppercase tracking-wider font-bold opacity-70"></span>
             </p>
           </div>
         </div>
