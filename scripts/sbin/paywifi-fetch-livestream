@@ -129,8 +129,27 @@ def main():
     err = None
     pick = None
     channel_name = None
+    pre_probed_meta = None
+    entries = []
+    candidates = []
+
+    # PER-VIDEO-2026-06-04 — if channel_url is a direct watch URL, skip the
+    # /streams scrape + title-regex; probe the video directly.
+    _direct_m = re.search(r'(?:youtube\.com/watch\?v=|youtu\.be/)([A-Za-z0-9_-]{6,})', channel_url)
+    if _direct_m:
+        _vid = _direct_m.group(1)
+        log(f'direct-video mode: vid={_vid}')
+        meta = probe_one(_vid)
+        if meta is not None:
+            pick = {'id': _vid, 'title': meta.get('title') or ''}
+            pre_probed_meta = meta
+            channel_name = meta.get('channel') or meta.get('uploader')
+        else:
+            err = 'probe_failed'
 
     try:
+        if pick is not None:
+            raise StopIteration   # PER-VIDEO-2026-06-04 short-circuit
         result = run_ytdlp(channel_url)
         data = json.loads(result.stdout)
         channel_name = data.get('channel') or data.get('uploader')
@@ -198,6 +217,8 @@ def main():
         if pick is None:
             err = 'no_match'
             log('no LIVE-prefixed entry found')
+    except StopIteration:
+        pass  # direct-video mode short-circuit
     except subprocess.TimeoutExpired:
         err = 'timeout'
         log('yt-dlp timeout')
