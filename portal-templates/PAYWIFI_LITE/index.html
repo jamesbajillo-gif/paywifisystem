@@ -893,25 +893,36 @@ function onGcashPay() {
   if (!_selectedPlan) { _showScreen('plans'); return; }
 
   var btn = document.getElementById('gcash-pay-btn');
+  _hide('pay-error');
+
+  /* If options not yet loaded, fetch them first */
+  if (_payOptions.length === 0) {
+    if (btn) { btn.disabled = true; btn.textContent = 'Loading...'; }
+    _loadPaymentOptions(function() {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<span class="gcash-icon"><span class="gcash-icon-g">G</span></span> Pay with GCash';
+      }
+      onGcashPay(); /* retry once options loaded */
+    });
+    return;
+  }
+
+  var optionId = _getGcashOptionId();
+  if (!optionId) {
+    _show('pay-error');
+    _setHtml('pay-error', 'GCash is not available right now. Please try again later.');
+    return;
+  }
+
   if (btn) {
     btn.disabled = true;
     btn.textContent = 'Processing...';
   }
-  _hide('pay-error');
 
   var phone = '';
   var phoneEl = document.getElementById('phone-input');
   if (phoneEl) phone = phoneEl.value.trim();
-
-  /* Find GCash payment option id — try from cached list, else use 0 (server resolves) */
-  var optionId = 0;
-  for (var i = 0; i < _payOptions.length; i++) {
-    var o = _payOptions[i];
-    if (/gcash/i.test(o.name) || /gcash/i.test(o.icon_key || '')) {
-      optionId = o.id;
-      break;
-    }
-  }
 
   var body = { plan_id: _selectedPlan.id, option_id: optionId };
   if (phone) body.phone = phone;
@@ -1065,7 +1076,7 @@ function onBrowseNow() {
 function onCancelPayment() {
   _stopPoll();
   if (_pendingId) {
-    _xhr('POST', '/api/portal/payment/cancel', { payment_id: _pendingId }, function() {});
+    _xhr('POST', '/api/portal/payment/cancel', { id: _pendingId }, function() {});
   }
   _pendingId   = null;
   _checkoutUrl = null;
@@ -1092,7 +1103,7 @@ function onRedeemVoucherMain() {
 function _redeemVoucher(code, errorElId) {
   _hide(errorElId);
   _showLoading();
-  _xhr('POST', '/auth/voucher', { code: code }, function(err, data) {
+  _xhr('POST', '/api/auth/voucher', { code: code }, function(err, data) {
     _hideLoading();
     if (err || !data.ok) {
       _show(errorElId);
@@ -1163,39 +1174,19 @@ function _handleReturnParams() {
   return false;
 }
 
-/* ── Load payment options once (background, non-blocking) ── */
-function _loadPaymentOptions() {
+/* ── Load payment options — blocks GCash button until ready ── */
+function _loadPaymentOptions(cb) {
   _xhr('GET', '/api/portal/payment-options', null, function(err, data) {
     if (!err && data.ok) {
       _payOptions = data.options || [];
     }
+    if (cb) cb();
   });
 }
 
-/* ── INIT ── */
-(function init() {
-  /* Check for return from GCash first */
-  if (_handleReturnParams()) {
-    _hideLoading();
-    return;
-  }
-
-  /* Otherwise load plans */
-  _loadPaymentOptions();
-
-  _xhr('GET', '/api/portal/plans', null, function(err, data) {
-    _hideLoading();
-    if (err || !data.ok) {
-      _showScreen('plans');
-      _show('plans-error');
-      _setHtml('plans-error', err || 'Could not load plans. Please refresh the page.');
-      return;
-    }
-    _plans = data.plans || [];
-    _renderPlans();
-    _showScreen('plans');
-  });
-})();
-</script>
-</body>
-</html>
+/* ── Get GCash option ID (must load options first) ── */
+function _getGcashOptionId() {
+  for (var i = 0; i < _payOptions.length; i++) {
+    var o = _payOptions[i];
+    if (/gcash/i.test(o.name) || /gcash/i.test(o.icon_key || '')) {
+      return o.id;
