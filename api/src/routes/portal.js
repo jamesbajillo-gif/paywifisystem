@@ -25,7 +25,8 @@ const EWALLET_ACTIONS = ['gcash','grabpay','paymaya','shopeepay'];
 const _dns = require('dns').promises;
 const { execFile: _execFile } = require('child_process');
 const _JIT_HOSTS_BY_ACTION = {
-  gcash:     ['payments.gcash.com', 'm.gcash.com', 'mb.gcash.com'],
+  gcash:     ['payments.gcash.com', 'm.gcash.com', 'mb.gcash.com',
+              'checkout.xendit.co', 'api.xendit.co', 'js.xendit.co'],
   paymaya:   ['paymaya.com', 'www.paymaya.com', 'pg-pp.paymaya.com'],
   grabpay:   ['pay.grab.com', 'p.grabtaxi.com'],
   shopeepay: ['shopeepay.ph', 'wallet.shopee.ph'],
@@ -800,6 +801,7 @@ router.post('/payment/create', async (req, res) => {
   let qrImage       = null;
   let qrString      = null;
   let checkoutUrl   = null;
+  let deeplinkUrl   = null;
   let paymentCode   = null;
   let vaNumber      = null;
 
@@ -820,6 +822,8 @@ router.post('/payment/create', async (req, res) => {
                || body.actions?.desktop_web_checkout_url
                || body.actions?.mobile_web_checkout_url
                || body.checkout_url || null;
+    // DEEPLINK-2026-06-18: extract gcash:// deep link for direct Android launch
+    deeplinkUrl = (acts.find(a => a.url_type === 'DEEPLINK') || {}).url || null;
     // M2-QRSTRING-2026-05-30: GCash embeds a proprietary QR string in the
     // checkout URL as ?qrcode=GCSHWPV2<bizNo>,<merchantid>. That value is
     // what GCash's in-app QR scanner is designed to read. Extract it so the
@@ -845,6 +849,17 @@ router.post('/payment/create', async (req, res) => {
     // walled garden for 15 min so the AUTO-REDIRECT navigation works
     // pre-auth. Async, never awaited.
     _jitWalledAllowFor(action, checkoutUrl);
+    // ESCAPE-HATCH-2026-06-18: immediately authorize the device for FULL
+    // internet for 15 min so it can reach GCash/Xendit without being blocked
+    // by the captive table. The device stays online during the GCash payment
+    // flow. When webhook fires the proper session auth kicks in.
+    if (clientIp) {
+      _execFile('sudo', ['-n', '/usr/local/sbin/paywifi-auth', 'add', clientIp, '900'],
+        { timeout: 4000 }, (err) => {
+          if (err) console.warn('[escape-hatch]', clientIp, err.message);
+          else     console.log('[escape-hatch] pre-authorized', clientIp, 'for 900s');
+        });
+    }
   } else if (action === 'otc') {
     type = 'otc';
     paymentCode = body.payment_code || body.barcode || null;
@@ -887,6 +902,7 @@ router.post('/payment/create', async (req, res) => {
     base_amount: feeInfo.base, fee_amount: feeInfo.fee, fee_mode: feeInfo.mode,
     qr_image: qrImage, qr_string: qrString || null,
     checkout_url: checkoutUrl,
+    deeplink_url: deeplinkUrl || null,
     payment_code: paymentCode, va_number: vaNumber,
     expires_in: expiresAt - now,
     created_at: now,
@@ -1560,7 +1576,9 @@ router.get('/captive-api', (req, res) => {
   const mac = req.clientMac, ip = req.clientIp;
   let s = null;
   try { s = (mac ? sessionSvc.findActiveByMac(mac) : null) || sessionSvc.findActiveByIp(ip); } catch (e) {}
-  const body = { captive: !s, 'user-portal-url': 'http://10.10.0.1/' };
+  // CAPTIVE-API-FIX-2026-06-18: read gateway IP from config instead of hard-coding
+  const _gwIp = (db.cfg && db.cfg.captive_portal && db.cfg.captive_portal.redirect_host) || '10.10.0.1';
+  const body = { captive: !s, 'user-portal-url': 'http://' + _gwIp + '/' };
   if (s && s.expires_at) body['seconds-remaining'] = Math.max(0, s.expires_at - Math.floor(Date.now()/1000));
   res.set('Cache-Control', 'no-store');
   res.type('application/captive+json');

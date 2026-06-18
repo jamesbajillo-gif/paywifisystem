@@ -13,11 +13,6 @@
   <script src="/qr.js"></script>
   <link rel="stylesheet" href="/app.css" />
   <link rel="icon" href="data:," />
-  <style>
-    /* BADGE-FADE-2026-06-04 — channel/status badges fade after 5s of stillness */
-    .pw-fade { transition: opacity 400ms ease-out; opacity: 1; }
-    .pw-fade.pw-fade-out { opacity: 0; pointer-events: none; }
-  </style>
 </head>
 <body>
   <!-- icon defs injected by app.js from /icons.svg -->
@@ -34,7 +29,7 @@
             <input id="voucher-input"
               class="h-20 text-center font-mono bg-input border-2 border-border focus:border-primary focus:outline-none rounded-2xl text-fluid-input w-full min-w-0 pr-14 px-3 py-2 placeholder:text-muted-foreground/60 transition-colors"
               type="text" inputmode="latin" autocomplete="off" autocapitalize="characters" spellcheck="false"
-              placeholder="XXXXXXXX" aria-label="Voucher code" maxlength="8" autofocus />
+              placeholder="XXXX-XXXX-XXXX" aria-label="Voucher code" maxlength="14" autofocus />
             <button type="button" id="paste-btn" aria-label="Paste voucher code from clipboard"
               class="absolute right-2 top-1/2 -translate-y-1/2 h-12 w-12 rounded-xl bg-card border-2 border-border hover:border-primary flex items-center justify-center transition-colors text-foreground">
               <svg class="h-5 w-5" aria-hidden="true"><use href="#icon-clipboard-paste"/></svg>
@@ -63,113 +58,6 @@
             <p class="text-sm text-muted-foreground mt-0.5 truncate">Submit to inquire</p>
           </div>
         </button>
-        <button type="button" id="partner-widget" aria-label="Partner with us — become a PAYWIFI partner"
-          class="w-full text-left rounded-2xl border-2 border-border bg-card hover:border-primary hover:bg-card/80 active:scale-[0.99] transition-all p-5 flex items-center gap-4 min-w-0">
-          <div class="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-            <svg class="h-6 w-6 text-primary" aria-hidden="true"><use href="#icon-store"/></svg>
-          </div>
-          <div class="min-w-0 flex-1">
-            <p class="text-lg font-bold truncate">Partner with Us</p>
-            <p class="text-sm text-muted-foreground mt-0.5 truncate" id="partner-widget-sub">Become a PAYWIFI Partner</p>
-          </div>
-          <span id="partner-widget-chip" class="hidden shrink-0 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-primary/15 text-primary">Coming Soon</span>
-        </button>
-        <div id="youtube-widget" class="hidden w-full rounded-2xl border-2 border-border bg-card overflow-hidden min-w-0">
-          <div id="youtube-widget-frame" class="relative w-full bg-black aspect-video">
-            <video id="youtube-widget-video"
-              class="absolute inset-0 w-full h-full"
-              preload="metadata"
-              playsinline></video>
-            <!-- Click-to-play overlay (shown only when click_to_play is on AND video paused) -->
-            <button id="youtube-widget-play" type="button" aria-label="Play video"
-              class="hidden absolute inset-0 flex items-center justify-center bg-black/40 hover:bg-black/30 transition-colors group">
-              <span class="rounded-full bg-white/90 group-hover:bg-white text-black h-16 w-16 flex items-center justify-center shadow-2xl">
-                <svg viewBox="0 0 24 24" class="h-8 w-8 ml-1" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-              </span>
-            </button>
-            <!-- Skip button (top-right) -->
-            <button id="youtube-widget-skip" type="button" aria-label="Skip video"
-              class="hidden absolute top-2 right-2 z-10 bg-black/60 hover:bg-black/80 text-white text-xs font-bold px-3 py-1.5 rounded-full backdrop-blur transition-colors">
-              Skip <span aria-hidden="true">&rarr;</span>
-            </button>
-            <!-- Close button (top-left) -->
-            <button id="youtube-widget-close" type="button" aria-label="Hide this video"
-              class="hidden absolute top-2 left-2 z-10 bg-black/60 hover:bg-black/80 text-white h-7 w-7 rounded-full backdrop-blur flex items-center justify-center transition-colors">
-              <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 6l12 12M18 6L6 18"/></svg>
-            </button>
-            <!-- Error state -->
-            <div id="youtube-widget-error" class="hidden absolute inset-0 flex flex-col items-center justify-center bg-card text-muted-foreground text-sm gap-2 p-4 text-center">
-              <svg class="h-8 w-8 opacity-50" aria-hidden="true"><use href="#icon-circle-alert"/></svg>
-              <p>This video could not be played.</p>
-            </div>
-          </div>
-        </div>
-
-        <div id="live-news-widget"
-          class="hidden w-full rounded-2xl border-2 border-border bg-card overflow-hidden min-w-0">
-          <div class="relative w-full bg-black aspect-video select-none" oncontextmenu="return false" id="live-news-frame">
-            <!-- HLS-rendered video element (fills the frame) -->
-            <video id="live-news-video"
-              class="absolute inset-0 w-full h-full object-cover bg-black select-none"
-              playsinline muted autoplay
-              disablepictureinpicture
-              controlsList="nodownload noplaybackrate nofullscreen noremoteplayback"
-              oncontextmenu="return false"></video>
-            <!-- thumbnail shown until HLS attaches (poster fallback) -->
-            <img id="live-news-thumb" alt="" class="absolute inset-0 w-full h-full object-cover pointer-events-none" />
-            <!-- status badge — top-left -->
-            <span id="live-news-status" class="pw-fade absolute top-2 left-2 z-10 inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider backdrop-blur bg-rose-600 text-white">
-              <span class="h-1.5 w-1.5 rounded-full bg-white animate-pulse" aria-hidden="true"></span>
-              <span id="live-news-status-text">LIVE</span>
-            </span>
-            <!-- channel name badge — top-right -->
-            <div class="absolute top-2 right-2 z-10 flex flex-col items-end gap-1">
-              <span id="live-news-channel" class="pw-fade inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider backdrop-blur bg-black/55 text-white border border-white/15">GMA News</span>
-              <span id="live-news-replay" class="hidden inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500 text-black">REPLAY</span>
-            </div>
-            <!-- tap-to-unmute overlay (shown while muted; hides on first tap) -->
-            <!-- buffering spinner -->
-            <div id="live-news-spinner" class="hidden absolute inset-0 z-30 flex items-center justify-center pointer-events-none">
-              <span class="h-10 w-10 rounded-full border-4 border-white/30 border-t-white animate-spin"></span>
-            </div>
-            <!-- center play / pause tap target -->
-            <button id="live-news-playpause" type="button" aria-label="Play or pause"
-              class="absolute inset-0 z-10 flex items-center justify-center focus:outline-none">
-              <span id="live-news-playpause-icon" class="hidden h-16 w-16 rounded-full bg-black/60 text-white items-center justify-center backdrop-blur">
-                <svg id="live-news-icon-play" viewBox="0 0 24 24" class="h-8 w-8 ml-1" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                <svg id="live-news-icon-pause" viewBox="0 0 24 24" class="hidden h-8 w-8" fill="currentColor"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>
-              </span>
-            </button>
-            <!-- bottom-right mute toggle -->
-            <button id="live-news-muteicon" type="button" aria-label="Mute or unmute"
-              class="hidden absolute bottom-2 right-2 z-20 h-10 w-10 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center backdrop-blur transition-colors">
-              <svg id="live-news-icon-sound-on" viewBox="0 0 24 24" class="h-5 w-5" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05A4.5 4.5 0 0 0 16.5 12z"/></svg>
-              <svg id="live-news-icon-sound-off" viewBox="0 0 24 24" class="hidden h-5 w-5" fill="currentColor"><path d="M16.5 12A4.5 4.5 0 0 0 14 7.97v2.21l2.45 2.45c.03-.2.05-.41.05-.63zM19 12c0 .94-.2 1.82-.54 2.64l1.51 1.51A8.96 8.96 0 0 0 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.17v2.06a8.99 8.99 0 0 0 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>
-            </button>
-            <!-- channel navigation arrows -->
-            <button id="live-news-prev" type="button" aria-label="Previous channel"
-              class="hidden absolute top-1/2 -translate-y-1/2 left-2 z-20 h-10 w-10 rounded-full bg-black/55 hover:bg-black/75 text-white flex items-center justify-center backdrop-blur transition-colors">
-              <svg viewBox="0 0 24 24" class="h-5 w-5" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
-            </button>
-            <button id="live-news-next" type="button" aria-label="Next channel"
-              class="hidden absolute top-1/2 -translate-y-1/2 right-2 z-20 h-10 w-10 rounded-full bg-black/55 hover:bg-black/75 text-white flex items-center justify-center backdrop-blur transition-colors">
-              <svg viewBox="0 0 24 24" class="h-5 w-5" fill="currentColor"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
-            </button>
-
-            <!-- fallback error message -->
-            <div id="live-news-error" class="hidden absolute inset-0 flex flex-col items-center justify-center bg-black/70 text-white text-sm gap-2 p-4 text-center">
-              <svg viewBox="0 0 24 24" class="h-8 w-8 opacity-70" fill="currentColor"><path d="M12 2L1 21h22L12 2zm0 5l7.53 13H4.47L12 7zm-1 6h2v2h-2v-2zm0-4h2v3h-2V9z"/></svg>
-              <p>Live stream temporarily unavailable.</p>
-              <a id="live-news-yt-fallback" target="_blank" rel="noopener noreferrer"
-                class="text-xs underline opacity-80 hover:opacity-100">Open on YouTube →</a>
-            </div>
-          </div>
-          <div class="px-4 py-3">
-            <p class="text-xs text-muted-foreground flex items-center gap-1.5 flex-wrap">
-              <span id="live-news-now"></span>
-            </p>
-          </div>
-        </div>
       </div>
     </section>
     <footer class="sticky bottom-0 z-20 bg-background/95 backdrop-blur border-t border-border safe-bottom safe-x pt-3">
@@ -253,12 +141,12 @@
           <p class="text-sm font-semibold text-muted-foreground px-0.5">Pay with</p>
           <div id="methods-list" class="grid grid-cols-2 gap-3 min-w-0"></div>
           <div id="store-wrap" class="flex flex-col gap-2 hidden">
-            <label for="store-select" class="text-sm font-semibold text-muted-foreground px-0.5">Pay at which Partner?</label>
+            <label for="store-select" class="text-sm font-semibold text-muted-foreground px-0.5">Pay at which store?</label>
             <div class="relative">
               <svg class="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" aria-hidden="true"><use href="#icon-store"/></svg>
               <select id="store-select" aria-required="true"
                 class="h-14 w-full text-lg bg-input border-2 border-border rounded-xl pl-12 pr-12 appearance-none font-semibold focus:border-primary focus:outline-none">
-                <option value="">Select a Partner…</option>
+                <option value="">Select a store…</option>
               </select>
               <svg class="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" aria-hidden="true"><use href="#icon-chevron-down"/></svg>
             </div>
@@ -407,6 +295,16 @@
             <span id="pending-checkout-label">Pay with wallet</span>
             <svg class="h-5 w-5" aria-hidden="true"><use href="#icon-arrow-right"/></svg>
           </a>
+
+          <!-- GCASH-CNA-FIX-2026-06-18: shown if auto-redirect fails in captive WebView -->
+          <!-- IOS-CNA-2026-06-18: shown when iOS CNA is detected; instructs user to open Safari -->
+            <div id="cna-safari-banner" class="hidden mx-4 mt-3 p-3 rounded-xl text-center" style="background:#1e3a5f;border:1px solid #3b82f6;">
+              <p class="text-sm font-semibold" style="color:#93c5fd;">&#x1F4F1; Payment requires Safari</p>
+              <p class="text-xs mt-1" style="color:#bfdbfe;">iPhone cannot open GCash from this screen. Tap the button below to pay in Safari, then return here when done.</p>
+            </div>
+            <p id="pending-open-hint" class="hidden text-xs text-center px-4 mt-1" style="color:#f59e0b;">
+            Couldn&#8217;t open automatically &#8212; tap the button above to continue.
+          </p>
 
           <!-- CASH-STORE-REDESIGN-2026-06-01 — How-to-pay instructions
                (cash flow only). Populated by populatePending() with the

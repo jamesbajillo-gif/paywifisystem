@@ -220,7 +220,7 @@ fi
 # ── syntax checks before restart ────────────────────────────────────────────
 if [ "$NEED_API_RESTART" = 1 ] && [ "$DRY" = 0 ]; then
   log "── syntax check api/src ──"
-  if ! find /opt/paywifi/api/src -name '*.js' -print0 | xargs -0 -n1 -I{} node --check {} 2>&1 | tee -a "$LOG" | grep -q .; then
+  if ! find /opt/paywifi/api/src -name '*.js' -print0 | xargs -0 -I{} node --check {} 2>&1 | tee -a "$LOG" | grep -q .; then
     ok "  all JS files parse"
   else
     err "  SYNTAX ERROR detected — aborting restart"

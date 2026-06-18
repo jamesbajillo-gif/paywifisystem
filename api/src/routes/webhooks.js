@@ -12,6 +12,7 @@ const rl             = require('../services/rateLimiter');
 const fees           = require('../services/fees');
 const sessionSvc     = require('../services/session');
 const nurturing      = require('../services/nurturing');
+const { execFile: _wh_execFile } = require('child_process'); // WEBHOOK-AUTH-2026-06-18
 
 // P8-1: webhook idempotency ledger
 db.prepare(`CREATE TABLE IF NOT EXISTS webhook_dedup (
@@ -250,6 +251,18 @@ router.post('/:slug', (req, res) => {
               .run('payment_completed', `ext=${extId} voucher=${code} ip=${pending.client_ip}`, req.ip||null, now);
             rl.rlClear(rl.rlKey(pending.client_mac, pending.client_ip), 'payment');
             console.log(`[webhook/${slug}] ${extId} → voucher ${code} for ${pending.client_ip}`);
+            // WEBHOOK-AUTH-2026-06-18: immediately authorize device via IP.
+            // This grants internet the instant payment is confirmed — no need
+            // for the frontend to poll and redeem the voucher code first.
+            if (pending.client_ip) {
+              const _authTtl = String((plan.duration_minutes || 60) * 60);
+              _wh_execFile('sudo', ['-n', '/usr/local/sbin/paywifi-auth',
+                'add', pending.client_ip, _authTtl],
+                { timeout: 5000 }, (err) => {
+                  if (err) console.warn('[webhook-auth]', pending.client_ip, err.message);
+                  else     console.log('[webhook-auth] authorized', pending.client_ip, _authTtl + 's');
+                });
+            }
           } else {
             console.log(`[webhook/${slug}] ${extId} duplicate webhook ignored (already processing)`);
           }

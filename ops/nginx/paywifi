@@ -41,13 +41,7 @@ server {
     }
 
     # OPERATOR-NGINX-2026-06-01 — cashier surface over HTTPS (mgmt + LAN).
-    location = /partner-faq.html      { root /opt/paywifi/portal; }
-    location = /terms-partner.html    { root /opt/paywifi/portal; }
-    location = /privacy-partner.html  { root /opt/paywifi/portal; }
-    location = /op-auth.css           { root /opt/paywifi/portal; }
-    location = /hls.js                { root /opt/paywifi/portal; add_header Cache-Control "max-age=86400, public"; }
-    location = /admin-portal-widgets.js { root /opt/paywifi/portal; add_header Cache-Control "no-store"; }
-        location /partner {
+    location /operator {
         limit_req  zone=req_api burst=40 nodelay;
         limit_conn conn_perip 50;
         add_header Cache-Control "no-store, no-cache, must-revalidate";
@@ -87,7 +81,6 @@ server {
         root /opt/paywifi/portal;
         add_header Cache-Control "max-age=86400, public";
     }
-
 
     location ^~ /hotspot-detect.html {
         proxy_set_header X-Real-IP $remote_addr;
@@ -148,72 +141,6 @@ server {
     # Serve portal static images over HTTPS for the admin UI (logos, option icons)
     location /images { root /opt/paywifi/portal; add_header Cache-Control "max-age=86400, public"; }
     location = /favicon.ico { access_log off; log_not_found off; return 204; }
-    # API-ON-443-2026-06-03 — mirror port-80 API/webhook proxies so the
-    # captive-portal JS works regardless of scheme. Without this, /api/* on
-    # https://192.168.89.80/ falls through to `location /` 302 → POSTs explode.
-    location ^~ /api/webhooks/ {
-        limit_req  zone=req_webhook burst=20 nodelay;
-        limit_conn conn_perip 50;
-        client_max_body_size 256k;
-        add_header Cache-Control "no-store, no-cache, must-revalidate";
-        proxy_pass         http://127.0.0.1:3000/webhooks/;
-        proxy_http_version 1.1;
-        proxy_set_header   Host              $host;
-        proxy_set_header   X-Real-IP         $remote_addr;
-        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
-        proxy_set_header   X-Forwarded-Proto $http_x_forwarded_proto;
-        proxy_read_timeout 30s;
-    }
-    location ^~ /api/portal/payment/create {
-        limit_req  zone=req_pay_create burst=3 nodelay;
-        limit_conn conn_perip 50;
-        add_header Cache-Control "no-store, no-cache, must-revalidate";
-        proxy_pass         http://127.0.0.1:3000/portal/payment/create;
-        proxy_http_version 1.1;
-        proxy_set_header   Host              $host;
-        proxy_set_header   X-Real-IP         $remote_addr;
-        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
-        proxy_set_header   X-Forwarded-Proto $http_x_forwarded_proto;
-        proxy_read_timeout 30s;
-    }
-    # HARDEN-2026-06-03 — brute-force resistance on voucher redeem.
-    location ^~ /api/auth/voucher {
-        limit_req  zone=req_voucher burst=5 nodelay;
-        limit_conn conn_perip 50;
-        add_header Cache-Control "no-store, no-cache, must-revalidate";
-        proxy_pass         http://127.0.0.1:3000/auth/voucher;
-        proxy_http_version 1.1;
-        proxy_set_header   Host              $host;
-        proxy_set_header   X-Real-IP         $remote_addr;
-        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
-        proxy_set_header   X-Forwarded-Proto $http_x_forwarded_proto;
-        proxy_read_timeout 30s;
-    }
-    location ^~ /api/portal/auth/voucher {
-        limit_req  zone=req_voucher burst=5 nodelay;
-        limit_conn conn_perip 50;
-        add_header Cache-Control "no-store, no-cache, must-revalidate";
-        proxy_pass         http://127.0.0.1:3000/portal/auth/voucher;
-        proxy_http_version 1.1;
-        proxy_set_header   Host              $host;
-        proxy_set_header   X-Real-IP         $remote_addr;
-        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
-        proxy_set_header   X-Forwarded-Proto $http_x_forwarded_proto;
-        proxy_read_timeout 30s;
-    }
-    location /api/ {
-        limit_req  zone=req_api burst=40 nodelay;
-        limit_conn conn_perip 50;
-        add_header Cache-Control "no-store, no-cache, must-revalidate";
-        add_header Pragma "no-cache";
-        proxy_pass         http://127.0.0.1:3000/;
-        proxy_http_version 1.1;
-        proxy_set_header   Host              $host;
-        proxy_set_header   X-Real-IP         $remote_addr;
-        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
-        proxy_set_header   X-Forwarded-Proto $http_x_forwarded_proto;
-        proxy_read_timeout 30s;
-    }
     location /                 { return 302 http://10.10.0.1/; }
 }
 
@@ -253,13 +180,6 @@ server {
     set_real_ip_from 197.234.240.0/22;
     set_real_ip_from 198.41.128.0/17;
     real_ip_header CF-Connecting-IP;
-
-    location = /partner-faq.html      { root /opt/paywifi/portal; }
-    location = /terms-partner.html    { root /opt/paywifi/portal; }
-    location = /privacy-partner.html  { root /opt/paywifi/portal; }
-    location = /op-auth.css           { root /opt/paywifi/portal; }
-    location = /hls.js                { root /opt/paywifi/portal; add_header Cache-Control "max-age=86400, public"; }
-    location = /admin-portal-widgets.js { root /opt/paywifi/portal; add_header Cache-Control "no-store"; }
 
     location ^~ /hotspot-detect.html {
         proxy_set_header X-Real-IP $remote_addr;
@@ -356,7 +276,7 @@ server {
     }
 
     # OPERATOR-NGINX-2026-06-01 — cashier surface, LAN-accessible over plain HTTP.
-    location /partner {
+    location /operator {
         # Rate-limit + conn-cap (reuse the api zones — same characteristics)
         limit_req  zone=req_api burst=40 nodelay;
         limit_conn conn_perip 50;
@@ -371,31 +291,6 @@ server {
         proxy_read_timeout 30s;
     }
 
-    # HARDEN-2026-06-03 — brute-force resistance on voucher redeem.
-    location ^~ /api/auth/voucher {
-        limit_req  zone=req_voucher burst=5 nodelay;
-        limit_conn conn_perip 50;
-        add_header Cache-Control "no-store, no-cache, must-revalidate";
-        proxy_pass         http://127.0.0.1:3000/auth/voucher;
-        proxy_http_version 1.1;
-        proxy_set_header   Host              $host;
-        proxy_set_header   X-Real-IP         $remote_addr;
-        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
-        proxy_set_header   X-Forwarded-Proto $http_x_forwarded_proto;
-        proxy_read_timeout 30s;
-    }
-    location ^~ /api/portal/auth/voucher {
-        limit_req  zone=req_voucher burst=5 nodelay;
-        limit_conn conn_perip 50;
-        add_header Cache-Control "no-store, no-cache, must-revalidate";
-        proxy_pass         http://127.0.0.1:3000/portal/auth/voucher;
-        proxy_http_version 1.1;
-        proxy_set_header   Host              $host;
-        proxy_set_header   X-Real-IP         $remote_addr;
-        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
-        proxy_set_header   X-Forwarded-Proto $http_x_forwarded_proto;
-        proxy_read_timeout 30s;
-    }
     location /api/ {
         # HARDEN-2026-05-31 — Per-source request + connection caps.
         limit_req  zone=req_api burst=40 nodelay;
@@ -420,12 +315,6 @@ server {
         allow 192.168.89.0/24;
         deny  all;
 
-        # HARDEN-2026-06-03 — upgrade plain-HTTP admin requests to HTTPS for
-        # any direct LAN/WAN client. Cloudflare tunnel (origin 127.0.0.1) is
-        # exempt — CF terminates TLS at the edge and proxies HTTP to us.
-        if ($remote_addr != 127.0.0.1) {
-            return 301 https://$host$request_uri;
-        }
         # If this is cloudflared (loopback), proxy directly.
         if ($remote_addr = "127.0.0.1") {
             rewrite ^ /__cf_admin$uri last;
@@ -500,24 +389,6 @@ server {
         add_header Referrer-Policy "strict-origin-when-cross-origin" always;
         add_header Content-Security-Policy "frame-ancestors 'none'" always;
         add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
-        # SPA-FALLBACK-302-2026-06-02 — unknown paths redirect to / so
-        # paywifi.net/test, /random, /xyz etc. clean up to the captive home
-        # instead of confusingly serving /index.html at a non-/ URL. Static
-        # assets ($uri matches) and known files pass through unaffected.
-        try_files $uri $uri/ @spa_redirect;
-    }
-
-    location @spa_redirect {
-        # SPA-FALLBACK-302-2026-06-02 — Cloudflare's edge transparently
-        # follows 30x redirects from origin and serves the redirect target
-        # body at the original URL, so an nginx-level 302 does not change
-        # the browser address bar through CF. Workaround: serve a minimal
-        # 200 page that performs the redirect on the client side. Both
-        # meta-refresh and JS path-replace fire so users without JS still
-        # get pushed to /.
-        default_type text/html;
-        add_header Cache-Control "no-store, no-cache, must-revalidate" always;
-        add_header X-PAYWIFI-Redirect "spa_fallback" always;
-        return 200 '<!doctype html><html><head><meta charset="utf-8"><title>PAYWIFI</title><meta http-equiv="refresh" content="0;url=/"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:system-ui;margin:0;padding:2rem;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#f8fafc;color:#0f172a}.b{text-align:center}.b a{color:#0ea5e9;text-decoration:underline}</style></head><body><div class="b"><p>Redirecting to PAYWIFI …</p><p><a href="/">Tap here if it doesn’t happen automatically</a></p></div><script>location.replace("/")</script></body></html>';
+        try_files $uri $uri/ /index.html;
     }
 }

@@ -97,525 +97,6 @@ function methodIconId(opt) {
 
 /* ------------------------------ branding ------------------------------ */
 
-function findWidget(type) {
-  var ws = (state.config && state.config.widgets) || [];
-  for (var i = 0; i < ws.length; i++) if (ws[i].type === type) return ws[i];
-  return null;
-}
-
-function hydratePortalSidebarWidgets() {
-  // PORTAL-WIDGET-2026-06-03 — both 'Your Ads Here' and 'Partner with Us'
-  // are managed in /admin/widgets. Enabled flag + all fields come from the
-  // widget config; legacy partner_* settings remain a fallback.
-  try {
-    var ads = findWidget("ads_card");
-    var adsBtn = $("ads-widget");
-    if (adsBtn) {
-      if (ads && ads.enabled === false) {
-        adsBtn.classList.add("hidden");
-      } else {
-        adsBtn.classList.remove("hidden");
-        var adsTitle = adsBtn.querySelector("p.text-lg");
-        var adsSub   = adsBtn.querySelector("p.text-sm");
-        if (ads && adsTitle) adsTitle.textContent = ads.title    || "Your Ads Here";
-        if (ads && adsSub)   adsSub.textContent   = ads.subtitle || "Submit to inquire";
-      }
-    }
-
-    var pcw = findWidget("partner_cta");
-    var legacy = (state.config && state.config.partner) || {};
-    var pBtn  = $("partner-widget");
-    var pSub  = $("partner-widget-sub");
-    var pChip = $("partner-widget-chip");
-    if (pBtn) {
-      if (pcw && pcw.enabled === false) {
-        pBtn.classList.add("hidden");
-      } else {
-        pBtn.classList.remove("hidden");
-        var pTitle = pBtn.querySelector("p.text-lg");
-        var title    = (pcw && pcw.title)    || "Partner with Us";
-        var subtitle = (pcw && pcw.subtitle) || legacy.cta_text             || "Become a PAYWIFI Partner";
-        var chipTxt  = (pcw && pcw.chip)     || legacy.availability_status  || "";
-        var rollout  = (pcw && pcw.rollout)  || legacy.rollout_message      || "";
-        if (pTitle) pTitle.textContent = title;
-        if (pSub)   pSub.textContent   = subtitle;
-        if (pChip) {
-          if (chipTxt) { pChip.textContent = chipTxt; pChip.classList.remove("hidden"); }
-          else         { pChip.classList.add("hidden"); }
-        }
-        if (rollout) pBtn.setAttribute("aria-label", "Partner with us — " + rollout);
-      }
-    }
-
-    // YOUTUBE-WIDGET-2026-06-03 — full playback surface (controls/fullscreen/
-    // volume/click-to-play/skip/close) + error fallback. Hidden if disabled,
-    // device-rule rejects, or media isn't resolved.
-    var yt    = findWidget("youtube");
-    var ytCard  = $("youtube-widget");
-    var ytVid   = $("youtube-widget-video");
-    var ytPlay  = $("youtube-widget-play");
-    var ytSkip  = $("youtube-widget-skip");
-    var ytClose = $("youtube-widget-close");
-    var ytErr   = $("youtube-widget-error");
-    var ytFrame = $("youtube-widget-frame");
-    if (ytCard && ytVid) {
-      var media = yt && yt.media;
-      // Honour a per-session dismissal triggered by the close button.
-      var dismissedKey = "pw_yt_dismiss_" + (media && media.id ? media.id : "any");
-      var dismissed = false;
-      try { dismissed = sessionStorage.getItem(dismissedKey) === "1"; } catch (e) {}
-      // Device-rule check (mobile/desktop/any). UA-based — good enough for the
-      // captive-portal use case where we don't need pixel-perfect detection.
-      var isMobile = /Mobi|Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
-      var deviceOk = !yt || !yt.device_rule || yt.device_rule === "any"
-                     || (yt.device_rule === "mobile"  && isMobile)
-                     || (yt.device_rule === "desktop" && !isMobile);
-      var ok = yt && yt.enabled !== false && media && media.file_path && !dismissed && deviceOk;
-      if (ok) {
-        ytCard.classList.remove("hidden");
-        if (media.thumbnail_path) ytVid.setAttribute("poster", media.thumbnail_path);
-        ytVid.setAttribute("src", media.file_path);
-        var wantClickToPlay = !!yt.click_to_play;
-        var wantAutoplay    = !wantClickToPlay && (yt.autoplay !== false);
-        // Browsers require muted for autoplay. If admin wants sound + autoplay,
-        // mute on first load and unmute on the first user interaction.
-        var wantMuted = (yt.muted === true) || (wantAutoplay && yt.muted !== false);
-        ytVid.muted    = wantMuted;
-        ytVid.loop     = !!yt.loop;
-        ytVid.autoplay = wantAutoplay;
-        ytVid.controls = (yt.controls !== false);
-        if (yt.allow_fullscreen === false) {
-          ytVid.setAttribute("controlslist", "nofullscreen nodownload");
-          ytVid.setAttribute("disablepictureinpicture", "true");
-        } else {
-          ytVid.removeAttribute("controlslist");
-          ytVid.removeAttribute("disablepictureinpicture");
-        }
-        // Volume — clamp 0..1
-        var vol = (typeof yt.volume === "number") ? yt.volume : 1.0;
-        ytVid.volume = Math.max(0, Math.min(1, vol));
-        // Skip + Close overlay buttons
-        if (ytSkip)  ytSkip.classList.toggle("hidden",  !yt.skip_button);
-        if (ytClose) ytClose.classList.toggle("hidden", !yt.close_button);
-        // Click-to-play overlay
-        if (ytPlay) ytPlay.classList.toggle("hidden", !wantClickToPlay);
-        if (ytErr)  ytErr.classList.add("hidden");
-        // Autoplay kick
-        if (wantAutoplay) {
-          var tryPlay = function() { try { ytVid.play().catch(function(){}); } catch (e) {} };
-          if (ytVid.readyState >= 2) tryPlay();
-          else ytVid.addEventListener("loadedmetadata", tryPlay, { once: true });
-        }
-        // Click-to-play handler
-        if (ytPlay && wantClickToPlay) {
-          ytPlay.onclick = function() {
-            ytPlay.classList.add("hidden");
-            try { ytVid.muted = (yt.muted === true); ytVid.play().catch(function(){}); } catch (e) {}
-          };
-        }
-        // Skip = stop + collapse the player (keeps the card visible if anything else needs it)
-        if (ytSkip) ytSkip.onclick = function() {
-          try { ytVid.pause(); } catch (e) {}
-          ytCard.classList.add("hidden");
-          ytTrack("skip");
-        };
-        // Close = dismiss for the session
-        if (ytClose) ytClose.onclick = function() {
-          try { ytVid.pause(); } catch (e) {}
-          try { sessionStorage.setItem(dismissedKey, "1"); } catch (e) {}
-          ytCard.classList.add("hidden");
-          ytTrack("close");
-        };
-        // Sound-on-tap: if autoplay started muted but admin wants sound, unmute
-        // the moment the user taps anywhere in the frame.
-        if (wantAutoplay && yt.muted === false && wantMuted && ytFrame) {
-          var unmuteOnce = function() {
-            try { ytVid.muted = false; } catch (e) {}
-            ytFrame.removeEventListener("click",   unmuteOnce);
-            ytFrame.removeEventListener("touchstart", unmuteOnce);
-          };
-          ytFrame.addEventListener("click",      unmuteOnce, { once: true });
-          ytFrame.addEventListener("touchstart", unmuteOnce, { once: true });
-        }
-        // Analytics event hooks (sendBeacon-backed; defined below)
-        ytVid.addEventListener("playing", function() { ytTrack("view_start"); }, { once: true });
-        ytVid.addEventListener("ended",   function() { ytTrack("view_complete"); });
-        ytVid.addEventListener("error",   function() {
-          console.warn("[yt-widget] video error", (ytVid.error && ytVid.error.code), "media=", media && media.id);
-          if (ytErr) ytErr.classList.remove("hidden");
-          ytTrack("error");
-        });
-
-
-        function ytTrack(event) {
-          try {
-            var body = JSON.stringify({ media_id: media && media.id, widget_id: yt && yt.id, event: event });
-            if (navigator.sendBeacon) {
-              var blob = new Blob([body], { type: "application/json" });
-              navigator.sendBeacon("/api/portal/media/track", blob);
-            } else {
-              fetch("/api/portal/media/track", {
-                method: "POST", credentials: "same-origin",
-                headers: { "Content-Type": "application/json" }, body: body, keepalive: true
-              }).catch(function() {});
-            }
-          } catch (e) {}
-        }
-      } else {
-        ytCard.classList.add("hidden");
-      }
-    }
-
-    // LIVE-NEWS-2026-06-04 (NAV) — inline HLS player with overlay channel navigation.
-    // The server picks an initial "best" stream; once the user navigates (arrows),
-    // the choice locks for the session. The 30s status poll then refreshes only
-    // the CURRENT channel's badge/title — never reshuffles.
-    var ln = findWidget("live_news");
-    var lnCard   = $("live-news-widget");
-    var lnVid    = $("live-news-video");
-    var lnThumb  = $("live-news-thumb");
-    var lnStatus = $("live-news-status");
-    var lnStatusText = $("live-news-status-text");
-    var lnReplay = $("live-news-replay");
-    var lnChannel= $("live-news-channel");
-    var lnNow    = $("live-news-now");
-    var lnFrame   = $("live-news-frame");
-    var lnSpinner = $("live-news-spinner");
-    var lnPlayBtn = $("live-news-playpause");
-    var lnPlayBtnIcon = $("live-news-playpause-icon");
-    var lnIconPlay  = $("live-news-icon-play");
-    var lnIconPause = $("live-news-icon-pause");
-    var lnMuteBtn = $("live-news-muteicon");
-    var lnIconSoundOn  = $("live-news-icon-sound-on");
-    var lnIconSoundOff = $("live-news-icon-sound-off");
-    var lnPrev    = $("live-news-prev");
-    var lnNext    = $("live-news-next");
-    var lnError   = $("live-news-error");
-
-    if (lnCard) {
-      var sources = (ln && Array.isArray(ln.sources_full)) ? ln.sources_full : (ln && ln.stream ? [ln.stream] : []);
-      // Only sources that we can actually play (need hls_url) are part of the nav cycle.
-      var playable = sources.filter(function(s){ return s && s.has_stream; });
-      // If no playable sources, fall back to the picked stream (metadata only).
-      if (!playable.length && ln && ln.stream) playable = [ln.stream];
-      if (ln && ln.enabled !== false && playable.length) {
-        lnCard.classList.remove("hidden");
-        // Lock-on-pick — once the user navigates, stay on that channel.
-        if (state.liveNewsLocked && state.liveNewsCurrentKey) {
-          var idxFromState = playable.findIndex(function(s){ return s.source_key === state.liveNewsCurrentKey; });
-          if (idxFromState >= 0) state.liveNewsIdx = idxFromState;
-          // else: the locked channel disappeared — fall through to picker default.
-        }
-        if (typeof state.liveNewsIdx !== "number" || state.liveNewsIdx >= playable.length) {
-          state.liveNewsIdx = 0;
-        }
-        var paint = function() {
-          var cur = playable[state.liveNewsIdx];
-          if (!cur) return;
-          state.liveNewsCurrentKey = cur.source_key;
-        // BADGE-FADE-2026-06-04 — show channel + status briefly, then fade out.
-        function showBadges() {
-          [lnChannel, lnStatus].forEach(function(el){
-            if (!el) return;
-            el.classList.remove("pw-fade-out");
-          });
-          clearTimeout(window.__pwLiveBadgeFadeTimer);
-          window.__pwLiveBadgeFadeTimer = setTimeout(function(){
-            [lnChannel, lnStatus].forEach(function(el){
-              if (el) el.classList.add("pw-fade-out");
-            });
-          }, 5000);
-        }
-                // CUSTOM-PLAYER-2026-06-04 — render mute icon + brief play-icon flash
-        function syncMuteIcon() {
-          if (!lnMuteBtn) return;
-          var muted = lnVid && lnVid.muted;
-          if (lnIconSoundOn)  lnIconSoundOn.classList.toggle("hidden", muted);
-          if (lnIconSoundOff) lnIconSoundOff.classList.toggle("hidden", !muted);
-          lnMuteBtn.classList.remove("hidden");
-        }
-        function flashCenterIcon(showPause) {
-          if (!lnPlayBtnIcon) return;
-          if (lnIconPlay)  lnIconPlay.classList.toggle("hidden",  showPause);
-          if (lnIconPause) lnIconPause.classList.toggle("hidden", !showPause);
-          lnPlayBtnIcon.classList.remove("hidden");
-          lnPlayBtnIcon.style.display = "flex";
-          clearTimeout(window.__pwLiveIconTimer);
-          window.__pwLiveIconTimer = setTimeout(function(){
-            lnPlayBtnIcon.style.display = "none";
-          }, 700);
-        }
-        function setSpinner(busy) {
-          if (!lnSpinner) return;
-          lnSpinner.classList.toggle("hidden", !busy);
-        }
-
-          // Thumbnail (poster) — refreshes per channel switch
-          if (lnThumb) {
-            lnThumb.style.display = "";
-            if (cur.thumbnail_url) {
-              lnThumb.src = cur.thumbnail_url;
-              lnThumb.onerror = function() {
-                this.onerror = null;
-                this.src = cur.video_id ? ("https://i.ytimg.com/vi/" + cur.video_id + "/hqdefault.jpg") : "";
-              };
-            }
-          }
-
-          if (lnChannel) lnChannel.textContent = cur.channel_name || cur.source_key || "Live Channel";
-
-          // Status badge
-          var status = String(cur.live_status || "").toLowerCase();
-          var badgeText = "STREAM", badgeColor = "bg-slate-600 text-white", pulse = false;
-          if (status === "is_live")          { badgeText = "LIVE";     badgeColor = "bg-rose-600 text-white"; pulse = true;  }
-          else if (status === "is_upcoming") { badgeText = "UPCOMING"; badgeColor = "bg-sky-600 text-white";  pulse = false; }
-          else if (status === "was_live" || status === "post_live") { badgeText = "REPLAY"; badgeColor = "bg-amber-500 text-black"; pulse = false; }
-          if (lnStatus) {
-            lnStatus.className =
-              "absolute top-2 left-2 z-10 inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider backdrop-blur " + badgeColor;
-            var dot = lnStatus.querySelector("span:first-child");
-            if (dot) dot.style.display = pulse ? "" : "none";
-          }
-          if (lnStatusText) lnStatusText.textContent = badgeText;
-
-          // Replay badge (driven by original-title regex)
-          if (lnReplay) {
-            if (cur.has_replay) lnReplay.classList.remove("hidden");
-            else                lnReplay.classList.add("hidden");
-          }
-
-          // (publish date removed per VIS-3)
-
-          // Arrow visibility (only show if there is more than one channel to switch to)
-          if (lnPrev) lnPrev.classList.toggle("hidden", playable.length < 2);
-          if (lnNext) lnNext.classList.toggle("hidden", playable.length < 2);
-          showBadges();
-
-          // Attach HLS
-          if (lnError) lnError.classList.add("hidden");
-          if (lnVid && cur.source_key) {
-            // SOUND-ON-DEFAULT-2026-06-04 — try unmuted autoplay first. If the
-            // browser blocks it (no prior user gesture), fall back to muted + unmute overlay.
-            var startMuted = !state.liveNewsUserInteracted;
-            lnVid.muted = startMuted;
-            lnVid.autoplay = true;
-            lnVid.playsInline = true;
-            lnVid.volume = 1.0;
-            // Tear down previous hls.js instance before reattaching
-            try { if (window.__pwHls) { window.__pwHls.destroy(); window.__pwHls = null; } } catch (e) {}
-
-            function attachHlsFor(url) {
-              // Native HLS path (Safari/iOS)
-              if (lnVid.canPlayType("application/vnd.apple.mpegurl")) {
-                lnVid.src = url;
-                lnVid.play().catch(function(err){
-                  try { lnVid.muted = true; lnVid.play().catch(function(){}); } catch (e) {}
-                  syncMuteIcon();
-                });
-                return;
-              }
-              function go() {
-                try {
-                  var hls = new window.Hls({ enableWorker: true, lowLatencyMode: false, capLevelToPlayerSize: true });
-                  window.__pwHls = hls;
-                  hls.loadSource(url);
-                  hls.attachMedia(lnVid);
-                  hls.on(window.Hls.Events.MANIFEST_PARSED, function(){
-                    lnVid.play().catch(function(err){
-                      try { lnVid.muted = true; lnVid.play().catch(function(){}); } catch (e) {}
-                      syncMuteIcon();
-                    });
-                  });
-                  hls.on(window.Hls.Events.ERROR, function(_, data){
-                    if (data && data.fatal) {
-                      console.warn("[live-news] hls fatal", data.type, data.details);
-                      if (lnError) lnError.classList.remove("hidden");
-                    }
-                  });
-                } catch (e) {
-                  if (lnError) lnError.classList.remove("hidden");
-                }
-              }
-              if (window.Hls) { go(); }
-              else {
-                var hjs = document.createElement("script");
-                hjs.src = "/hls.js"; hjs.async = true;
-                hjs.crossOrigin = "anonymous";
-                hjs.integrity = "sha384-V5ruNBgmYcC3SJRUQeNykAAAgde5gOFq/Hu0CZj7bygDP0yRIhkvX8+w0u/7mRvr";
-                hjs.onload = go;
-                hjs.onerror = function(){ if (lnError) lnError.classList.remove("hidden"); };
-                document.head.appendChild(hjs);
-              }
-            }
-            // PROXY-START-2026-06-04 — fetch a tokenised playlist URL, attach via hls.js.
-            fetch("/api/portal/stream/start", {
-              method: "POST", credentials: "same-origin",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ source_key: cur.source_key })
-            }).then(function(r){ return r.json(); }).then(function(d){
-              if (!d || !d.ok || !d.playlist_url) {
-                if (lnError) lnError.classList.remove("hidden");
-                return;
-              }
-              attachHlsFor(d.playlist_url);
-            }).catch(function(){
-              if (lnError) lnError.classList.remove("hidden");
-            });
-            // Hide thumbnail when playback actually starts; wire spinner; sync mute icon.
-            lnVid.onplaying = function() {
-              if (lnThumb) lnThumb.style.display = "none";
-              setSpinner(false);
-              syncMuteIcon();
-            };
-            lnVid.onwaiting = function(){ setSpinner(true); };
-            lnVid.oncanplay = function(){ setSpinner(false); };
-            lnVid.onstalled = function(){ setSpinner(true); };
-            lnVid.onvolumechange = syncMuteIcon;
-            lnVid.onpause = function(){ if (!lnVid.ended) flashCenterIcon(false); };
-            lnVid.onplay  = function(){ flashCenterIcon(true); };
-            setSpinner(true);
-            syncMuteIcon();
-          }
-        };
-        paint();
-
-        // Navigation
-        function cycleBy(delta) {
-          if (!playable.length) return;
-          state.liveNewsIdx = ((state.liveNewsIdx + delta) % playable.length + playable.length) % playable.length;
-          state.liveNewsLocked = true;
-          // SOUND-ON-DEFAULT-2026-06-04 — prev/next click is a user gesture, so
-          // we can autoplay with sound on the new channel. Mark the flag, repaint,
-          // then explicitly unmute + play after the HLS attach has settled.
-          state.liveNewsUserInteracted = true;
-          paint();
-          // Force unmute on the freshly-attached video (paint() reset muted to false
-          // already because userInteracted is now true, but this guarantees it).
-          try {
-            lnVid.muted = false;
-            lnVid.volume = 1.0;
-            var pp = lnVid.play();
-            if (pp && pp.catch) pp.catch(function(){});
-          } catch (e) {}
-        }
-        if (lnPrev) lnPrev.onclick = function(e){ e.preventDefault(); e.stopPropagation(); cycleBy(-1); };
-        if (lnNext) lnNext.onclick = function(e){ e.preventDefault(); e.stopPropagation(); cycleBy(1); };
-
-        // CUSTOM-PLAYER-2026-06-04 — tap-to-toggle play/pause; mute icon toggles independently.
-        function togglePlay() {
-          state.liveNewsUserInteracted = true;
-          try {
-            if (lnVid.paused || lnVid.ended) { lnVid.play().catch(function(){}); }
-            else { lnVid.pause(); }
-          } catch (e) {}
-        }
-        function toggleMute() {
-          state.liveNewsUserInteracted = true;
-          try {
-            lnVid.muted = !lnVid.muted;
-            if (!lnVid.muted) lnVid.volume = 1.0;
-            var pp = lnVid.play(); if (pp && pp.catch) pp.catch(function(){});
-          } catch (e) {}
-          syncMuteIcon();
-        }
-        if (lnPlayBtn) lnPlayBtn.onclick = function(e){ e.preventDefault(); e.stopPropagation(); togglePlay(); showBadges(); };
-        if (lnMuteBtn) lnMuteBtn.onclick = function(e){ e.preventDefault(); e.stopPropagation(); toggleMute(); };
-        // Background unmute hook — first gesture anywhere unmutes (mobile autoplay policy)
-        if (!state.__lnUnmuteHooked) {
-          state.__lnUnmuteHooked = true;
-          var unmuteOnce = function(){
-            state.liveNewsUserInteracted = true;
-            try { if (lnVid.muted) { lnVid.muted = false; lnVid.volume = 1.0; lnVid.play().catch(function(){}); } } catch (e) {}
-            syncMuteIcon();
-            document.removeEventListener("click", unmuteOnce, true);
-            document.removeEventListener("touchstart", unmuteOnce, true);
-          };
-          document.addEventListener("click", unmuteOnce, { capture: true, once: true });
-          document.addEventListener("touchstart", unmuteOnce, { capture: true, once: true });
-        }
-        // Neuter media keyboard shortcuts on this video (browsers normally pass them through)
-        lnVid.addEventListener("keydown", function(e){ e.preventDefault(); }, true);
-
-        // Real-time clock — single global interval
-        function pwLiveTick() {
-          if (!lnNow) return;
-          // VIS-3-2026-06-04 — show current time in Asia/Manila, 12-hour format.
-          try {
-            var s = new Date().toLocaleTimeString("en-US", {
-              timeZone: "Asia/Manila",
-              hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true
-            });
-            lnNow.textContent = s + " Manila";
-          } catch (e) {
-            // Older browsers without timezone support — fall back to local 12-hour
-            var n = new Date();
-            var h = n.getHours();
-            var ap = h >= 12 ? "PM" : "AM";
-            h = ((h + 11) % 12) + 1;
-            var mm = String(n.getMinutes()).padStart(2,"0");
-            var ss = String(n.getSeconds()).padStart(2,"0");
-            lnNow.textContent = h + ":" + mm + ":" + ss + " " + ap;
-          }
-        }
-        pwLiveTick();
-        if (!window.__pwLiveTickTimer) window.__pwLiveTickTimer = setInterval(pwLiveTick, 1000);
-
-        // Status poll — refresh CURRENT channel data only; never reshuffle.
-        if (!window.__pwLiveStatusPollTimer) {
-          window.__pwLivePollCount = 0;
-          window.__pwLivePollPrev = null;
-          window.__pwLiveStatusPollTimer = setInterval(function(){
-            fetch("/api/portal/config", { cache: "no-store" }).then(function(r){ return r.json(); }).then(function(cfg){
-              if (!cfg || !cfg.widgets) return;
-              var lnNew = null;
-              for (var i=0;i<cfg.widgets.length;i++) {
-                if (cfg.widgets[i].type === "live_news") { lnNew = cfg.widgets[i]; break; }
-              }
-              if (!lnNew) return;
-              // Find the currently shown channel in the new list. If gone, keep showing the cached state.
-              var newPlayable = (lnNew.sources_full || []).filter(function(s){ return s && s.has_stream; });
-              if (!newPlayable.length) return;
-              var keepIdx = -1;
-              if (state.liveNewsCurrentKey) {
-                keepIdx = newPlayable.findIndex(function(s){ return s.source_key === state.liveNewsCurrentKey; });
-              }
-              if (keepIdx >= 0) {
-                // The channel is still alive. Update just its metadata (badge, publish, thumbnail).
-                var cur = newPlayable[keepIdx];
-                // Update badge
-                var status = String(cur.live_status || "").toLowerCase();
-                var bt = "STREAM", bc = "bg-slate-600 text-white", pl = false;
-                if (status === "is_live")          { bt = "LIVE";     bc = "bg-rose-600 text-white"; pl = true;  }
-                else if (status === "is_upcoming") { bt = "UPCOMING"; bc = "bg-sky-600 text-white";  pl = false; }
-                else if (status === "was_live" || status === "post_live") { bt = "REPLAY"; bc = "bg-amber-500 text-black"; pl = false; }
-                if (lnStatus) {
-                  lnStatus.className =
-                    "absolute top-2 left-2 z-10 inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider backdrop-blur " + bc;
-                  var dot = lnStatus.querySelector("span:first-child");
-                  if (dot) dot.style.display = pl ? "" : "none";
-                }
-                if (lnStatusText) lnStatusText.textContent = bt;
-                if (lnReplay) lnReplay.classList.toggle("hidden", !cur.has_replay);
-                // Refresh the local playable list in case other channels' status changed,
-                // but DO NOT reshuffle the current selection.
-                playable = newPlayable;
-                state.liveNewsIdx = keepIdx;
-                if (lnPrev) lnPrev.classList.toggle("hidden", playable.length < 2);
-                if (lnNext) lnNext.classList.toggle("hidden", playable.length < 2);
-              }
-            }).catch(function(){});
-          }, 30000);
-        }
-      } else {
-        lnCard.classList.add("hidden");
-      }
-    }
-  } catch (e) { /* non-critical */ }
-}
-
-// Back-compat alias
-function hydratePartnerWidget() { hydratePortalSidebarWidgets(); }
-
 function applyBranding() {
   const c = state.config || {};
   const portalName = (c.branding && c.branding.portal_name) || (c.app && c.app.name) || "PAYWIFI";
@@ -941,8 +422,8 @@ function renderPaymentMethods() {
 }
 
 function populateStores() {
-  // PARTNER-LABEL-2026-06-03 — PAYWIFI exposes active partners as
-  // /api/portal/config.partners (legacy alias: store_partners). Render whatever is there.
+  // Source has a dummy STORES roster. PAYWIFI exposes store_partners in
+  // /api/portal/config — currently empty. Render whatever is there.
   const sel = $("store-select");
   // Wipe everything except the placeholder option.
   while (sel.options.length > 1) sel.remove(1);
@@ -1065,6 +546,7 @@ function populatePending(data) {
   const ref = (data.reference || data.code || state.paymentReference || "").toUpperCase();
   const isCash = !!data.is_cash;
   const checkoutUrl = data.checkout_url || "";
+  const deeplinkUrl = data.deeplink_url || null; // DEEPLINK-2026-06-18: gcash:// direct app link from Xendit
   const methodName = data.method_name || (state.selectedMethod && state.selectedMethod.name) || "your wallet";
   // PHONE-HOIST-2026-05-31 — hoisted to fix TDZ access in the digital
   // PENDING-DETAILS branch below.
@@ -1313,11 +795,13 @@ function populatePending(data) {
   const ctaLabel = $("pending-checkout-label");
   if (window._cl_countdown) { clearInterval(window._cl_countdown); window._cl_countdown = null; }
   if (!isCash && checkoutUrl) {
-    // ANDROID-INTENT-2026-05-31 — on Android with a known wallet package,
-    // route through intent:// to force the app to launch. browser_fallback_url
-    // catches devices without the app. iOS / desktop use the plain URL and
-    // rely on Universal Links / browser respectively.
-    const _navUrl = _buildAndroidIntentUrl(checkoutUrl, data.method_icon_key);
+    // DEEPLINK-2026-06-18: on Android use gcash:// directly (from Xendit's
+    // DEEPLINK action) — this opens GCash app without going through the browser.
+    // Fall back to intent:// wrapper if no deeplink provided, then plain URL.
+    // iOS CNA: _isIOSCNA() detected in auto_redirect block below.
+    const _navUrl = (_isAndroid() && deeplinkUrl)
+      ? deeplinkUrl
+      : _buildAndroidIntentUrl(checkoutUrl, data.method_icon_key);
     ctaWrap.classList.remove("hidden");
     ctaWrap.setAttribute("href", _navUrl);
     ctaWrap.setAttribute("target", "_self");
@@ -1328,10 +812,35 @@ function populatePending(data) {
       if (window._cl_countdown) { clearInterval(window._cl_countdown); window._cl_countdown = null; }
     };
     if (data.auto_redirect) {
-      if (ctaLabel) ctaLabel.textContent = `Opening ${methodName}…`;
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        try { window.location.assign(_navUrl); } catch (e) {}
-      }));
+      if (ctaLabel) ctaLabel.textContent = `Opening ${methodName}\u2026`;
+      // IOS-CNA-2026-06-18: iOS Websheet (CNA) cannot navigate to external URLs
+      // or launch app deep links. Show "Open in Safari" banner + re-label CTA.
+      if (_isIOSCNA()) {
+        var _cnaBanner = document.getElementById('cna-safari-banner');
+        if (_cnaBanner) _cnaBanner.classList.remove('hidden');
+        if (ctaLabel) ctaLabel.textContent = `Open Safari to pay with ${methodName}`;
+        if (ctaWrap) {
+          ctaWrap.setAttribute('href', checkoutUrl);
+          ctaWrap.setAttribute('target', '_blank');
+          ctaWrap.classList.remove('hidden');
+        }
+      } else {
+        // Android Chrome: try window.open first, fall back to assign.
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          var _opened = null;
+          try { _opened = window.open(_navUrl, '_blank'); } catch (e) {}
+          if (!_opened) {
+            try { window.location.assign(_navUrl); } catch (e) {}
+          }
+          // Always keep CTA visible after auto-redirect attempt
+          if (ctaWrap) ctaWrap.classList.remove('hidden');
+          // Show "couldn't open?" hint after 3s if user is still on this screen
+          setTimeout(function() {
+            var _hint = document.getElementById('pending-open-hint');
+            if (_hint) _hint.classList.remove('hidden');
+          }, 3000);
+        }));
+      }
     }
   } else if (ctaWrap) {
     ctaWrap.classList.add("hidden");
@@ -1625,6 +1134,13 @@ function showPendingPaymentDialog(res) {
 function _isAndroid() {
   return /Android/i.test(navigator.userAgent || "");
 }
+// IOS-CNA-2026-06-18: detect iOS Captive Network Assistant (Websheet).
+// CNA UA contains "CaptiveNetworkSupport" — it cannot navigate to external
+// HTTPS or launch app schemes. Breakout to Safari required for payments.
+function _isIOSCNA() {
+  var ua = navigator.userAgent || "";
+  return /CaptiveNetworkSupport/i.test(ua) || (/iPhone|iPad|iPod/i.test(ua) && /CFNetwork/i.test(ua));
+}
 // Map of wallet icon_key -> Android Play Store package name. Only known-good
 // packages here; others fall through to the plain URL.
 const _WALLET_ANDROID_PACKAGES = {
@@ -1845,25 +1361,7 @@ async function onCheckoutSubmit(e) {
       // "stay" → no action; user remains on checkout
       return;
     }
-    // FRIENDLY-MSG-MAP-2026-06-02 — defensive map for code-only responses,
-    // so even if the backend returns just a `code` the user sees plain language.
-    var _FRIENDLY = {
-      NON_LAN_HOST:        "Connect to the PAYWIFI hotspot WiFi first \u2014 payments can't be made from outside the network.",
-      RATE_LIMITED:        "You're making payment requests too quickly. Please wait a moment and try again.",
-      FREE_TRIAL_CLAIMED:  "You've already used your free trial recently. Please try again later or buy a plan.",
-      PLAN_MISMATCH:       "You have a pending payment for a different plan. Cancel it before switching plans.",
-      METHOD_MISMATCH:     "You already have a pending payment with a different method. Cancel it before switching.",
-      ALREADY_PENDING:     "You already have a pending payment for this plan. Tap Continue to finish, or Cancel to start a new one.",
-      not_your_store:      "This payment was routed to a different store.",
-      wrong_state:         "This payment is no longer in a state where this action is allowed.",
-      race_lost:           "Another action claimed this payment first.",
-      already_paid:        "This payment was already confirmed.",
-      public_host_blocked: "Connect to the PAYWIFI hotspot WiFi first \u2014 payments can't be made from outside the network."
-    };
-    var _msg = (res && res.error)
-      || (res && res.code && _FRIENDLY[res.code])
-      || "Could not start payment. Please try again.";
-    showAlert(_msg);
+    showAlert(res?.error || "Could not start payment. Please try again.");
   }
 }
 
@@ -1919,10 +1417,19 @@ async function lockToPendingPayment() {
 
 function startPaymentPolling(id) {
   stopPaymentPolling();
-  state.paymentPollTimer = setInterval(() => pollPaymentNow(id), 4000);
+  // GCASH-POLL-FIX-2026-06-18: rapid-first polls catch instant GCash webhook responses.
+  // Pattern: 500ms, 1s, 1s, 2s, 2s, then settle to 5s intervals.
+  var _pollDelays = [500, 1000, 1000, 2000, 2000];
+  var _pollIdx = 0;
+  var _tick = function() {
+    pollPaymentNow(id);
+    var _delay = _pollIdx < _pollDelays.length ? _pollDelays[_pollIdx++] : 5000;
+    state.paymentPollTimer = setTimeout(_tick, _delay);
+  };
+  state.paymentPollTimer = setTimeout(_tick, 500);
 }
 function stopPaymentPolling() {
-  if (state.paymentPollTimer) { clearInterval(state.paymentPollTimer); state.paymentPollTimer = null; }
+  if (state.paymentPollTimer) { clearTimeout(state.paymentPollTimer); state.paymentPollTimer = null; }
 }
 async function pollPaymentNow(id) {
   const pid = id || state.paymentId;
@@ -2007,20 +1514,9 @@ async function boot() {
     ]);
     state.config = cfg || {};
     state.plans = (plans && plans.plans) || [];
-    // DEVICE-COOKIE-HANDSHAKE-2026-06-03 — auto-PoP. If a remembered device
-    // is reconnecting, the server bumps its handshake timestamp here; if the
-    // cookie is missing or mismatched, sessiond will require fresh voucher.
-    try {
-      fetch("/api/portal/handshake", {
-        method: "POST", credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: "{}", keepalive: true
-      }).catch(function(){});
-    } catch (e) {}
     state.paymentOptions = (pos && pos.options) || [];
-    state.storePartners = (cfg && (cfg.partners || cfg.store_partners)) || [];
+    state.storePartners = (cfg && cfg.store_partners) || [];
     applyBranding();
-    hydratePartnerWidget();
   } catch (e) { console.warn("[boot] config load failed:", e); }
 
   // CONFIRM-LOCK-2026-05-31 — if the device has an active pending payment
@@ -2125,20 +1621,7 @@ document.addEventListener("DOMContentLoaded", () => {
   $("paste-btn").addEventListener("click", pasteVoucher);
   $("no-voucher-btn").addEventListener("click", showPlans);
   $("ads-widget").addEventListener("click", () => {
-    // PORTAL-WIDGET-2026-06-03 — pull email target from widget config
-    var w = findWidget("ads_card") || {};
-    var to = w.contact_email || "ads@example.com";
-    window.location.href = "mailto:" + to + "?subject=Ad%20slot%20inquiry";
-  });
-  // PARTNER-WIDGET-2026-06-03 — prefer tel: to partner.contact_number, fall back to mailto.
-  $("partner-widget").addEventListener("click", () => {
-    var w = findWidget("partner_cta") || {};
-    var legacy = (state.config && state.config.partner) || {};
-    var phone  = String(w.contact_number || legacy.contact_number || "").replace(/[^\d+]/g, "");
-    var email  = w.contact_email || legacy.contact_email || "";
-    if (phone)      window.location.href = "tel:" + phone;
-    else if (email) window.location.href = "mailto:" + email + "?subject=PAYWIFI%20Partner%20inquiry";
-    else            window.location.href = "/partner/login";
+    window.location.href = "mailto:ads@example.com?subject=Ad%20slot%20inquiry";
   });
   $("plans-close").addEventListener("click", showHome);
   $("plans-back").addEventListener("click", (e) => { e.preventDefault(); showHome(); });
