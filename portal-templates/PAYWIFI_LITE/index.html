@@ -153,12 +153,43 @@ body{
 /* ── Loading overlay ── */
 #ov{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(245,248,251,.92);display:-webkit-box;display:-webkit-flex;display:flex;-webkit-box-orient:vertical;-webkit-box-direction:normal;-webkit-flex-direction:column;flex-direction:column;-webkit-box-align:center;-webkit-align-items:center;align-items:center;-webkit-box-pack:center;-webkit-justify-content:center;justify-content:center;z-index:100;}
 #ov.hidden{display:none!important;}
+
+/* ── Pending payment modal ── */
+#pm-wrap{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.55);display:-webkit-box;display:-webkit-flex;display:flex;-webkit-box-align:flex-end;-webkit-align-items:flex-end;align-items:flex-end;-webkit-box-pack:center;-webkit-justify-content:center;justify-content:center;z-index:200;padding:0;}
+#pm-wrap.hidden{display:none!important;}
+#pm-box{background:#fff;border-radius:20px 20px 0 0;padding:24px 20px 32px;width:100%;max-width:480px;}
+.pm-head{font-size:18px;font-weight:800;margin-bottom:4px;}
+.pm-sub{font-size:14px;color:#5b646f;margin-bottom:16px;}
+.pm-info{background:#f5f8fb;border:1px solid #dfe6eb;border-radius:12px;padding:14px;margin-bottom:16px;}
+.pm-row{display:-webkit-box;display:-webkit-flex;display:flex;-webkit-box-pack:justify;-webkit-justify-content:space-between;justify-content:space-between;font-size:14px;padding:4px 0;}
+.pm-lbl{color:#5b646f;}
+.pm-val{font-weight:700;}
 </style>
 </head>
 <body>
 
 <!-- Loading overlay -->
 <div id="ov"><div class="spin"></div><div class="small">Loading...</div></div>
+
+<!-- Pending payment modal (bottom sheet) -->
+<div id="pm-wrap" class="hidden">
+  <div id="pm-box">
+    <div class="pm-head">&#9203; Payment In Progress</div>
+    <div class="pm-sub">You already have an active payment request.</div>
+    <div class="pm-info">
+      <div class="pm-row"><span class="pm-lbl">Plan</span><span class="pm-val" id="pm-plan">—</span></div>
+      <div class="pm-row"><span class="pm-lbl">Amount</span><span class="pm-val" style="color:#008cdf;" id="pm-amount">—</span></div>
+      <div class="pm-row"><span class="pm-lbl">Method</span><span class="pm-val" id="pm-method">—</span></div>
+      <div class="pm-row"><span class="pm-lbl">Reference</span><span class="pm-val" id="pm-ref">—</span></div>
+    </div>
+    <button class="btn btn-primary" onclick="onPmResume()" style="margin-bottom:10px;">
+      &#9654; Resume Payment
+    </button>
+    <button class="btn btn-secondary" onclick="onPmCancel()">
+      Cancel &amp; Start New Payment
+    </button>
+  </div>
+</div>
 
 <!-- ═══════════════════════════════════════════
      VIEW 1: HOME — voucher entry (primary)
@@ -170,6 +201,12 @@ body{
   </div>
 
   <div class="vbody">
+    <!-- Pending payment banner (shown at init if pending exists) -->
+    <div id="h-pending-banner" class="hidden" style="background:#fff8e1;border:2px solid #fbbf24;border-radius:12px;padding:14px;margin-bottom:16px;cursor:pointer;" onclick="onResumeBanner()">
+      <div style="font-size:14px;font-weight:700;color:#92400e;">&#9203; You have a pending payment</div>
+      <div id="h-pending-info" style="font-size:13px;color:#78350f;margin-top:3px;">Tap to resume</div>
+    </div>
+
     <div class="t">Enter Voucher Code</div>
     <div class="sub">Type or paste your code to connect</div>
 
@@ -483,15 +520,35 @@ function renderPlans() {
 }
 
 function onPlan(id) {
-  S.plan=null;
-  for(var i=0;i<S.plans.length;i++){if(S.plans[i].id===id){S.plan=S.plans[i];break;}}
-  if(!S.plan) return;
-  /* highlight */
+  var found=null;
+  for(var i=0;i<S.plans.length;i++){if(S.plans[i].id===id){found=S.plans[i];break;}}
+  if(!found) return;
+
+  /* Highlight immediately for visual feedback */
   var cards=document.querySelectorAll('.plan-card');
   for(var j=0;j<cards.length;j++){
     var pid=parseInt(cards[j].getAttribute('data-pid'),10);
     if(pid===id) cards[j].classList.add('sel'); else cards[j].classList.remove('sel');
   }
+
+  /* Check for existing pending payment before proceeding */
+  loading(true);
+  checkPending(function(hasPending, pendingData) {
+    loading(false);
+    if (hasPending) {
+      /* Show modal — Resume resumes existing, Cancel then opens checkout for chosen plan */
+      showPendingModal(pendingData, function() {
+        /* afterCancel: now proceed to checkout with the plan the user chose */
+        _openCheckout(found);
+      });
+      return;
+    }
+    _openCheckout(found);
+  });
+}
+
+function _openCheckout(plan) {
+  S.plan = plan;
   /* populate checkout */
   text('co-name',  S.plan.name);
   text('co-dur',   S.plan.duration_label);
@@ -551,6 +608,20 @@ function onGcashPay() {
 
   xhr('POST','/api/portal/payment/create',body,function(err,d){
     if(btn){ btn.disabled=false; btn.innerHTML='<span class="g-icon"><span class="g-letter">G</span></span> Pay with GCash'; }
+
+    /* Handle existing pending payment (409) */
+    if (!d.ok && d.existing && (d.code==='ALREADY_PENDING'||d.code==='PLAN_MISMATCH'||d.code==='METHOD_MISMATCH')) {
+      /* Fetch full pending details to populate modal properly */
+      xhr('GET','/api/portal/payment/pending',null,function(perr,pd){
+        var modalData = (!perr&&pd.ok&&pd.pending) ? pd : d;
+        showPendingModal(modalData, function() {
+          /* After cancel: retry payment with the plan the user picked */
+          onGcashPay();
+        });
+      });
+      return;
+    }
+
     if(err||!d.ok){
       show('co-err');
       html('co-err', err||(d.error||'Payment could not be started. Please try again.'));
@@ -653,7 +724,7 @@ function showSuccess(d) {
   showView('v-success');
 }
 
-/* ── Cancel ── */
+/* ── Cancel current pending ── */
 function onCancel() {
   stopPoll();
   if(S.pendingId) xhr('POST','/api/portal/payment/cancel',{id:S.pendingId},function(){});
@@ -661,63 +732,13 @@ function onCancel() {
   showHome();
 }
 
-/* ── Browse ── */
-function onBrowse() { window.location.href='http://google.com/'; }
+/* ═══════════════════════════════════════════════════
+   PENDING PAYMENT MODAL
+═══════════════════════════════════════════════════ */
+var PM = { id:null, checkout:null, deeplink:null, planId:null, afterCancel:null };
 
-/* ── Handle return from GCash (URL params) ── */
-function handleReturn() {
-  var s=window.location.search||'';
-  if(!s) return false;
-  var params={};
-  var parts=s.replace(/^\?/,'').split('&');
-  for(var i=0;i<parts.length;i++){
-    var kv=parts[i].split('=');
-    params[decodeURIComponent(kv[0])]=kv[1]?decodeURIComponent(kv[1]):'';
-  }
-  var ret=params['return']||'',pid=params['pid']||params['id']||'',st=params['status']||'';
-  if(ret!=='xendit'&&ret!=='gcash'&&!pid) return false;
-  try{ window.history.replaceState({},'','/'); }catch(e){}
-  if(st==='success'||st==='paid'){
-    if(pid){ S.pendingId=pid; text('pd-title','Confirming Payment...'); text('pd-status','Verifying with GCash...'); showView('v-pending'); startPoll(); }
-    else    showSuccess({});
-    return true;
-  }
-  if(st==='failed'||st==='cancelled'){
-    text('er-title','Payment '+(st==='failed'?'Failed':'Cancelled'));
-    text('er-body','Your GCash payment was not completed. Please try again.');
-    showView('v-error');
-    return true;
-  }
-  if(pid){ S.pendingId=pid; showView('v-pending'); startPoll(); return true; }
-  return false;
-}
-
-/* ── INIT ── */
-(function init(){
-  if(handleReturn()){ loading(false); return; }
-
-  /* Load plans + options in parallel, show home immediately */
-  var plansLoaded=false, optsLoaded=false;
-  function onBoth(){
-    if(!plansLoaded||!optsLoaded) return;
-    loading(false);
-    if(S.plans.length>0) text('h-plans-from','Plans from '+price(S.plans[0].price));
-    showView('v-home');
-    var c=$('h-code'); if(c) c.focus();
-  }
-
-  xhr('GET','/api/portal/plans',null,function(err,d){
-    plansLoaded=true;
-    if(!err&&d.ok){ S.plans=d.plans||[]; }
-    onBoth();
-  });
-  xhr('GET','/api/portal/payment-options',null,function(err,d){
-    optsLoaded=true;
-    if(!err&&d.ok){ S.payOpts=d.options||[]; S.optId=gcashId(); }
-    onBoth();
-  });
-})();
-</script>
-</body>
-</html>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  
+function showPendingModal(d, afterCancel) {
+  /* d = response from /payment/pending or 409 body */
+  var plan = d.plan || {};
+  PM.id           = d.payment_id || null;
+  PM.checkout
