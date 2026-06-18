@@ -478,6 +478,22 @@ router.post('/payment/set-phone', (req, res) => {
 router.post('/payment/create', async (req, res) => {
   const { plan_id, option_id } = req.body || {};
   const clientIp  = req.clientIp  || '';
+  // DEBUG-2026-06-18: log every payment create attempt with device info
+  console.log('[pay-create][START]',
+    'ip=' + (req.clientIp || 'unknown'),
+    'mac=' + (req.clientMac || 'unknown'),
+    'ua=' + String((req.headers && req.headers['user-agent']) || '').slice(0,100),
+    'method=' + String((req.body || {}).option_id || ''),
+    'plan=' + String((req.body || {}).plan_id || '')
+  );
+  // DEBUG-2026-06-18: log every payment create attempt with device info
+  console.log('[pay-create][START]',
+    'ip=' + (req.clientIp || 'unknown'),
+    'mac=' + (req.clientMac || 'unknown'),
+    'ua=' + String((req.headers && req.headers['user-agent']) || '').slice(0,100),
+    'method=' + String((req.body || {}).option_id || ''),
+    'plan=' + String((req.body || {}).plan_id || '')
+  );
   const clientMac = req.clientMac || null;
   const now       = Math.floor(Date.now() / 1000);
 
@@ -844,6 +860,30 @@ router.post('/payment/create', async (req, res) => {
         qrImage = await QRCode.toDataURL(qrString || checkoutUrl, { width: 240, margin: 2,
           color: { dark: '#1e293b', light: '#ffffff' } });
       } catch (e) { console.warn('[ewallet qr]', e.message); }
+    }
+    // DEBUG-2026-06-18: log full Xendit response for Android testing
+    console.log('[pay-create][XENDIT-RESP]',
+      'action=' + action,
+      'checkout_url=' + (checkoutUrl || 'NONE'),
+      'deeplink_url=' + (deeplinkUrl || 'NONE'),
+      'client_ip=' + clientIp,
+      'ua=' + String((req.headers && req.headers['user-agent']) || '').slice(0,120)
+    );
+    if (!deeplinkUrl && action === 'gcash') {
+      console.warn('[pay-create][NO-DEEPLINK] Xendit did not return a DEEPLINK action. actions=',
+        JSON.stringify((Array.isArray(body.actions) ? body.actions : []).map(a => ({url_type:a.url_type,url:(a.url||'').slice(0,60)}))));
+    }
+    // DEBUG-2026-06-18: log full Xendit response for Android testing
+    console.log('[pay-create][XENDIT-RESP]',
+      'action=' + action,
+      'checkout_url=' + (checkoutUrl || 'NONE'),
+      'deeplink_url=' + (deeplinkUrl || 'NONE'),
+      'client_ip=' + clientIp,
+      'ua=' + String((req.headers && req.headers['user-agent']) || '').slice(0,120)
+    );
+    if (!deeplinkUrl && action === 'gcash') {
+      console.warn('[pay-create][NO-DEEPLINK] Xendit did not return a DEEPLINK action. actions=',
+        JSON.stringify((Array.isArray(body.actions) ? body.actions : []).map(a => ({url_type:a.url_type,url:(a.url||'').slice(0,60)}))));
     }
     // HARDEN-2026-05-31-JIT-GCASH — open the wallet hostnames in the captive
     // walled garden for 15 min so the AUTO-REDIRECT navigation works
@@ -1692,6 +1732,36 @@ router.post('/handshake', express.json({ limit: '2kb' }), (req, res) => {
   } catch (e) {
     res.status(500).json({ ok: false, error: 'handshake_failed' });
   }
+});
+
+// DEBUG-2026-06-18: device status endpoint for Android test verification
+// GET /portal/debug/device — returns current nftables + session state for THIS device
+router.get('/debug/device', (req, res) => {
+  const ip  = req.clientIp  || req.ip || '';
+  const mac = req.clientMac || '';
+  const now = Math.floor(Date.now() / 1000);
+  // Check nftables auth set (use paywifi-auth list and grep)
+  const { execFile } = require('child_process');
+  execFile('sudo', ['-n', '/usr/local/sbin/paywifi-auth', 'list'],
+    { timeout: 3000 }, (err, stdout) => {
+      const inAuthSet = !err && stdout.includes(ip);
+      // Check pending payment
+      let pending = null;
+      try {
+        pending = db.prepare(
+          'SELECT id,status,amount,created_at,expires_at,gateway_payment_id FROM pending_payments '
+          + 'WHERE (client_ip=? OR client_mac=?) AND expires_at>? ORDER BY id DESC LIMIT 1'
+        ).get(ip, mac, now);
+      } catch (e) {}
+      res.json({
+        debug: true,
+        device: { ip, mac, ua: (req.headers && req.headers['user-agent']) || '' },
+        nftables: { in_auth_set: inAuthSet },
+        pending_payment: pending || null,
+        server_time: now,
+        message: inAuthSet ? 'DEVICE IS AUTHORIZED — internet access granted' : 'DEVICE NOT IN AUTH SET — captive portal active'
+      });
+    });
 });
 
 module.exports = router;

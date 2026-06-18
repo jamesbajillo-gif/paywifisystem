@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+# paywifi-monitor — combined real-time log tail for Android payment debugging
+# Usage:  paywifi-monitor [device-ip]   (e.g. paywifi-monitor 10.10.0.123)
+# Tails: API, nginx-access, dnsmasq, nftables kernel log, sessiond
+# Press Ctrl-C to stop.
+
+set -euo pipefail
+
+DEVICE_IP="${1:-}"
+API_LOG=/var/log/paywifi/api.log
+NGINX_LOG=/var/log/paywifi/nginx-access.log
+DNSMASQ_LOG=/var/log/paywifi/dnsmasq.log
+SESSIOND_LOG=/var/log/paywifi/sessiond.log
+
+# ANSI colours
+RED='\033[0;31m'; YLW='\033[1;33m'; GRN='\033[0;32m'
+CYN='\033[0;36m'; MAG='\033[0;35m'; BLU='\033[0;34m'; RST='\033[0m'
+
+sep() { printf "${CYN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RST}\n"; }
+
+sep
+printf "${GRN}  PAYWIFI ANDROID DEBUG MONITOR${RST}  $(date)\n"
+[[ -n "$DEVICE_IP" ]] && printf "${YLW}  Filtering for device IP: $DEVICE_IP${RST}\n" \
+                       || printf "${YLW}  Monitoring ALL devices (pass IP as arg to filter)${RST}\n"
+sep
+echo ""
+
+# Show current nftables auth state
+printf "${MAG}[NFT-AUTH] Current authenticated devices:${RST}\n"
+nft list set inet filter paywifi_auth 2>/dev/null | grep -E 'elements|[0-9]+\.[0-9]+' || echo "  (none)"
+printf "${MAG}[NFT-WALLED] Current walled garden IPs:${RST}\n"
+nft list set inet filter paywifi_walled 2>/dev/null | tail -5 || echo "  (none)"
+echo ""
+sep
+printf "${CYN}  LIVE LOG STREAM — $(date)${RST}\n"
+sep
+
+# Annotate a line with a colour based on content
+colorize() {
+  while IFS= read -r line; do
+    # Strip device IP filter
+    if [[ -n "$DEVICE_IP" ]]; then
+      [[ "$line" != *"$DEVICE_IP"* ]] && \
+      [[ "$line" != *"escape-hatch"* ]] && \
+      [[ "$line" != *"jit-walled"* ]] && \
+      [[ "$line" != *"webhook"* ]] && \
+      [[ "$line" != *"payment/create"* ]] && \
+      [[ "$line" != *"DEEPLINK"* ]] && \
+      [[ "$line" != *"deeplink"* ]] && \
+      continue
+    fi
+
+    # Colour-code by log type / content
+    if   [[ "$line" == *"escape-hatch"* ]];        then printf "${GRN}[ESC-HATCH] %s${RST}\n" "$line"
+    elif [[ "$line" == *"jit-walled"* ]];          then printf "${BLU}[JIT-WALL]  %s${RST}\n" "$line"
+    elif [[ "$line" == *"webhook-auth"* ]];        then printf "${GRN}[WH-AUTH]   %s${RST}\n" "$line"
+    elif [[ "$line" == *"webhook"* ]];             then printf "${MAG}[WEBHOOK]   %s${RST}\n" "$line"
+    elif [[ "$line" == *"deeplink"* || "$line" == *"DEEPLINK"* ]]; then printf "${GRN}[DEEPLINK]  %s${RST}\n" "$line"
+    elif [[ "$line" == *"payment/create"* ]];      then printf "${YLW}[PAY-CREATE] %s${RST}\n" "$line"
+    elif [[ "$line" == *"payment/status"* ]];      then printf "${CYN}[PAY-POLL]  %s${RST}\n" "$line"
+    elif [[ "$line" == *"auth/voucher"* ]];        then printf "${GRN}[VOUCHER]   %s${RST}\n" "$line"
+    elif [[ "$line" == *"captive-api"* ]];         then printf "${BLU}[CAPTIVE]   %s${RST}\n" "$line"
+    elif [[ "$line" == *"generate_204"* || "$line" == *"connectivitycheck"* || "$line" == *"hotspot-detect"* ]]; then
+                                                        printf "${BLU}[PROBE]     %s${RST}\n" "$line"
+    elif [[ "$line" == *"ERROR"* || "$line" == *"error"* || "$line" == *"failed"* || "$line" == *"FAIL"* ]]; then
+                                                        printf "${RED}[ERROR]     %s${RST}\n" "$line"
+    elif [[ "$line" == *"dnsmasq"* ]];             then printf "${CYN}[DNS/DHCP]  %s${RST}\n" "$line"
+    elif [[ "$line" == *"BLOCKED"* || "$line" == *"DROP"* ]]; then
+                                                        printf "${RED}[BLOCKED]   %s${RST}\n" "$line"
+    elif [[ "$line" == *"ALLOWED"* || "$line" == *"ACCEPT"* ]]; then
+                                                        printf "${GRN}[ALLOWED]   %s${RST}\n" "$line"
+    else                                               printf "            %s\n" "$line"
+    fi
+  done
+}
+
+# Tail all logs together, prepend source name
+tail -q -F \
+  <(tail -F "$API_LOG"     2>/dev/null | sed 's/^/[api]      /') \
+  <(tail -F "$NGINX_LOG"   2>/dev/null | sed 's/^/[nginx]    /') \
+  <(tail -F "$DNSMASQ_LOG" 2>/dev/null | sed 's/^/[dnsmasq]  /') \
+  <(tail -F "$SESSIOND_LOG" 2>/dev/null | sed 's/^/[sessiond] /') \
+  <(journalctl -f -k --no-pager 2>/dev/null | grep -i 'nftables\|nf_\|BLOCKED\|DROP\|paywifi' | sed 's/^/[kernel]   /') \
+  2>/dev/null | colorize

@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# paywifi-nft-debug — temporarily add nftables packet logging for a test device
+# Usage:
+#   paywifi-nft-debug on  <device-ip>   # start logging packets for device
+#   paywifi-nft-debug off <device-ip>   # remove log rules
+#   paywifi-nft-debug status            # show active log rules
+
+set -euo pipefail
+TABLE="inet captive"
+CHAIN="forward"
+
+case "${1:-}" in
+  on)
+    [[ -n "${2:-}" ]] || { echo "usage: paywifi-nft-debug on <ip>" >&2; exit 1; }
+    IP="$2"
+    # Insert log rules BEFORE the existing drop rules so we capture what gets dropped
+    nft insert rule $TABLE $CHAIN position 0 \
+      ip saddr $IP counter log prefix "PW-DEBUG-FROM-$IP " level debug 2>/dev/null || \
+    nft insert rule $TABLE $CHAIN \
+      ip saddr $IP counter log prefix "PW-DEBUG-FROM-$IP " level debug
+    nft insert rule $TABLE $CHAIN position 0 \
+      ip daddr $IP counter log prefix "PW-DEBUG-TO-$IP " level debug 2>/dev/null || \
+    nft insert rule $TABLE $CHAIN \
+      ip daddr $IP counter log prefix "PW-DEBUG-TO-$IP " level debug
+    echo "DEBUG logging ON for $IP — watch: journalctl -f -k | grep PW-DEBUG"
+    ;;
+  off)
+    [[ -n "${2:-}" ]] || { echo "usage: paywifi-nft-debug off <ip>" >&2; exit 1; }
+    IP="$2"
+    # Remove by handle — find and delete log rules for this IP
+    handles=$(nft -a list chain $TABLE $CHAIN 2>/dev/null | grep "PW-DEBUG.*$IP" | grep -oP '# handle \K[0-9]+' || true)
+    if [[ -z "$handles" ]]; then
+      echo "No debug rules found for $IP"
+    else
+      for h in $handles; do
+        nft delete rule $TABLE $CHAIN handle $h 2>/dev/null && echo "Removed handle $h" || true
+      done
+    fi
+    ;;
+  status)
+    echo "=== Active nftables log/debug rules ==="
+    nft -a list chain $TABLE $CHAIN 2>/dev/null | grep -E 'log|PW-DEBUG' || echo "(none)"
+    ;;
+  *)
+    echo "Usage: paywifi-nft-debug on <ip> | off <ip> | status"
+    ;;
+esac
