@@ -81,6 +81,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;ba
 .pm-plan{background:#f5f8fb;border:1px solid #dfe6eb;border-radius:12px;padding:14px;margin-bottom:16px;}
 .pm-row{display:-webkit-box;display:-webkit-flex;display:flex;-webkit-box-pack:justify;-webkit-justify-content:space-between;justify-content:space-between;font-size:14px;padding:3px 0;}
 .pm-l{color:#5b646f;}.pm-v{font-weight:700;}
+/* QR card on pending screen */
+#pd-qr-card{background:#fff;border:1px solid #dfe6eb;border-radius:14px;padding:16px;margin-bottom:14px;text-align:center;width:100%;}
+#pd-qr-img{display:block;width:200px;height:200px;margin:0 auto 8px;image-rendering:pixelated;image-rendering:crisp-edges;}
+.qr-lbl{font-size:13px;color:#5b646f;}
 </style>
 </head>
 <body>
@@ -179,6 +183,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;ba
 <div id="v-pending" class="view">
   <div class="hdr"><div class="hdr-logo">&#128246; PayWifi</div><div class="hdr-sub" id="pd-sub">Waiting for Payment</div></div>
   <div class="vbody ctr">
+    <!-- QR code card — shown when API returns qr_image -->
+    <div id="pd-qr-card" class="hidden">
+      <img id="pd-qr-img" src="" alt="GCash QR Code">
+      <div class="qr-lbl">Scan with GCash app to pay</div>
+    </div>
     <div class="spin"></div>
     <div class="t ctr" id="pd-title">Waiting for Payment</div>
     <div class="sm ctr mt8" id="pd-status">Checking payment status...</div>
@@ -226,13 +235,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;ba
 /* ── State ── */
 var S = {
   plans:[], payOpts:[], plan:null, optId:null,
-  pendingId:null, checkout:null, deeplink:null,
+  pendingId:null, checkout:null, deeplink:null, qrImage:null,
   pollTimer:null, pollN:0,
   initPending:null   /* pending data found at load time */
 };
 
 /* Pending modal state */
-var PM = { id:null, checkout:null, deeplink:null, afterCancel:null };
+var PM = { id:null, checkout:null, deeplink:null, qrImage:null, afterCancel:null };
 
 /* ── XHR ── */
 function xhr(method, url, body, cb) {
@@ -429,6 +438,7 @@ function onGcashPay(){
     S.pendingId = d.payment_id||d.id||null;
     S.checkout  = d.checkout_url||null;
     S.deeplink  = d.deeplink_url||null;
+    S.qrImage   = d.qr_image||null;
     showPending();
   });
 }
@@ -453,6 +463,15 @@ function showPending(){
   text('pd-status','Checking payment status...');
   text('pd-sub','Waiting for Payment');
   hide('pd-deep'); hide('pd-cna');
+
+  /* Show QR code if API returned one */
+  var qrCard=$('pd-qr-card'), qrImg=$('pd-qr-img');
+  if(S.qrImage && qrCard && qrImg){
+    qrImg.src=S.qrImage;
+    show('pd-qr-card');
+  } else if(qrCard){
+    hide('pd-qr-card');
+  }
 
   if(isIOSCNA()){
     if(S.checkout){
@@ -514,7 +533,7 @@ function showSuccess(d){
 function onCancel(){
   stopPoll();
   if(S.pendingId) xhr('POST','/api/portal/payment/cancel',{id:S.pendingId},function(){});
-  S.pendingId=null; S.checkout=null; S.deeplink=null;
+  S.pendingId=null; S.checkout=null; S.deeplink=null; S.qrImage=null;
   showHome();
 }
 
@@ -530,6 +549,7 @@ function showPendingModal(d, afterCancel){
   PM.id          = d.payment_id||null;
   PM.checkout    = d.checkout_url||null;
   PM.deeplink    = d.deeplink_url||null;
+  PM.qrImage     = d.qr_image||null;
   PM.afterCancel = afterCancel||null;
 
   text('pm-plan-name', plan.name||d.existing_plan_name||'Pending Plan');
@@ -549,6 +569,7 @@ function onPmResume(){
   S.pendingId = PM.id;
   S.checkout  = PM.checkout;
   S.deeplink  = PM.deeplink;
+  S.qrImage   = PM.qrImage||null;
   showPending();
 }
 
@@ -617,37 +638,4 @@ function handleReturn(){
     loading(false);
     if(S.plans.length>0) text('h-from','Plans from '+price(S.plans[0].price));
     showView('v-home');
-    var c=$('h-code'); if(c) setTimeout(function(){ c.focus(); },120);
-  }
-
-  /* Plans */
-  xhr('GET','/api/portal/plans',null,function(err,d){
-    done.plans=true;
-    if(!err&&d.ok) S.plans=d.plans||[];
-    tryShow();
-  });
-
-  /* Payment options */
-  xhr('GET','/api/portal/payment-options',null,function(err,d){
-    done.opts=true;
-    if(!err&&d.ok){ S.payOpts=d.options||[]; S.optId=gcashId(); }
-    tryShow();
-  });
-
-  /* Existing pending payment */
-  xhr('GET','/api/portal/payment/pending',null,function(err,d){
-    done.pend=true;
-    if(!err&&d.ok&&d.pending){
-      S.initPending=d;
-      var plan=d.plan||{};
-      var info=(plan.name||'Payment')+' — '+price(d.amount||0)+' via '+(d.channel_name||'GCash');
-      text('h-pend-info', info+' — Tap to resume');
-      show('h-pend-banner');
-    }
-    tryShow();
-  });
-})();
-</script>
-</body>
-</html>
-                                                                                                               
+    var c=$('h-code'); if(c) setTimeou
