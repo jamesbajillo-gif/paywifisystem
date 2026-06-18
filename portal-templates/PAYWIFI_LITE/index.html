@@ -2,1191 +2,722 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#008cdf">
-<title>PayWifi</title>
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>PayWifi — Connect to WiFi</title>
 <style>
-/* ── PAYWIFI_LITE ── ES5-safe, no Tailwind, hex colors only, Chrome 49+ ── */
-* { box-sizing: border-box; margin: 0; padding: 0; }
-
-body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
-  background: #f5f8fb;
-  color: #0f171f;
-  min-height: 100vh;
-  font-size: 16px;
-  line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
+/* ── PAYWIFI_LITE v2 ── ES5, no Tailwind, hex only, Chrome 49+ ── */
+*{box-sizing:border-box;margin:0;padding:0;}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
+  background:#f5f8fb;color:#0f171f;
+  min-height:100vh;font-size:16px;line-height:1.5;
+  -webkit-font-smoothing:antialiased;
 }
 
-/* ── Layout ── */
-.app {
-  min-height: 100vh;
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: flex;
-  -webkit-box-orient: vertical;
-  -webkit-box-direction: normal;
-  -webkit-flex-direction: column;
-  flex-direction: column;
-  -webkit-box-align: center;
-  -webkit-align-items: center;
-  align-items: center;
-  padding: 0 0 40px 0;
+/* ── Views (full-screen panels) ── */
+.view{display:none;min-height:100vh;width:100%;-webkit-box-orient:vertical;-webkit-box-direction:normal;-webkit-flex-direction:column;flex-direction:column;}
+.view.active{display:-webkit-box;display:-webkit-flex;display:flex;}
+
+/* ── Shared header ── */
+.hdr{
+  background:#008cdf;color:#fff;
+  text-align:center;padding:20px 16px 16px;
+  -webkit-flex-shrink:0;flex-shrink:0;
+}
+.hdr-logo{font-size:22px;font-weight:800;letter-spacing:1px;}
+.hdr-sub{font-size:13px;opacity:.85;margin-top:2px;}
+
+/* ── Scrollable body ── */
+.vbody{
+  -webkit-box-flex:1;-webkit-flex:1;flex:1;
+  overflow-y:auto;padding:20px 16px 16px;
+}
+.vbody.center{display:-webkit-box;display:-webkit-flex;display:flex;-webkit-box-orient:vertical;-webkit-box-direction:normal;-webkit-flex-direction:column;flex-direction:column;-webkit-box-align:center;-webkit-align-items:center;align-items:center;-webkit-box-pack:center;-webkit-justify-content:center;justify-content:center;}
+
+/* ── Sticky footer ── */
+.vfoot{
+  background:#fff;border-top:1px solid #dfe6eb;
+  padding:12px 16px 16px;-webkit-flex-shrink:0;flex-shrink:0;
 }
 
-.header {
-  width: 100%;
-  background: #008cdf;
-  color: #fff;
-  text-align: center;
-  padding: 20px 16px 16px;
-}
-
-.header-logo {
-  font-size: 22px;
-  font-weight: 700;
-  letter-spacing: 1px;
-}
-
-.header-sub {
-  font-size: 13px;
-  opacity: 0.85;
-  margin-top: 2px;
-}
-
-.card {
-  background: #fff;
-  border: 1px solid #dfe6eb;
-  border-radius: 12px;
-  padding: 20px;
-  width: 100%;
-}
-
-.container {
-  width: 100%;
-  max-width: 440px;
-  padding: 20px 16px 0;
-}
-
-/* ── Screens ── */
-.screen { display: none; }
-.screen.active { display: block; }
-
-/* ── Typography ── */
-.title {
-  font-size: 18px;
-  font-weight: 700;
-  color: #0f171f;
-  margin-bottom: 4px;
-}
-
-.subtitle {
-  font-size: 14px;
-  color: #5b646f;
-  margin-bottom: 16px;
-}
-
-/* ── Plan Cards ── */
-.plan-list { display: block; }
-
-.plan-card {
-  display: block;
-  width: 100%;
-  background: #fff;
-  border: 2px solid #dfe6eb;
-  border-radius: 12px;
-  padding: 16px;
-  margin-bottom: 10px;
-  cursor: pointer;
-  text-align: left;
-  font-size: 16px;
-  -webkit-tap-highlight-color: rgba(0,140,223,0.08);
-}
-
-.plan-card:active {
-  background: #e3f1fb;
-  border-color: #008cdf;
-}
-
-.plan-card.selected {
-  border-color: #008cdf;
-  background: #e3f1fb;
-}
-
-.plan-row {
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: flex;
-  -webkit-box-pack: justify;
-  -webkit-justify-content: space-between;
-  justify-content: space-between;
-  -webkit-box-align: center;
-  -webkit-align-items: center;
-  align-items: center;
-}
-
-.plan-name {
-  font-size: 17px;
-  font-weight: 700;
-  color: #0f171f;
-}
-
-.plan-dur {
-  font-size: 13px;
-  color: #5b646f;
-  margin-top: 2px;
-}
-
-.plan-speed {
-  font-size: 12px;
-  color: #5b646f;
-}
-
-.plan-price {
-  font-size: 20px;
-  font-weight: 800;
-  color: #008cdf;
-  white-space: nowrap;
-}
-
-.plan-price-sub {
-  font-size: 11px;
-  color: #5b646f;
-  text-align: right;
-}
+/* ── Card ── */
+.card{background:#fff;border:1px solid #dfe6eb;border-radius:14px;padding:18px;}
 
 /* ── Buttons ── */
-.btn {
-  display: block;
-  width: 100%;
-  padding: 14px 20px;
-  border-radius: 10px;
-  border: none;
-  font-size: 16px;
-  font-weight: 700;
-  cursor: pointer;
-  text-align: center;
-  min-height: 50px;
-  -webkit-tap-highlight-color: transparent;
+.btn{
+  display:block;width:100%;padding:0 20px;
+  border-radius:12px;border:none;font-size:16px;font-weight:700;
+  cursor:pointer;text-align:center;min-height:52px;line-height:52px;
+  -webkit-tap-highlight-color:transparent;text-decoration:none;
 }
-
-.btn-primary {
-  background: #008cdf;
-  color: #fff;
-}
-
-.btn-primary:active { background: #0078bf; }
-
-.btn-primary:disabled {
-  background: #b0cee8;
-  cursor: not-allowed;
-}
-
-.btn-secondary {
-  background: #ecf3f8;
-  color: #1a222b;
-  margin-top: 10px;
-}
-
-.btn-secondary:active { background: #dfe6eb; }
-
-.btn-outline {
-  background: transparent;
-  border: 2px solid #008cdf;
-  color: #008cdf;
-  margin-top: 10px;
-}
-
-.btn-outline:active { background: #e3f1fb; }
-
-/* ── GCash Button ── */
-.gcash-btn {
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: flex;
-  -webkit-box-align: center;
-  -webkit-align-items: center;
-  align-items: center;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  justify-content: center;
-  width: 100%;
-  background: #007aff;
-  color: #fff;
-  border: none;
-  border-radius: 12px;
-  padding: 16px 20px;
-  font-size: 17px;
-  font-weight: 700;
-  cursor: pointer;
-  min-height: 56px;
-  gap: 10px;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.gcash-btn:active { background: #0062cc; }
-
-.gcash-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  background: #fff;
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: inline-flex;
-  -webkit-box-align: center;
-  -webkit-align-items: center;
-  align-items: center;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  justify-content: center;
-}
-
-.gcash-icon-g {
-  font-size: 17px;
-  font-weight: 900;
-  color: #007aff;
-  line-height: 1;
-}
-
-/* ── Input ── */
-.input-wrap { margin-bottom: 14px; }
-
-.input-label {
-  display: block;
-  font-size: 13px;
-  font-weight: 600;
-  color: #1a222b;
-  margin-bottom: 6px;
-}
-
-.input {
-  display: block;
-  width: 100%;
-  padding: 12px 14px;
-  border: 2px solid #dfe6eb;
-  border-radius: 10px;
-  font-size: 16px;
-  color: #0f171f;
-  background: #f6f9fb;
-  min-height: 48px;
-  -webkit-appearance: none;
-  appearance: none;
-}
-
-.input:focus {
-  outline: none;
-  border-color: #008cdf;
-  background: #fff;
-}
+.btn-primary{background:#008cdf;color:#fff;}
+.btn-primary:active{background:#0078bf;}
+.btn-primary:disabled{background:#b0cee8;cursor:not-allowed;}
+.btn-secondary{background:#ecf3f8;color:#1a222b;border:none;}
+.btn-secondary:active{background:#dfe6eb;}
+.btn-outline{background:transparent;border:2px solid #008cdf;color:#008cdf;line-height:48px;}
+.btn-outline:active{background:#e3f1fb;}
 
 /* ── Voucher input ── */
-.voucher-input {
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: 3px;
-  text-transform: uppercase;
-  text-align: center;
+.vcode{
+  display:block;width:100%;
+  padding:16px 14px;border:2px solid #dfe6eb;border-radius:14px;
+  font-size:28px;font-weight:800;letter-spacing:4px;
+  text-transform:uppercase;text-align:center;
+  background:#f6f9fb;color:#0f171f;
+  min-height:72px;-webkit-appearance:none;appearance:none;
 }
+.vcode:focus{outline:none;border-color:#008cdf;background:#fff;}
 
-/* ── Status indicators ── */
-.spinner {
-  display: inline-block;
-  width: 36px;
-  height: 36px;
-  border: 4px solid #dfe6eb;
-  border-top-color: #008cdf;
-  border-radius: 50%;
-  -webkit-animation: spin 0.8s linear infinite;
-  animation: spin 0.8s linear infinite;
-  margin: 0 auto 12px;
+/* ── Input ── */
+.inp{
+  display:block;width:100%;padding:12px 14px;
+  border:2px solid #dfe6eb;border-radius:10px;
+  font-size:16px;color:#0f171f;background:#f6f9fb;
+  min-height:48px;-webkit-appearance:none;appearance:none;
 }
+.inp:focus{outline:none;border-color:#008cdf;background:#fff;}
+.lbl{display:block;font-size:13px;font-weight:600;color:#1a222b;margin-bottom:5px;}
+.fgroup{margin-bottom:14px;}
 
-@-webkit-keyframes spin {
-  to { -webkit-transform: rotate(360deg); transform: rotate(360deg); }
+/* ── Plan cards ── */
+.plan-card{
+  display:block;width:100%;background:#fff;
+  border:2px solid #dfe6eb;border-radius:12px;
+  padding:16px;margin-bottom:10px;cursor:pointer;text-align:left;
+  -webkit-tap-highlight-color:rgba(0,140,223,.08);
 }
-@keyframes spin {
-  to { -webkit-transform: rotate(360deg); transform: rotate(360deg); }
-}
+.plan-card:active,.plan-card.sel{border-color:#008cdf;background:#e3f1fb;}
+.plan-row{display:-webkit-box;display:-webkit-flex;display:flex;-webkit-box-pack:justify;-webkit-justify-content:space-between;justify-content:space-between;-webkit-box-align:center;-webkit-align-items:center;align-items:center;}
+.plan-name{font-size:17px;font-weight:700;}
+.plan-dur{font-size:13px;color:#5b646f;margin-top:2px;}
+.plan-price{font-size:22px;font-weight:800;color:#008cdf;}
 
-.status-text {
-  font-size: 15px;
-  color: #5b646f;
-  text-align: center;
-  margin-bottom: 8px;
+/* ── GCash button ── */
+.gcash-btn{
+  display:-webkit-box;display:-webkit-flex;display:flex;
+  -webkit-box-align:center;-webkit-align-items:center;align-items:center;
+  -webkit-box-pack:center;-webkit-justify-content:center;justify-content:center;
+  width:100%;background:#007aff;color:#fff;border:none;
+  border-radius:14px;padding:0 20px;font-size:17px;font-weight:700;
+  cursor:pointer;min-height:58px;-webkit-tap-highlight-color:transparent;
+  gap:10px;
 }
+.gcash-btn:active{background:#0062cc;}
+.gcash-btn:disabled{background:#9dbfe8;cursor:not-allowed;}
+.g-icon{width:34px;height:34px;border-radius:8px;background:#fff;display:-webkit-inline-box;display:-webkit-inline-flex;display:inline-flex;-webkit-box-align:center;-webkit-align-items:center;align-items:center;-webkit-box-pack:center;-webkit-justify-content:center;justify-content:center;}
+.g-letter{font-size:18px;font-weight:900;color:#007aff;line-height:1;}
 
-/* ── Success ── */
-.success-icon {
-  width: 64px;
-  height: 64px;
-  background: #04ab62;
-  border-radius: 50%;
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: flex;
-  -webkit-box-align: center;
-  -webkit-align-items: center;
-  align-items: center;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  justify-content: center;
-  margin: 0 auto 16px;
-  font-size: 30px;
-  color: #fff;
-}
+/* ── Summary ── */
+.sum-row{display:-webkit-box;display:-webkit-flex;display:flex;-webkit-box-pack:justify;-webkit-justify-content:space-between;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f0f4f7;font-size:14px;}
+.sum-row:last-child{border-bottom:none;}
+.sum-lbl{color:#5b646f;}
+.sum-val{font-weight:700;}
 
-.voucher-code-box {
-  background: #f5f8fb;
-  border: 2px dashed #008cdf;
-  border-radius: 12px;
-  padding: 14px;
-  text-align: center;
-  margin: 14px 0;
-}
+/* ── Spinner ── */
+.spin{display:block;width:40px;height:40px;border:4px solid #dfe6eb;border-top-color:#008cdf;border-radius:50%;margin:0 auto 14px;-webkit-animation:sp .8s linear infinite;animation:sp .8s linear infinite;}
+@-webkit-keyframes sp{to{-webkit-transform:rotate(360deg);transform:rotate(360deg);}}
+@keyframes sp{to{-webkit-transform:rotate(360deg);transform:rotate(360deg);}}
 
-.voucher-code {
-  font-size: 26px;
-  font-weight: 900;
-  letter-spacing: 4px;
-  color: #008cdf;
-  word-break: break-all;
-}
+/* ── Banners ── */
+.bn{border-radius:10px;padding:11px 14px;margin-bottom:12px;font-size:14px;line-height:1.4;}
+.bn-info{background:#e3f1fb;border:1px solid #93c5fd;color:#1a3a5c;}
+.bn-warn{background:#fef3c7;border:1px solid #fbbf24;color:#78350f;}
+.bn-err{background:#fee2e2;border:1px solid #fca5a5;color:#7f1d1d;}
+.bn-ok{background:#d1fae5;border:1px solid #6ee7b7;color:#064e3b;}
+.bn-ios{background:#1e3a5f;border:1px solid #3b82f6;border-radius:12px;padding:14px;text-align:center;}
+.bn-ios-t{color:#93c5fd;font-size:15px;font-weight:700;margin-bottom:4px;}
+.bn-ios-b{color:#bfdbfe;font-size:13px;}
 
-.voucher-hint {
-  font-size: 12px;
-  color: #5b646f;
-  margin-top: 4px;
-}
+/* ── Success icon ── */
+.ok-icon{width:68px;height:68px;background:#04ab62;border-radius:50%;display:-webkit-box;display:-webkit-flex;display:flex;-webkit-box-align:center;-webkit-align-items:center;align-items:center;-webkit-box-pack:center;-webkit-justify-content:center;justify-content:center;margin:0 auto 16px;font-size:32px;color:#fff;}
 
-/* ── Alert/Banner ── */
-.banner {
-  border-radius: 10px;
-  padding: 12px 14px;
-  margin-bottom: 14px;
-  font-size: 14px;
-}
-
-.banner-info {
-  background: #e3f1fb;
-  border: 1px solid #93c5fd;
-  color: #1a3a5c;
-}
-
-.banner-warn {
-  background: #fef3c7;
-  border: 1px solid #fbbf24;
-  color: #78350f;
-}
-
-.banner-error {
-  background: #fee2e2;
-  border: 1px solid #fca5a5;
-  color: #7f1d1d;
-}
-
-.banner-success {
-  background: #d1fae5;
-  border: 1px solid #6ee7b7;
-  color: #064e3b;
-}
-
-/* ── iOS CNA banner ── */
-.safari-banner {
-  background: #1e3a5f;
-  border: 1px solid #3b82f6;
-  border-radius: 12px;
-  padding: 14px;
-  text-align: center;
-  margin-bottom: 14px;
-}
-
-.safari-banner-title {
-  color: #93c5fd;
-  font-size: 15px;
-  font-weight: 700;
-  margin-bottom: 4px;
-}
-
-.safari-banner-body {
-  color: #bfdbfe;
-  font-size: 13px;
-}
-
-/* ── Separator ── */
-.sep {
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: flex;
-  -webkit-box-align: center;
-  -webkit-align-items: center;
-  align-items: center;
-  margin: 16px 0;
-  color: #5b646f;
-  font-size: 13px;
-}
-
-.sep:before, .sep:after {
-  content: '';
-  -webkit-box-flex: 1;
-  -webkit-flex: 1;
-  flex: 1;
-  height: 1px;
-  background: #dfe6eb;
-}
-
-.sep:before { margin-right: 10px; }
-.sep:after  { margin-left:  10px; }
+/* ── Voucher code display ── */
+.vbox{background:#f5f8fb;border:2px dashed #008cdf;border-radius:12px;padding:14px;text-align:center;margin:14px 0;}
+.vval{font-size:28px;font-weight:900;letter-spacing:4px;color:#008cdf;word-break:break-all;}
+.vhint{font-size:12px;color:#5b646f;margin-top:4px;}
 
 /* ── Misc ── */
-.mt8  { margin-top: 8px; }
-.mt12 { margin-top: 12px; }
-.mt16 { margin-top: 16px; }
-.mb8  { margin-bottom: 8px; }
-.mb12 { margin-bottom: 12px; }
-.center { text-align: center; }
-.hidden { display: none !important; }
-.bold  { font-weight: 700; }
-.small { font-size: 13px; color: #5b646f; }
-.text-blue  { color: #008cdf; }
-.text-green { color: #04ab62; }
-.text-red   { color: #e64343; }
-
-/* ── Step dots ── */
-.steps {
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: flex;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  justify-content: center;
-  gap: 8px;
-  margin: 14px 0 0;
-}
-
-.step-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #dfe6eb;
-  display: inline-block;
-}
-
-.step-dot.active {
-  background: #008cdf;
-  width: 20px;
-  border-radius: 4px;
-}
-
-/* ── Summary row ── */
-.summary-row {
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: flex;
-  -webkit-box-pack: justify;
-  -webkit-justify-content: space-between;
-  justify-content: space-between;
-  padding: 8px 0;
-  border-bottom: 1px solid #f0f4f7;
-  font-size: 14px;
-}
-
-.summary-row:last-child { border-bottom: none; }
-.summary-label { color: #5b646f; }
-.summary-value { font-weight: 700; color: #0f171f; }
+.t{font-size:18px;font-weight:700;margin-bottom:4px;}
+.sub{font-size:14px;color:#5b646f;margin-bottom:14px;}
+.sep{display:-webkit-box;display:-webkit-flex;display:flex;-webkit-box-align:center;-webkit-align-items:center;align-items:center;margin:14px 0;color:#5b646f;font-size:13px;}
+.sep:before,.sep:after{content:'';-webkit-box-flex:1;-webkit-flex:1;flex:1;height:1px;background:#dfe6eb;}
+.sep:before{margin-right:10px;}.sep:after{margin-left:10px;}
+.mt8{margin-top:8px;}.mt12{margin-top:12px;}.mt16{margin-top:16px;}
+.hidden{display:none!important;}
+.small{font-size:13px;color:#5b646f;}
+.center{text-align:center;}
 
 /* ── Loading overlay ── */
-#loading-overlay {
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(245, 248, 251, 0.92);
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: flex;
-  -webkit-box-orient: vertical;
-  -webkit-box-direction: normal;
-  -webkit-flex-direction: column;
-  flex-direction: column;
-  -webkit-box-align: center;
-  -webkit-align-items: center;
-  align-items: center;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  justify-content: center;
-  z-index: 100;
-}
-
-#loading-overlay.hidden { display: none !important; }
+#ov{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(245,248,251,.92);display:-webkit-box;display:-webkit-flex;display:flex;-webkit-box-orient:vertical;-webkit-box-direction:normal;-webkit-flex-direction:column;flex-direction:column;-webkit-box-align:center;-webkit-align-items:center;align-items:center;-webkit-box-pack:center;-webkit-justify-content:center;justify-content:center;z-index:100;}
+#ov.hidden{display:none!important;}
 </style>
 </head>
 <body>
 
-<div id="loading-overlay">
-  <div class="spinner"></div>
-  <div class="status-text">Loading...</div>
-</div>
+<!-- Loading overlay -->
+<div id="ov"><div class="spin"></div><div class="small">Loading...</div></div>
 
-<div class="app">
-
-  <!-- Header -->
-  <div class="header">
-    <div class="header-logo">&#128246; PayWifi</div>
-    <div class="header-sub" id="header-sub">Connect &amp; Browse</div>
+<!-- ═══════════════════════════════════════════
+     VIEW 1: HOME — voucher entry (primary)
+═══════════════════════════════════════════ -->
+<div id="v-home" class="view">
+  <div class="hdr">
+    <div class="hdr-logo">&#128246; PayWifi</div>
+    <div class="hdr-sub">Connect to WiFi</div>
   </div>
 
-  <div class="container">
+  <div class="vbody">
+    <div class="t">Enter Voucher Code</div>
+    <div class="sub">Type or paste your code to connect</div>
 
-    <!-- ═══ SCREEN: PLANS ═══ -->
-    <div id="screen-plans" class="screen">
-      <div class="steps mt8 mb12">
-        <div class="step-dot active"></div>
-        <div class="step-dot"></div>
-        <div class="step-dot"></div>
-      </div>
-      <div class="title mt12">Choose a Plan</div>
-      <div class="subtitle">Pick the access time that works for you</div>
-      <div id="plan-list" class="plan-list"></div>
-      <div id="plans-error" class="banner banner-error hidden"></div>
+    <div class="fgroup">
+      <input type="text" id="h-code" class="vcode" placeholder="XXXXXXXX"
+        maxlength="20" autocomplete="off" autocapitalize="characters"
+        autocorrect="off" spellcheck="false" inputmode="latin">
+      <div class="small mt8">8 characters. Got one from SMS? Paste it here.</div>
     </div>
 
-    <!-- ═══ SCREEN: PAYMENT ═══ -->
-    <div id="screen-payment" class="screen">
-      <div class="steps mt8 mb12">
-        <div class="step-dot"></div>
-        <div class="step-dot active"></div>
-        <div class="step-dot"></div>
+    <div id="h-err" class="bn bn-err hidden"></div>
+
+    <button class="btn btn-primary" onclick="onConnect()">Connect</button>
+  </div>
+
+  <div class="vfoot">
+    <div style="display:-webkit-box;display:-webkit-flex;display:flex;-webkit-box-align:center;-webkit-align-items:center;align-items:center;-webkit-box-pack:justify;-webkit-justify-content:space-between;justify-content:space-between;gap:12px;">
+      <div>
+        <div style="font-size:16px;font-weight:700;">No voucher?</div>
+        <div class="small" id="h-plans-from">Plans from ₱5</div>
       </div>
+      <button class="btn btn-secondary" style="width:auto;padding:0 20px;min-height:48px;line-height:48px;" onclick="showPlans()">Buy one</button>
+    </div>
+  </div>
+</div>
 
-      <div class="card mt12">
-        <div class="title mb8">Order Summary</div>
-        <div class="summary-row">
-          <span class="summary-label">Plan</span>
-          <span class="summary-value" id="pay-plan-name">—</span>
-        </div>
-        <div class="summary-row">
-          <span class="summary-label">Duration</span>
-          <span class="summary-value" id="pay-plan-dur">—</span>
-        </div>
-        <div class="summary-row">
-          <span class="summary-label">Amount</span>
-          <span class="summary-value text-blue" id="pay-plan-price">—</span>
-        </div>
-      </div>
+<!-- ═══════════════════════════════════════════
+     VIEW 2: PLANS
+═══════════════════════════════════════════ -->
+<div id="v-plans" class="view">
+  <div class="hdr">
+    <div class="hdr-logo">&#128246; PayWifi</div>
+    <div class="hdr-sub">Choose a Plan</div>
+  </div>
+  <div class="vbody">
+    <div class="t">Available Plans</div>
+    <div class="sub">Pick the access time that suits you</div>
+    <div id="plans-list"></div>
+    <div id="plans-err" class="bn bn-err hidden"></div>
+  </div>
+  <div class="vfoot">
+    <button class="btn btn-secondary" onclick="showHome()">&#8592; Back</button>
+  </div>
+</div>
 
-      <!-- iOS CNA banner (hidden by default) -->
-      <div id="cna-banner" class="safari-banner hidden mt12">
-        <div class="safari-banner-title">&#128241; Payment requires Safari</div>
-        <div class="safari-banner-body">iPhone cannot open GCash from this screen. Tap the button below to pay in Safari, then return here when done.</div>
-      </div>
-
-      <div class="mt12">
-        <div class="title mb8">Pay with GCash</div>
-        <div class="input-wrap">
-          <label class="input-label" for="phone-input">Mobile Number (optional)</label>
-          <input type="tel" id="phone-input" class="input" placeholder="09XX XXX XXXX" maxlength="11">
-        </div>
-        <button class="gcash-btn" id="gcash-pay-btn" onclick="onGcashPay()">
-          <span class="gcash-icon"><span class="gcash-icon-g">G</span></span>
-          Pay with GCash
-        </button>
-        <div id="pay-error" class="banner banner-error hidden mt8"></div>
-      </div>
-
-      <div class="sep">or</div>
-
-      <div class="input-wrap">
-        <div class="subtitle mb8">Already have a voucher code?</div>
-        <input type="text" id="voucher-input-pay" class="input voucher-input" placeholder="XXXXXXXX" maxlength="20" autocomplete="off" autocapitalize="characters" autocorrect="off">
-        <button class="btn btn-outline mt8" onclick="onRedeemVoucherFromPay()">Redeem Voucher</button>
-      </div>
-
-      <button class="btn btn-secondary" onclick="showPlans()">&#8592; Back to Plans</button>
+<!-- ═══════════════════════════════════════════
+     VIEW 3: CHECKOUT
+═══════════════════════════════════════════ -->
+<div id="v-checkout" class="view">
+  <div class="hdr">
+    <div class="hdr-logo">&#128246; PayWifi</div>
+    <div class="hdr-sub">Complete Payment</div>
+  </div>
+  <div class="vbody">
+    <!-- Order summary -->
+    <div class="card mb12">
+      <div class="t mb8">Order Summary</div>
+      <div class="sum-row"><span class="sum-lbl">Plan</span><span class="sum-val" id="co-name">—</span></div>
+      <div class="sum-row"><span class="sum-lbl">Duration</span><span class="sum-val" id="co-dur">—</span></div>
+      <div class="sum-row"><span class="sum-lbl">Amount</span><span class="sum-val" style="color:#008cdf;" id="co-price">—</span></div>
     </div>
 
-    <!-- ═══ SCREEN: PENDING ═══ -->
-    <div id="screen-pending" class="screen">
-      <div class="steps mt8 mb12">
-        <div class="step-dot"></div>
-        <div class="step-dot"></div>
-        <div class="step-dot active"></div>
-      </div>
-
-      <div class="card mt12 center">
-        <div class="spinner"></div>
-        <div class="title mb8" id="pending-title">Waiting for Payment</div>
-        <div class="status-text" id="pending-status">Checking payment status...</div>
-
-        <div id="pending-deeplink-wrap" class="hidden mt12">
-          <div class="banner banner-info mb8">
-            GCash not opening automatically? Tap the button below.
-          </div>
-          <a id="pending-gcash-link" href="#" class="btn btn-primary" style="display:block;text-decoration:none;">
-            Open GCash App
-          </a>
-        </div>
-
-        <div id="pending-cna-wrap" class="hidden mt12">
-          <div class="safari-banner">
-            <div class="safari-banner-title">&#128241; Payment requires Safari</div>
-            <div class="safari-banner-body">Tap below to open the payment page in Safari.</div>
-          </div>
-          <a id="pending-safari-link" href="#" class="btn btn-primary" style="display:block;text-decoration:none;margin-top:10px;">
-            Open in Safari
-          </a>
-        </div>
-
-        <div class="mt12">
-          <div class="small">This page checks automatically. Keep it open.</div>
-        </div>
-
-        <button class="btn btn-secondary mt12" id="pending-cancel-btn" onclick="onCancelPayment()">
-          Cancel &amp; Start Over
-        </button>
-      </div>
+    <!-- iOS CNA banner -->
+    <div id="co-cna" class="bn-ios hidden mt8">
+      <div class="bn-ios-t">&#128241; Payment requires Safari</div>
+      <div class="bn-ios-b">iPhone cannot open GCash from this screen. Tap below to pay in Safari, then return here.</div>
     </div>
 
-    <!-- ═══ SCREEN: SUCCESS ═══ -->
-    <div id="screen-success" class="screen">
-      <div class="card mt16 center">
-        <div class="success-icon">&#10003;</div>
-        <div class="title mb8" id="success-title">Payment Successful!</div>
-        <div class="subtitle" id="success-subtitle">You are now connected to PayWifi.</div>
-
-        <div id="success-voucher-wrap" class="hidden">
-          <div class="voucher-code-box">
-            <div class="voucher-code" id="success-voucher-code">—</div>
-            <div class="voucher-hint">Your voucher code — saved for reconnection</div>
-          </div>
-        </div>
-
-        <div class="banner banner-success mt8" id="success-plan-banner">
-          Internet access granted!
-        </div>
-
-        <div class="small mt8" id="success-expires"></div>
-
-        <button class="btn btn-primary mt16" onclick="onBrowseNow()">
-          Start Browsing &#8594;
-        </button>
-      </div>
+    <!-- Phone number -->
+    <div class="fgroup mt12">
+      <label class="lbl" for="co-phone">Mobile Number <span class="small">(optional, for SMS voucher)</span></label>
+      <input type="tel" id="co-phone" class="inp" placeholder="09XX XXX XXXX" maxlength="11">
     </div>
 
-    <!-- ═══ SCREEN: VOUCHER ONLY ═══ -->
-    <div id="screen-voucher" class="screen">
-      <div class="title mt12">Enter Voucher Code</div>
-      <div class="subtitle">Type or paste your voucher code below</div>
-      <div class="card">
-        <div class="input-wrap">
-          <label class="input-label" for="voucher-input-main">Voucher Code</label>
-          <input type="text" id="voucher-input-main" class="input voucher-input" placeholder="XXXXXXXX" maxlength="20" autocomplete="off" autocapitalize="characters" autocorrect="off">
-        </div>
-        <button class="btn btn-primary" onclick="onRedeemVoucherMain()">Redeem Voucher</button>
-        <div id="voucher-error" class="banner banner-error hidden mt8"></div>
-      </div>
-      <button class="btn btn-secondary mt8" onclick="showPlans()">Buy a Plan Instead</button>
+    <!-- GCash button -->
+    <button class="gcash-btn" id="co-gcash-btn" onclick="onGcashPay()">
+      <span class="g-icon"><span class="g-letter">G</span></span>
+      Pay with GCash
+    </button>
+
+    <div id="co-err" class="bn bn-err hidden mt8"></div>
+
+    <!-- Separator + voucher entry -->
+    <div class="sep">or use a voucher code</div>
+    <div class="fgroup">
+      <input type="text" id="co-vcode" class="vcode" placeholder="XXXXXXXX"
+        maxlength="20" autocomplete="off" autocapitalize="characters"
+        autocorrect="off" spellcheck="false">
+    </div>
+    <button class="btn btn-outline" onclick="onRedeemFromCheckout()">Redeem Voucher</button>
+    <div id="co-verr" class="bn bn-err hidden mt8"></div>
+  </div>
+  <div class="vfoot">
+    <button class="btn btn-secondary" onclick="showPlans()">&#8592; Back to Plans</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     VIEW 4: PENDING (waiting for payment)
+═══════════════════════════════════════════ -->
+<div id="v-pending" class="view">
+  <div class="hdr">
+    <div class="hdr-logo">&#128246; PayWifi</div>
+    <div class="hdr-sub" id="pd-hdr-sub">Waiting for Payment</div>
+  </div>
+  <div class="vbody center">
+    <div class="spin"></div>
+    <div class="t center" id="pd-title">Waiting for Payment</div>
+    <div class="small center mt8" id="pd-status">Checking payment status...</div>
+
+    <!-- Android deeplink retry -->
+    <div id="pd-deep" class="hidden mt12" style="width:100%;">
+      <div class="bn bn-info">GCash not opening? Tap the button to try again.</div>
+      <a id="pd-gcash-link" href="#" class="btn btn-primary" style="display:block;text-decoration:none;">Open GCash App</a>
     </div>
 
-    <!-- ═══ SCREEN: ERROR ═══ -->
-    <div id="screen-error" class="screen">
-      <div class="card mt16 center">
-        <div style="font-size:48px;margin-bottom:12px;">&#9888;</div>
-        <div class="title mb8" id="error-title">Something went wrong</div>
-        <div class="status-text" id="error-body">Please try again.</div>
-        <button class="btn btn-primary mt16" onclick="showPlans()">Try Again</button>
+    <!-- iOS CNA safari link -->
+    <div id="pd-cna" class="hidden mt12" style="width:100%;">
+      <div class="bn-ios">
+        <div class="bn-ios-t">&#128241; Payment requires Safari</div>
+        <div class="bn-ios-b">Tap below to open GCash payment in Safari.</div>
       </div>
+      <a id="pd-safari-link" href="#" class="btn btn-primary mt8" style="display:block;text-decoration:none;">Open in Safari</a>
     </div>
 
-  </div><!-- /container -->
-</div><!-- /app -->
+    <div class="small mt12">Keep this page open. It checks automatically.</div>
+  </div>
+  <div class="vfoot">
+    <button class="btn btn-secondary" onclick="onCancel()">Cancel &amp; Start Over</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     VIEW 5: SUCCESS
+═══════════════════════════════════════════ -->
+<div id="v-success" class="view">
+  <div class="hdr" style="background:#04ab62;">
+    <div class="hdr-logo">&#10003; Connected!</div>
+    <div class="hdr-sub">Payment successful</div>
+  </div>
+  <div class="vbody center">
+    <div class="ok-icon">&#10003;</div>
+    <div class="t center" id="sc-title">You are connected!</div>
+    <div class="small center mt8" id="sc-sub">Internet access has been granted.</div>
+
+    <div id="sc-vbox" class="vbox hidden">
+      <div class="vval" id="sc-code">—</div>
+      <div class="vhint">Your voucher code — save it for reconnection</div>
+    </div>
+
+    <div class="bn bn-ok mt12" id="sc-banner">Internet access granted!</div>
+    <div class="small mt8" id="sc-exp"></div>
+
+    <button class="btn btn-primary mt16" onclick="onBrowse()" style="width:100%;">Start Browsing &#8594;</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     VIEW 6: ERROR
+═══════════════════════════════════════════ -->
+<div id="v-error" class="view">
+  <div class="hdr" style="background:#e64343;">
+    <div class="hdr-logo">&#9888; Problem</div>
+  </div>
+  <div class="vbody center">
+    <div style="font-size:52px;margin-bottom:12px;">&#9888;</div>
+    <div class="t center" id="er-title">Something went wrong</div>
+    <div class="small center mt8" id="er-body">Please try again.</div>
+    <button class="btn btn-primary mt16" onclick="showHome()" style="width:100%;">Try Again</button>
+  </div>
+</div>
 
 <script>
-/* ── PAYWIFI_LITE JS ── ES5 ONLY ── */
+/* ── PAYWIFI_LITE v2 — ES5 ONLY ── */
 'use strict';
 
 /* ── State ── */
-var _plans        = [];
-var _payOptions   = [];
-var _selectedPlan = null;
-var _selectedOpt  = null;
-var _pendingId    = null;
-var _checkoutUrl  = null;
-var _deeplinkUrl  = null;
-var _pollTimer    = null;
-var _pollCount    = 0;
-var _pollMax      = 120;  /* 6 minutes at 3s intervals */
+var S = {
+  plans:     [],
+  payOpts:   [],
+  plan:      null,
+  optId:     null,
+  pendingId: null,
+  checkout:  null,
+  deeplink:  null,
+  pollTimer: null,
+  pollN:     0
+};
 
-/* ── Utility: XHR helper ── */
-function _xhr(method, url, data, cb) {
+/* ── XHR helper ── */
+function xhr(method, url, body, cb) {
   var req = new XMLHttpRequest();
   req.open(method, url, true);
   req.setRequestHeader('Content-Type', 'application/json');
   req.timeout = 15000;
   req.onreadystatechange = function() {
     if (req.readyState !== 4) return;
+    var d = {};
+    try { d = JSON.parse(req.responseText); } catch(e) {}
     var ok = req.status >= 200 && req.status < 300;
-    var body = null;
-    try { body = JSON.parse(req.responseText); } catch(e) { body = {}; }
-    cb(ok ? null : (body.error || 'Request failed (' + req.status + ')'), body);
+    cb(ok ? null : (d.error || 'Error ' + req.status), d);
   };
-  req.ontimeout = function() { cb('Request timed out. Check your connection.', {}); };
-  req.onerror   = function() { cb('Network error. Check your connection.', {}); };
-  if (data) req.send(JSON.stringify(data));
-  else      req.send();
+  req.ontimeout = function() { cb('Request timed out. Please check your connection.', {}); };
+  req.onerror   = function() { cb('Network error. Please check your connection.', {}); };
+  req.send(body ? JSON.stringify(body) : null);
 }
 
-/* ── Utility: device detection ── */
-function _isAndroid() {
-  return /android/i.test(navigator.userAgent);
-}
-
-function _isIOSCNA() {
+/* ── Device helpers ── */
+function isAndroid() { return /android/i.test(navigator.userAgent); }
+function isIOSCNA()  {
   var ua = navigator.userAgent || '';
   return /CaptiveNetworkSupport/i.test(ua) || (/iPhone|iPad|iPod/i.test(ua) && /CFNetwork/i.test(ua));
 }
 
-/* ── Utility: format price ── */
-function _formatPrice(price) {
-  if (!price && price !== 0) return '—';
-  return '₱' + parseFloat(price).toFixed(2);
-}
+/* ── DOM helpers ── */
+function $(id)         { return document.getElementById(id); }
+function show(id)      { var e=$(id); if(e) e.classList.remove('hidden'); }
+function hide(id)      { var e=$(id); if(e) e.classList.add('hidden'); }
+function html(id,v)    { var e=$(id); if(e) e.innerHTML=v; }
+function text(id,v)    { var e=$(id); if(e) e.textContent=v; }
+function esc(s)        { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function price(p)      { return '₱' + parseFloat(p||0).toFixed(2); }
 
-/* ── Utility: show/hide elements ── */
-function _show(id) {
-  var el = document.getElementById(id);
-  if (el) el.classList.remove('hidden');
-}
-
-function _hide(id) {
-  var el = document.getElementById(id);
-  if (el) el.classList.add('hidden');
-}
-
-function _setHtml(id, html) {
-  var el = document.getElementById(id);
-  if (el) el.innerHTML = html;
-}
-
-function _setText(id, text) {
-  var el = document.getElementById(id);
-  if (el) el.textContent = text;
-}
-
-/* ── Screen navigation ── */
-function _showScreen(name) {
-  var screens = ['plans', 'payment', 'pending', 'success', 'voucher', 'error'];
-  for (var i = 0; i < screens.length; i++) {
-    var el = document.getElementById('screen-' + screens[i]);
-    if (el) el.classList.remove('active');
+/* ── View switching ── */
+function showView(id) {
+  var ids = ['v-home','v-plans','v-checkout','v-pending','v-success','v-error'];
+  for (var i=0;i<ids.length;i++) {
+    var e=$(ids[i]);
+    if(e) e.classList.remove('active');
   }
-  var target = document.getElementById('screen-' + name);
-  if (target) target.classList.add('active');
-  window.scrollTo(0, 0);
+  var t=$(id);
+  if(t) t.classList.add('active');
+  window.scrollTo(0,0);
 }
 
 /* ── Loading overlay ── */
-function _showLoading() {
-  var el = document.getElementById('loading-overlay');
-  if (el) el.classList.remove('hidden');
+function loading(on) { var e=$('ov'); if(e){ if(on) e.classList.remove('hidden'); else e.classList.add('hidden'); } }
+
+/* ── HOME ── */
+function showHome() {
+  stopPoll();
+  S.plan=null; S.pendingId=null; S.checkout=null; S.deeplink=null;
+  hide('h-err');
+  showView('v-home');
+  var c=$('h-code'); if(c) c.focus();
 }
 
-function _hideLoading() {
-  var el = document.getElementById('loading-overlay');
-  if (el) el.classList.add('hidden');
-}
-
-/* ── PLANS screen ── */
-function showPlans() {
-  _stopPoll();
-  _selectedPlan = null;
-  _pendingId    = null;
-  _checkoutUrl  = null;
-  _deeplinkUrl  = null;
-
-  if (_plans.length > 0) {
-    _renderPlans();
-    _showScreen('plans');
-    return;
-  }
-  _showLoading();
-  _xhr('GET', '/api/portal/plans', null, function(err, data) {
-    _hideLoading();
-    if (err || !data.ok) {
-      _showScreen('plans');
-      _show('plans-error');
-      _setHtml('plans-error', err || 'Could not load plans. Please refresh.');
+/* ── Voucher connect (from home screen) ── */
+function onConnect() {
+  var el=$('h-code');
+  var code = el ? el.value.trim().toUpperCase().replace(/-/g,'') : '';
+  hide('h-err');
+  if (!code) { show('h-err'); html('h-err','Please enter your voucher code.'); return; }
+  loading(true);
+  xhr('POST', '/api/auth/voucher', {code:code}, function(err,d) {
+    loading(false);
+    if (err||!d.ok) {
+      show('h-err');
+      html('h-err', err||(d.error||"We couldn’t verify your voucher. Please check the code and try again."));
       return;
     }
-    _plans = data.plans || [];
-    _renderPlans();
-    _showScreen('plans');
+    showSuccess({voucher_code:code, plan_name:d.plan_name, duration_label:d.duration_label, expires_at:d.expires_at});
   });
 }
 
-function _renderPlans() {
-  var container = document.getElementById('plan-list');
-  if (!container) return;
-  if (_plans.length === 0) {
-    container.innerHTML = '<div class="banner banner-warn">No plans available right now. Please try again later.</div>';
+/* Handle Enter key on voucher input */
+(function(){
+  var el=$('h-code');
+  if(el) el.addEventListener('keydown', function(e){ if((e.keyCode||e.which)===13) onConnect(); });
+})();
+
+/* ── PLANS ── */
+function showPlans() {
+  if (S.plans.length>0) { renderPlans(); showView('v-plans'); return; }
+  loading(true);
+  xhr('GET','/api/portal/plans',null,function(err,d) {
+    loading(false);
+    if (err||!d.ok) {
+      renderPlans();
+      show('plans-err');
+      html('plans-err', err||'Could not load plans. Please refresh.');
+      showView('v-plans');
+      return;
+    }
+    S.plans = d.plans||[];
+    /* update "plans from ₱X" in footer */
+    if (S.plans.length>0) text('h-plans-from','Plans from '+price(S.plans[0].price));
+    renderPlans();
+    showView('v-plans');
+  });
+}
+
+function renderPlans() {
+  var c=$('plans-list');
+  if (!c) return;
+  if (!S.plans.length) {
+    c.innerHTML='<div class="bn bn-warn">No plans available right now.</div>';
     return;
   }
-  var html = '';
-  for (var i = 0; i < _plans.length; i++) {
-    var p = _plans[i];
-    html += '<button class="plan-card" onclick="onSelectPlan(' + p.id + ')" data-planid="' + p.id + '">';
-    html +=   '<div class="plan-row">';
-    html +=     '<div>';
-    html +=       '<div class="plan-name">' + _esc(p.name) + '</div>';
-    html +=       '<div class="plan-dur">' + _esc(p.duration_label) + '</div>';
-    if (p.speed) html += '<div class="plan-speed">Up to ' + _esc(p.speed) + '</div>';
-    html +=     '</div>';
-    html +=     '<div>';
-    html +=       '<div class="plan-price">' + _formatPrice(p.price) + '</div>';
-    html +=     '</div>';
-    html +=   '</div>';
-    html += '</button>';
+  var h='';
+  for (var i=0;i<S.plans.length;i++) {
+    var p=S.plans[i];
+    h+='<button class="plan-card" onclick="onPlan('+p.id+')" data-pid="'+p.id+'">';
+    h+='<div class="plan-row">';
+    h+='<div><div class="plan-name">'+esc(p.name)+'</div>';
+    h+='<div class="plan-dur">'+esc(p.duration_label)+'</div></div>';
+    h+='<div class="plan-price">'+price(p.price)+'</div>';
+    h+='</div></button>';
   }
-  container.innerHTML = html;
+  c.innerHTML=h;
 }
 
-function onSelectPlan(planId) {
-  _selectedPlan = null;
-  for (var i = 0; i < _plans.length; i++) {
-    if (_plans[i].id === planId) { _selectedPlan = _plans[i]; break; }
+function onPlan(id) {
+  S.plan=null;
+  for(var i=0;i<S.plans.length;i++){if(S.plans[i].id===id){S.plan=S.plans[i];break;}}
+  if(!S.plan) return;
+  /* highlight */
+  var cards=document.querySelectorAll('.plan-card');
+  for(var j=0;j<cards.length;j++){
+    var pid=parseInt(cards[j].getAttribute('data-pid'),10);
+    if(pid===id) cards[j].classList.add('sel'); else cards[j].classList.remove('sel');
   }
-  if (!_selectedPlan) return;
-
-  /* Highlight selected card */
-  var cards = document.querySelectorAll('.plan-card');
-  for (var j = 0; j < cards.length; j++) {
-    var pid = parseInt(cards[j].getAttribute('data-planid'), 10);
-    if (pid === planId) cards[j].classList.add('selected');
-    else                cards[j].classList.remove('selected');
-  }
-
-  /* Pre-fill payment screen */
-  _setText('pay-plan-name',  _selectedPlan.name);
-  _setText('pay-plan-dur',   _selectedPlan.duration_label);
-  _setText('pay-plan-price', _formatPrice(_selectedPlan.price));
-
-  /* iOS CNA detection */
-  if (_isIOSCNA()) {
-    _show('cna-banner');
+  /* populate checkout */
+  text('co-name',  S.plan.name);
+  text('co-dur',   S.plan.duration_label);
+  text('co-price', price(S.plan.price));
+  hide('co-err'); hide('co-verr'); hide('co-cna');
+  var ph=$('co-phone'); if(ph) ph.value='';
+  var vc=$('co-vcode'); if(vc) vc.value='';
+  var btn=$('co-gcash-btn');
+  if(btn){ btn.disabled=false; btn.innerHTML='<span class="g-icon"><span class="g-letter">G</span></span> Pay with GCash'; }
+  if(isIOSCNA()) show('co-cna');
+  /* load pay options if not loaded */
+  if(S.payOpts.length===0){
+    xhr('GET','/api/portal/payment-options',null,function(err,d){
+      if(!err&&d.ok){ S.payOpts=d.options||[]; S.optId=gcashId(); }
+    });
   } else {
-    _hide('cna-banner');
+    S.optId=gcashId();
   }
-
-  /* Clear previous errors */
-  _hide('pay-error');
-  _hide('voucher-error');
-  _setHtml('pay-error', '');
-
-  /* Clear inputs */
-  var phoneIn = document.getElementById('phone-input');
-  if (phoneIn) phoneIn.value = '';
-
-  setTimeout(function() { _showScreen('payment'); }, 80);
+  setTimeout(function(){ showView('v-checkout'); },60);
 }
 
-/* ── PAYMENT: GCash button ── */
+function gcashId() {
+  for(var i=0;i<S.payOpts.length;i++){
+    var o=S.payOpts[i];
+    if(/gcash/i.test(o.name)||/gcash/i.test(o.icon_key||'')) return o.id;
+  }
+  return null;
+}
+
+/* ── CHECKOUT: GCash pay ── */
 function onGcashPay() {
-  if (!_selectedPlan) { _showScreen('plans'); return; }
+  if(!S.plan){ showPlans(); return; }
+  var btn=$('co-gcash-btn');
+  hide('co-err');
 
-  var btn = document.getElementById('gcash-pay-btn');
-  _hide('pay-error');
-
-  /* If options not yet loaded, fetch them first */
-  if (_payOptions.length === 0) {
-    if (btn) { btn.disabled = true; btn.textContent = 'Loading...'; }
-    _loadPaymentOptions(function() {
-      if (btn) {
-        btn.disabled = false;
-        btn.innerHTML = '<span class="gcash-icon"><span class="gcash-icon-g">G</span></span> Pay with GCash';
-      }
-      onGcashPay(); /* retry once options loaded */
+  /* Ensure option loaded */
+  if(!S.optId) S.optId=gcashId();
+  if(!S.optId) {
+    /* retry load once */
+    if(btn){ btn.disabled=true; btn.textContent='Loading...'; }
+    xhr('GET','/api/portal/payment-options',null,function(err,d){
+      if(!err&&d.ok){ S.payOpts=d.options||[]; S.optId=gcashId(); }
+      if(btn){ btn.disabled=false; btn.innerHTML='<span class="g-icon"><span class="g-letter">G</span></span> Pay with GCash'; }
+      if(!S.optId){ show('co-err'); html('co-err','GCash is not available right now. Please try again.'); return; }
+      onGcashPay();
     });
     return;
   }
 
-  var optionId = _getGcashOptionId();
-  if (!optionId) {
-    _show('pay-error');
-    _setHtml('pay-error', 'GCash is not available right now. Please try again later.');
-    return;
-  }
+  if(btn){ btn.disabled=true; btn.textContent='Processing...'; }
 
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = 'Processing...';
-  }
+  var phone='';
+  var ph=$('co-phone'); if(ph) phone=ph.value.trim();
 
-  var phone = '';
-  var phoneEl = document.getElementById('phone-input');
-  if (phoneEl) phone = phoneEl.value.trim();
+  var body={plan_id:S.plan.id, option_id:S.optId};
+  if(phone) body.phone=phone;
 
-  var body = { plan_id: _selectedPlan.id, option_id: optionId };
-  if (phone) body.phone = phone;
-
-  _xhr('POST', '/api/portal/payment/create', body, function(err, data) {
-    if (btn) {
-      btn.disabled = false;
-      btn.innerHTML = '<span class="gcash-icon"><span class="gcash-icon-g">G</span></span> Pay with GCash';
-    }
-
-    if (err || !data.ok) {
-      _show('pay-error');
-      _setHtml('pay-error', err || (data.error || 'Payment could not be started. Please try again.'));
+  xhr('POST','/api/portal/payment/create',body,function(err,d){
+    if(btn){ btn.disabled=false; btn.innerHTML='<span class="g-icon"><span class="g-letter">G</span></span> Pay with GCash'; }
+    if(err||!d.ok){
+      show('co-err');
+      html('co-err', err||(d.error||'Payment could not be started. Please try again.'));
       return;
     }
-
-    _pendingId   = data.payment_id || data.id || null;
-    _checkoutUrl = data.checkout_url || null;
-    _deeplinkUrl = data.deeplink_url || null;
-
-    _showPending();
+    S.pendingId = d.payment_id||d.id||null;
+    S.checkout  = d.checkout_url||null;
+    S.deeplink  = d.deeplink_url||null;
+    showPending();
   });
 }
 
-/* ── PENDING screen ── */
-function _showPending() {
-  _setText('pending-title', 'Waiting for Payment');
-  _setText('pending-status', 'Checking payment status...');
-  _hide('pending-deeplink-wrap');
-  _hide('pending-cna-wrap');
-
-  if (_isIOSCNA()) {
-    /* iOS CNA: show safari breakout */
-    if (_checkoutUrl) {
-      _show('pending-cna-wrap');
-      var saLink = document.getElementById('pending-safari-link');
-      if (saLink) saLink.href = _checkoutUrl;
-    }
-  } else if (_isAndroid()) {
-    /* Android: try gcash:// direct deep link */
-    var navUrl = (_deeplinkUrl) ? _deeplinkUrl : _checkoutUrl;
-    if (navUrl) {
-      _openUrl(navUrl);
-    }
-    /* Show manual open button after short delay */
-    setTimeout(function() {
-      if (_deeplinkUrl || _checkoutUrl) {
-        var deepLink = document.getElementById('pending-gcash-link');
-        if (deepLink) {
-          deepLink.href = _deeplinkUrl || _checkoutUrl;
-          deepLink.textContent = _deeplinkUrl ? 'Open GCash App' : 'Open Payment Page';
-        }
-        _show('pending-deeplink-wrap');
-      }
-    }, 2500);
-  } else {
-    /* Desktop or unknown: open in new tab */
-    if (_checkoutUrl) _openUrl(_checkoutUrl);
-  }
-
-  _showScreen('pending');
-  _startPoll();
-}
-
-function _openUrl(url) {
-  try { window.location.href = url; } catch(e) {}
-}
-
-/* ── POLL payment status ── */
-function _startPoll() {
-  _stopPoll();
-  _pollCount = 0;
-  _pollTimer = setInterval(_doPoll, 3000);
-  _doPoll(); /* immediate first check */
-}
-
-function _stopPoll() {
-  if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
-}
-
-function _doPoll() {
-  if (!_pendingId) { _stopPoll(); return; }
-  _pollCount++;
-  if (_pollCount > _pollMax) {
-    _stopPoll();
-    _setText('pending-status', 'Payment check timed out. If you paid, please wait a moment and refresh.');
-    return;
-  }
-
-  _xhr('GET', '/api/portal/payment/status/' + _pendingId, null, function(err, data) {
-    if (err) {
-      _setText('pending-status', 'Checking... (' + _pollCount + ')');
-      return;
-    }
-
-    var status = data.status || '';
-
-    if (status === 'paid' || status === 'success' || status === 'active') {
-      _stopPoll();
-      _showSuccess(data);
-      return;
-    }
-
-    if (status === 'failed' || status === 'cancelled' || status === 'expired') {
-      _stopPoll();
-      _setHtml('error-title', 'Payment ' + (status === 'failed' ? 'Failed' : (status === 'cancelled' ? 'Cancelled' : 'Expired')));
-      _setHtml('error-body', 'Your payment was not completed. Please try again.');
-      _showScreen('error');
-      return;
-    }
-
-    /* pending/processing — keep polling */
-    _setText('pending-status', 'Waiting for GCash confirmation... (' + _pollCount + ')');
-  });
-}
-
-/* ── SUCCESS screen ── */
-function _showSuccess(data) {
-  _setText('success-title', 'Payment Successful!');
-  _setText('success-subtitle', 'You are now connected to PayWifi.');
-
-  var voucher = data.voucher_code || data.voucher || null;
-  if (voucher) {
-    _show('success-voucher-wrap');
-    _setText('success-voucher-code', voucher);
-  } else {
-    _hide('success-voucher-wrap');
-  }
-
-  var planName = data.plan_name || (_selectedPlan ? _selectedPlan.name : '');
-  var dur      = data.duration_label || (_selectedPlan ? _selectedPlan.duration_label : '');
-
-  if (planName || dur) {
-    _setHtml('success-plan-banner', 'Internet access granted' + (dur ? ' for ' + _esc(dur) : '') + '!');
-  }
-
-  if (data.expires_at) {
-    var exp = new Date(data.expires_at);
-    _setText('success-expires', 'Expires: ' + exp.toLocaleString());
-  }
-
-  _showScreen('success');
-}
-
-/* ── Browse now ── */
-function onBrowseNow() {
-  window.location.href = 'http://google.com/';
-}
-
-/* ── Cancel payment ── */
-function onCancelPayment() {
-  _stopPoll();
-  if (_pendingId) {
-    _xhr('POST', '/api/portal/payment/cancel', { id: _pendingId }, function() {});
-  }
-  _pendingId   = null;
-  _checkoutUrl = null;
-  _deeplinkUrl = null;
-  showPlans();
-}
-
-/* ── Voucher redeem (from payment screen) ── */
-function onRedeemVoucherFromPay() {
-  var el = document.getElementById('voucher-input-pay');
+/* ── CHECKOUT: redeem voucher ── */
+function onRedeemFromCheckout() {
+  var el=$('co-vcode');
   var code = el ? el.value.trim().toUpperCase() : '';
-  if (!code) return;
-  _redeemVoucher(code, 'pay-error');
-}
-
-/* ── Voucher redeem (main voucher screen) ── */
-function onRedeemVoucherMain() {
-  var el = document.getElementById('voucher-input-main');
-  var code = el ? el.value.trim().toUpperCase() : '';
-  if (!code) return;
-  _redeemVoucher(code, 'voucher-error');
-}
-
-function _redeemVoucher(code, errorElId) {
-  _hide(errorElId);
-  _showLoading();
-  _xhr('POST', '/api/auth/voucher', { code: code }, function(err, data) {
-    _hideLoading();
-    if (err || !data.ok) {
-      _show(errorElId);
-      _setHtml(errorElId, err || (data.error || "We couldn't verify your voucher. Please check the code and try again."));
+  hide('co-verr');
+  if(!code){ show('co-verr'); html('co-verr','Please enter your voucher code.'); return; }
+  loading(true);
+  xhr('POST','/api/auth/voucher',{code:code},function(err,d){
+    loading(false);
+    if(err||!d.ok){
+      show('co-verr');
+      html('co-verr', err||(d.error||"We couldn’t verify your voucher. Please check the code and try again."));
       return;
     }
-    /* Success */
-    _showSuccess({ voucher_code: code, plan_name: data.plan_name, duration_label: data.duration_label, expires_at: data.expires_at });
+    showSuccess({voucher_code:code,plan_name:d.plan_name,duration_label:d.duration_label,expires_at:d.expires_at});
   });
 }
 
-/* ── Escape HTML ── */
-function _esc(str) {
-  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+/* ── PENDING ── */
+function showPending() {
+  text('pd-title','Waiting for Payment');
+  text('pd-status','Checking payment status...');
+  text('pd-hdr-sub','Waiting for Payment');
+  hide('pd-deep'); hide('pd-cna');
+
+  if(isIOSCNA()){
+    if(S.checkout){
+      show('pd-cna');
+      var sl=$('pd-safari-link'); if(sl) sl.href=S.checkout;
+    }
+  } else {
+    var url = S.deeplink||S.checkout;
+    if(url) { try{ window.location.href=url; }catch(e){} }
+    /* show manual open button after delay */
+    if(url){
+      setTimeout(function(){
+        var gl=$('pd-gcash-link');
+        if(gl){ gl.href=url; gl.textContent=S.deeplink?'Open GCash App':'Open Payment Page'; }
+        show('pd-deep');
+      }, 2500);
+    }
+  }
+
+  showView('v-pending');
+  startPoll();
 }
 
-/* ── Handle return from GCash/Xendit (URL params) ── */
-function _handleReturnParams() {
-  var search = window.location.search || '';
-  if (!search) return false;
+/* ── POLL ── */
+function startPoll() {
+  stopPoll();
+  S.pollN=0;
+  doPoll();
+  S.pollTimer=setInterval(doPoll,3000);
+}
 
-  /* Parse query string without URLSearchParams (ES5) */
-  var params = {};
-  var parts = search.replace(/^\?/, '').split('&');
-  for (var i = 0; i < parts.length; i++) {
-    var kv = parts[i].split('=');
-    params[decodeURIComponent(kv[0])] = kv[1] ? decodeURIComponent(kv[1]) : '';
-  }
+function stopPoll() {
+  if(S.pollTimer){ clearInterval(S.pollTimer); S.pollTimer=null; }
+}
 
-  var ret    = params['return'] || '';
-  var pid    = params['pid'] || params['id'] || '';
-  var status = params['status'] || '';
-
-  if (ret !== 'xendit' && ret !== 'gcash' && !pid) return false;
-
-  /* Clear params from URL */
-  try { window.history.replaceState({}, '', '/'); } catch(e) {}
-
-  if (status === 'success' || status === 'paid') {
-    /* Payment completed — poll once to get voucher, then show success */
-    if (pid) {
-      _pendingId = pid;
-      _showScreen('pending');
-      _setText('pending-title', 'Confirming Payment...');
-      _setText('pending-status', 'Almost done — verifying with GCash...');
-      _startPoll();
-    } else {
-      _showSuccess({});
+function doPoll() {
+  if(!S.pendingId){ stopPoll(); return; }
+  S.pollN++;
+  if(S.pollN>120){ stopPoll(); text('pd-status','Check timed out. If you paid, please wait and refresh.'); return; }
+  xhr('GET','/api/portal/payment/status/'+S.pendingId,null,function(err,d){
+    if(err){ text('pd-status','Checking... ('+S.pollN+')'); return; }
+    var st=d.status||'';
+    if(st==='paid'||st==='success'||st==='active'){ stopPoll(); showSuccess(d); return; }
+    if(st==='failed'||st==='cancelled'||st==='expired'){
+      stopPoll();
+      text('er-title','Payment '+(st==='failed'?'Failed':(st==='cancelled'?'Cancelled':'Expired')));
+      text('er-body','Your GCash payment was not completed. Please try again.');
+      showView('v-error');
+      return;
     }
+    text('pd-status','Waiting for GCash confirmation... ('+S.pollN+')');
+  });
+}
+
+/* ── SUCCESS ── */
+function showSuccess(d) {
+  text('sc-title','You are connected!');
+  text('sc-sub','Internet access has been granted.');
+  var code=d.voucher_code||d.voucher||null;
+  if(code){ show('sc-vbox'); text('sc-code',code); } else { hide('sc-vbox'); }
+  var dur=d.duration_label||(S.plan?S.plan.duration_label:'');
+  html('sc-banner','Internet access granted'+(dur?' for '+esc(dur):'')+' — enjoy!');
+  if(d.expires_at){ var x=new Date(d.expires_at*1000||d.expires_at); text('sc-exp','Expires: '+x.toLocaleString()); }
+  showView('v-success');
+}
+
+/* ── Cancel ── */
+function onCancel() {
+  stopPoll();
+  if(S.pendingId) xhr('POST','/api/portal/payment/cancel',{id:S.pendingId},function(){});
+  S.pendingId=null; S.checkout=null; S.deeplink=null;
+  showHome();
+}
+
+/* ── Browse ── */
+function onBrowse() { window.location.href='http://google.com/'; }
+
+/* ── Handle return from GCash (URL params) ── */
+function handleReturn() {
+  var s=window.location.search||'';
+  if(!s) return false;
+  var params={};
+  var parts=s.replace(/^\?/,'').split('&');
+  for(var i=0;i<parts.length;i++){
+    var kv=parts[i].split('=');
+    params[decodeURIComponent(kv[0])]=kv[1]?decodeURIComponent(kv[1]):'';
+  }
+  var ret=params['return']||'',pid=params['pid']||params['id']||'',st=params['status']||'';
+  if(ret!=='xendit'&&ret!=='gcash'&&!pid) return false;
+  try{ window.history.replaceState({},'','/'); }catch(e){}
+  if(st==='success'||st==='paid'){
+    if(pid){ S.pendingId=pid; text('pd-title','Confirming Payment...'); text('pd-status','Verifying with GCash...'); showView('v-pending'); startPoll(); }
+    else    showSuccess({});
     return true;
   }
-
-  if (status === 'failed' || status === 'cancelled') {
-    _showScreen('error');
-    _setHtml('error-title', 'Payment ' + (status === 'failed' ? 'Failed' : 'Cancelled'));
-    _setHtml('error-body', 'Your GCash payment was not completed. Please try again.');
+  if(st==='failed'||st==='cancelled'){
+    text('er-title','Payment '+(st==='failed'?'Failed':'Cancelled'));
+    text('er-body','Your GCash payment was not completed. Please try again.');
+    showView('v-error');
     return true;
   }
-
-  /* Status unknown — if we have a pid, start polling */
-  if (pid) {
-    _pendingId = pid;
-    _showScreen('pending');
-    _startPoll();
-    return true;
-  }
-
+  if(pid){ S.pendingId=pid; showView('v-pending'); startPoll(); return true; }
   return false;
 }
 
-/* ── Load payment options — blocks GCash button until ready ── */
-function _loadPaymentOptions(cb) {
-  _xhr('GET', '/api/portal/payment-options', null, function(err, data) {
-    if (!err && data.ok) {
-      _payOptions = data.options || [];
-    }
-    if (cb) cb();
-  });
-}
+/* ── INIT ── */
+(function init(){
+  if(handleReturn()){ loading(false); return; }
 
-/* ── Get GCash option ID (must load options first) ── */
-function _getGcashOptionId() {
-  for (var i = 0; i < _payOptions.length; i++) {
-    var o = _payOptions[i];
-    if (/gcash/i.test(o.name) || /gcash/i.test(o.icon_key || '')) {
-      return o.id;
+  /* Load plans + options in parallel, show home immediately */
+  var plansLoaded=false, optsLoaded=false;
+  function onBoth(){
+    if(!plansLoaded||!optsLoaded) return;
+    loading(false);
+    if(S.plans.length>0) text('h-plans-from','Plans from '+price(S.plans[0].price));
+    showView('v-home');
+    var c=$('h-code'); if(c) c.focus();
+  }
+
+  xhr('GET','/api/portal/plans',null,function(err,d){
+    plansLoaded=true;
+    if(!err&&d.ok){ S.plans=d.plans||[]; }
+    onBoth();
+  });
+  xhr('GET','/api/portal/payment-options',null,function(err,d){
+    optsLoaded=true;
+    if(!err&&d.ok){ S.payOpts=d.options||[]; S.optId=gcashId(); }
+    onBoth();
+  });
+})();
+</script>
+</body>
+</html>
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  
